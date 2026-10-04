@@ -1,371 +1,643 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FinTech API Governance & Documentation Portal — Interactive Prototype</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg-base: #0a0d14;
-      --bg-surface: #111622;
-      --bg-card: #161d2d;
-      --border: #222d42;
-      --accent-cyan: #00d2ff;
-      --accent-green: #00f59b;
-      --accent-purple: #7928ca;
-      --accent-red: #ff3366;
-      --text-main: #f0f4fc;
-      --text-muted: #8a99b5;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Cairo', sans-serif; }
-    body { background-color: var(--bg-base); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; }
-    .mono { font-family: 'JetBrains Mono', monospace; direction: ltr; }
+  <title>منظومة حوكمة وتوثيق الـ APIs — FinTech API Governance</title>
+  
+  <!-- Google Fonts: Cairo (Arabic) & Outfit (Latin/Numbers) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome 6.5.1 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
-    /* Header */
+  <style>
+    /* ==========================================================================
+       FinTech API Governance - Visual Identity & Design System
+       Exact Implementation of VISUAL_IDENTITY_SYSTEM.md
+       ========================================================================== */
+    :root {
+      /* الكانفاس والطبقات (Dark Base - Maximum Clarity) */
+      --bg-main: #1a2d45;
+      --bg-secondary: #243d5c;
+      --bg-card: #2b4870;
+      --bg-card-hover: #345882;
+      --bg-input: #1c3250;
+
+      /* الحدود والزجاج الكريستالي */
+      --border-glass: rgba(255, 255, 255, 0.28);
+      --border-subtle: rgba(255, 255, 255, 0.18);
+      --border-accent: rgba(99, 102, 241, 0.85);
+      --border-glow: rgba(99, 102, 241, 0.60);
+
+      /* ألوان الهوية الأساسية */
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --primary-glow: rgba(99, 102, 241, 0.40);
+      --primary-gradient: linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #06b6d4 100%);
+      --btn-gradient: linear-gradient(135deg, #4338ca 0%, #6366f1 100%);
+
+      /* ألوان التمييز والحالات الوظيفية */
+      --accent-cyan: #38bdf8;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --accent-purple: #a855f7;
+
+      /* ألوان النصوص والتباين */
+      --text-main: #ffffff;
+      --text-muted: #e2e8f0;
+      --text-dim: #b8c8d8;
+
+      /* الاستدارة والانحناءات */
+      --radius-xs: 6px;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 18px;
+      --radius-xl: 24px;
+      --radius-pill: 9999px;
+
+      /* الظلال والعمق ثلاثي الأبعاد */
+      --shadow-subtle: 0 2px 8px rgba(0, 0, 0, 0.30);
+      --shadow-soft: 0 10px 30px -5px rgba(0, 0, 0, 0.50), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+      --shadow-card: 0 16px 44px -8px rgba(0, 0, 0, 0.60), inset 0 1px 0 rgba(255, 255, 255, 0.26), 0 0 0 1px rgba(255, 255, 255, 0.12);
+      --shadow-glow: 0 0 25px rgba(99, 102, 241, 0.40);
+      --shadow-glow-emerald: 0 0 20px rgba(16, 185, 129, 0.35);
+
+      /* فيزياء الحركة */
+      --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-smooth: 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+      --transition-spring: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    /* دعم الوضع الفاتح (Light Mode Support) */
+    [data-theme="light"] {
+      --bg-main: #f8fafc;
+      --bg-secondary: #ffffff;
+      --bg-card: #ffffff;
+      --bg-card-hover: #f1f5f9;
+      --bg-input: #ffffff;
+
+      --border-glass: rgba(0, 0, 0, 0.08);
+      --border-subtle: rgba(0, 0, 0, 0.05);
+      --border-accent: rgba(94, 106, 210, 0.45);
+
+      --primary: #5e6ad2;
+      --primary-hover: #4f5bbf;
+      --primary-glow: rgba(94, 106, 210, 0.12);
+      --primary-gradient: linear-gradient(135deg, #4f5bbf 0%, #5e6ad2 50%, #0284c7 100%);
+      --btn-gradient: linear-gradient(135deg, #4338ca 0%, #5e6ad2 100%);
+
+      --accent-cyan: #0284c7;
+      --accent-emerald: #059669;
+      --accent-amber: #d97706;
+      --accent-rose: #e11d48;
+      --accent-purple: #7c3aed;
+
+      --text-main: #09090b;
+      --text-muted: #52525b;
+      --text-dim: #71717a;
+
+      --shadow-soft: 0 4px 20px -2px rgba(0, 0, 0, 0.06);
+      --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.08);
+      --shadow-glow: 0 0 16px rgba(94, 106, 210, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    .outfit { font-family: 'Outfit', sans-serif; }
+    .mono { font-family: 'JetBrains Mono', 'Outfit', monospace; direction: ltr; display: inline-block; }
+
+    /* فقاعات الإضاءة المحيطية الغامرة (Ambient Glows) */
+    .ambient-glow {
+      position: fixed;
+      width: 540px;
+      height: 540px;
+      border-radius: 50%;
+      filter: blur(150px);
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.20;
+    }
+    .glow-top {
+      top: -160px;
+      right: -100px;
+      background: radial-gradient(circle, var(--primary), transparent);
+    }
+    .glow-bottom {
+      bottom: -160px;
+      left: -100px;
+      background: radial-gradient(circle, var(--accent-cyan), transparent);
+    }
+    [data-theme="light"] .ambient-glow { opacity: 0.06; }
+
+    /* شريط التمرير الأنيق */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: var(--radius-pill); }
+    ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+    /* الهيدر العلوي بنمط الزجاج العصري */
     header {
-      background: rgba(17, 22, 34, 0.85);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border);
-      padding: 1rem 2rem;
+      background: var(--bg-secondary);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border-glass);
+      padding: 0.9rem 2rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
       position: sticky;
       top: 0;
       z-index: 100;
+      box-shadow: var(--shadow-subtle);
     }
-    .brand { display: flex; align-items: center; gap: 0.75rem; }
-    .brand-icon {
-      width: 40px; height: 40px; border-radius: 10px;
-      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-green));
-      display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 0 20px rgba(0, 245, 155, 0.3);
-      font-size: 1.25rem;
-    }
-    .brand-text h1 { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.5px; }
-    .brand-text p { font-size: 0.75rem; color: var(--accent-cyan); }
 
-    /* Navigation Tabs */
+    .brand { display: flex; align-items: center; gap: 0.85rem; }
+    .brand-icon {
+      width: 44px; height: 44px; border-radius: var(--radius-md);
+      background: var(--primary-gradient);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: var(--shadow-glow);
+      font-size: 1.3rem;
+      color: #fff;
+    }
+    .brand-text h1 { font-size: 1.25rem; font-weight: 800; line-height: 1.2; }
+    .brand-text p { font-size: 0.78rem; color: var(--text-dim); font-weight: 600; }
+
+    /* التبويبات الرئيسية للشاشات الأربع */
     .tabs-nav {
       display: flex;
-      gap: 0.5rem;
-      background: var(--bg-surface);
-      padding: 0.4rem;
-      border-radius: 12px;
-      border: 1px solid var(--border);
+      gap: 0.4rem;
+      background: var(--bg-input);
+      padding: 0.35rem;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
     }
+
     .tab-btn {
       background: transparent;
       border: none;
       color: var(--text-muted);
-      padding: 0.5rem 1.25rem;
-      border-radius: 8px;
-      font-size: 0.9rem;
-      font-weight: 600;
+      padding: 0.55rem 1.25rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.92rem;
+      font-weight: 700;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: var(--transition-fast);
       display: flex;
       align-items: center;
       gap: 0.5rem;
     }
-    .tab-btn:hover { color: var(--text-main); background: rgba(255, 255, 255, 0.05); }
+    .tab-btn:hover { color: var(--text-main); background: var(--bg-card-hover); }
     .tab-btn.active {
-      background: linear-gradient(135deg, rgba(0, 210, 255, 0.15), rgba(0, 245, 155, 0.15));
-      color: var(--accent-green);
-      border: 1px solid rgba(0, 245, 155, 0.3);
-      box-shadow: 0 0 15px rgba(0, 245, 155, 0.15);
+      background: var(--btn-gradient);
+      color: #ffffff;
+      box-shadow: var(--shadow-glow);
     }
 
-    /* Main Container */
-    main { flex: 1; padding: 2rem; max-width: 1400px; margin: 0 auto; width: 100%; }
-    .tab-content { display: none; animation: fadeIn 0.3s ease; }
+    /* أدوات التحكم العلوية وتبديل الثيم */
+    .header-actions { display: flex; align-items: center; gap: 0.75rem; }
+    .icon-btn {
+      width: 42px; height: 42px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-card);
+      border: 1px solid var(--border-glass);
+      color: var(--text-muted);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: var(--transition-fast);
+      box-shadow: var(--shadow-subtle);
+    }
+    .icon-btn:hover {
+      color: var(--text-main);
+      border-color: var(--primary);
+      transform: translateY(-2px);
+    }
+
+    /* مساحة المحتوى */
+    main {
+      flex: 1;
+      padding: 2.25rem;
+      max-width: 1400px;
+      margin: 0 auto;
+      width: 100%;
+      position: relative;
+      z-index: 1;
+    }
+
+    .tab-content { display: none; animation: fadeIn var(--transition-smooth); }
     .tab-content.active { display: block; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
-    /* Cards & Grids */
-    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
-    .card {
+    /* بطاقات الزجاج (Glass Cards) */
+    .glass-card {
       background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 1.5rem;
-      transition: all 0.3s ease;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-lg);
+      padding: 1.75rem;
+      box-shadow: var(--shadow-soft);
+      transition: var(--transition-smooth);
       position: relative;
-      overflow: hidden;
     }
-    .card:hover {
-      border-color: rgba(0, 245, 155, 0.4);
+    .glass-card:hover {
+      border-color: var(--border-accent);
       transform: translateY(-2px);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      box-shadow: var(--shadow-card);
     }
+
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(460px, 1fr)); gap: 1.75rem; margin-top: 1.5rem; }
+
+    /* نظام الأزرار */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      font-size: 0.95rem;
+      font-weight: 700;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: var(--transition-smooth);
+      text-decoration: none;
+      border: none;
+      padding: 0.65rem 1.4rem;
+    }
+    .btn-primary {
+      background: var(--btn-gradient);
+      color: #ffffff;
+      box-shadow: var(--shadow-glow);
+      border: 1px solid rgba(255, 255, 255, 0.20);
+    }
+    .btn-primary:hover {
+      filter: brightness(1.12);
+      transform: translateY(-2px);
+    }
+    .btn-outline {
+      background: var(--bg-input);
+      border: 1px solid var(--border-glass);
+      color: var(--text-main);
+    }
+    .btn-outline:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--primary);
+    }
+
+    /* الشارات والوسوم (Badges) */
     .badge {
       display: inline-flex;
       align-items: center;
-      gap: 0.35rem;
-      padding: 0.25rem 0.75rem;
-      border-radius: 9999px;
+      gap: 0.4rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: var(--radius-pill);
       font-size: 0.75rem;
+      font-weight: 800;
+      font-family: 'Outfit', sans-serif;
+    }
+    .badge-sealed {
+      background: rgba(16, 185, 129, 0.16);
+      color: var(--accent-emerald);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      box-shadow: var(--shadow-glow-emerald);
+    }
+    .badge-draft {
+      background: rgba(245, 158, 11, 0.16);
+      color: var(--accent-amber);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+    .badge-post {
+      background: rgba(99, 102, 241, 0.18);
+      color: var(--primary);
+      border: 1px solid var(--primary);
+      font-weight: 900;
+    }
+    .badge-get {
+      background: rgba(56, 189, 248, 0.18);
+      color: var(--accent-cyan);
+      border: 1px solid var(--accent-cyan);
+      font-weight: 900;
+    }
+
+    /* الجداول */
+    .spec-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+      text-align: right;
+    }
+    .spec-table th {
+      background: var(--bg-input);
+      padding: 0.85rem 1.15rem;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border-subtle);
       font-weight: 700;
     }
-    .badge-sealed { background: rgba(0, 245, 155, 0.12); color: var(--accent-green); border: 1px solid rgba(0, 245, 155, 0.3); }
-    .badge-draft { background: rgba(255, 193, 7, 0.12); color: #ffc107; border: 1px solid rgba(255, 193, 7, 0.3); }
-    .badge-method-post { background: rgba(0, 210, 255, 0.15); color: var(--accent-cyan); border: 1px solid var(--accent-cyan); font-weight: 800; }
-    .badge-method-get { background: rgba(0, 245, 155, 0.15); color: var(--accent-green); border: 1px solid var(--accent-green); font-weight: 800; }
+    .spec-table td {
+      padding: 1rem 1.15rem;
+      font-size: 0.9rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    /* Diff View */
+    .diff-container { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-top: 1.25rem; }
+    .diff-pane { background: var(--bg-input); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 1.25rem; }
+    .diff-line { padding: 0.4rem 0.6rem; border-radius: var(--radius-xs); font-size: 0.85rem; font-family: monospace; }
+    .diff-line.del { background: rgba(244, 63, 94, 0.18); color: #fda4af; text-decoration: line-through; }
+    .diff-line.add { background: rgba(16, 185, 129, 0.18); color: #6ee7b7; font-weight: 700; }
 
     /* Vault Box */
-    .vault-hero {
-      background: radial-gradient(circle at 50% 0%, rgba(0, 245, 155, 0.08), transparent 70%), var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 2.5rem;
+    .vault-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-xl);
+      padding: 3rem 2rem;
       text-align: center;
+      box-shadow: var(--shadow-card);
       position: relative;
     }
     .vault-seal {
-      width: 80px; height: 80px; margin: 0 auto 1.5rem;
-      background: linear-gradient(135deg, rgba(0, 245, 155, 0.2), rgba(0, 210, 255, 0.2));
-      border: 2px solid var(--accent-green);
+      width: 84px; height: 84px; margin: 0 auto 1.5rem;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.25), transparent);
+      border: 2px solid var(--primary);
       border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
       font-size: 2.5rem;
-      box-shadow: 0 0 30px rgba(0, 245, 155, 0.3);
+      color: var(--primary);
+      box-shadow: var(--shadow-glow);
     }
-    .btn {
-      padding: 0.75rem 1.75rem;
-      border-radius: 10px;
-      font-weight: 700;
-      font-size: 0.95rem;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      transition: all 0.2s ease;
-      border: none;
-      text-decoration: none;
-    }
-    .btn-primary {
-      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-green));
-      color: #050811;
-      box-shadow: 0 4px 20px rgba(0, 245, 155, 0.3);
-    }
-    .btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
-    .btn-outline {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text-main);
-    }
-    .btn-outline:hover { background: rgba(255,255,255,0.05); border-color: var(--text-muted); }
-
-    /* Diff Viewer */
-    .diff-container { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
-    .diff-pane { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
-    .diff-line { padding: 0.35rem 0.5rem; border-radius: 4px; font-size: 0.85rem; font-family: monospace; }
-    .diff-line.del { background: rgba(255, 51, 102, 0.15); color: #ff6b8b; text-decoration: line-through; }
-    .diff-line.add { background: rgba(0, 245, 155, 0.15); color: var(--accent-green); }
   </style>
 </head>
 <body>
 
+  <!-- فقاعات الإضاءة المحيطية الخلفية -->
+  <div class="ambient-glow glow-top"></div>
+  <div class="ambient-glow glow-bottom"></div>
+
   <!-- Header -->
   <header>
     <div class="brand">
-      <div class="brand-icon">⚡</div>
+      <div class="brand-icon">
+        <i class="fa-solid fa-shield-halved"></i>
+      </div>
       <div class="brand-text">
         <h1>منظومة حوكمة وتوثيق الـ APIs</h1>
-        <p>National FinTech Governance Portal</p>
+        <p class="outfit">National FinTech API Governance Ecosystem</p>
       </div>
     </div>
 
-    <!-- Navigation Tabs -->
+    <!-- Navigation Tabs للشاشات الأربع الأساسية -->
     <nav class="tabs-nav">
-      <button class="tab-btn active" onclick="switchTab('catalog')">📚 كتالوج الـ APIs</button>
-      <button class="tab-btn" onclick="switchTab('explorer')">🔍 مستعرض المواصفة</button>
-      <button class="tab-btn" onclick="switchTab('diff')">⚖️ محرك الفروقات (Diff)</button>
-      <button class="tab-btn" onclick="switchTab('vault')">🔐 بوابة الختم الرقمي</button>
+      <button class="tab-btn active" onclick="switchTab('catalog')">
+        <i class="fa-solid fa-layer-group"></i> كتالوج المواصفات
+      </button>
+      <button class="tab-btn" onclick="switchTab('explorer')">
+        <i class="fa-solid fa-code"></i> مستعرض المواصفة
+      </button>
+      <button class="tab-btn" onclick="switchTab('diff')">
+        <i class="fa-solid fa-code-compare"></i> فحص الفروقات (Diff)
+      </button>
+      <button class="tab-btn" onclick="switchTab('vault')">
+        <i class="fa-solid fa-fingerprint"></i> أختام الأمان (CSO Vault)
+      </button>
     </nav>
 
-    <div>
-      <span class="badge badge-sealed">🟢 النظام متصل ومؤمن</span>
+    <div class="header-actions">
+      <!-- Dark / Light Theme Toggle -->
+      <button class="icon-btn" onclick="toggleTheme()" title="تبديل الثيم الداكن / الفاتح">
+        <i id="theme-icon" class="fa-solid fa-moon"></i>
+      </button>
+      <span class="badge badge-sealed">
+        <i class="fa-solid fa-circle-check"></i> النظام مؤمن وموثق
+      </span>
     </div>
   </header>
 
   <!-- Main Content -->
   <main>
 
-    <!-- TAB 1: API CATALOG -->
+    <!-- 1. شاشة كتالوج الـ APIs -->
     <section id="tab-catalog" class="tab-content active">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
         <div>
           <h2>كتالوج مواصفات الـ APIs المالية</h2>
-          <p style="color: var(--text-muted);">تصفح جميع المواصفات المعتمدة والمسودات قيد المراجعة</p>
+          <p style="color: var(--text-dim); font-size: 0.95rem;">استعراض ومتابعة دورة حياة المواصفات المصرفية المعتمدة والمسودات قيد المراجعة</p>
         </div>
-        <button class="btn btn-primary" onclick="alert('فتح معالج إنشاء مسودة مواصفة جديدة')">+ إنشاء مسودة جديدة</button>
+        <button class="btn btn-primary" onclick="alert('فتح معالج إنشاء مسودة مواصفة جديدة')">
+          <i class="fa-solid fa-plus"></i> إنشاء مسودة مواصفة
+        </button>
       </div>
 
       <div class="grid-2">
-        <!-- Card 1 -->
-        <div class="card">
+        <!-- بطاقة IPS -->
+        <div class="glass-card">
           <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:1rem;">
             <div>
-              <span class="badge badge-sealed" style="margin-bottom:0.5rem;">🔒 مختومة ومعتمدة (SEALED)</span>
+              <span class="badge badge-sealed" style="margin-bottom:0.6rem;">
+                <i class="fa-solid fa-lock"></i> مختومة ومعتمدة (SEALED)
+              </span>
               <h3>National Instant Payment Switch (IPS)</h3>
-              <p class="mono" style="color:var(--accent-cyan); font-size:0.85rem;">INSTANT_PAYMENTS • v1.0.0</p>
+              <p class="mono" style="color:var(--primary); font-size:0.88rem; font-weight:700;">INSTANT_PAYMENTS • v1.0.0</p>
             </div>
-            <span style="font-size:1.75rem;">⚡</span>
+            <div style="width:48px; height:48px; border-radius:var(--radius-md); background:rgba(99,102,241,0.15); display:flex; align-items:center; justify-content:center; color:var(--primary); font-size:1.4rem;">
+              <i class="fa-solid fa-bolt"></i>
+            </div>
           </div>
-          <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.25rem;">
-            المواصفة الموحدة للتحويلات المالية الفورية اللحظية بين البنوك ومزودي خدمات الدفع.
+          
+          <p style="color:var(--text-muted); font-size:0.92rem; margin-bottom:1.5rem; line-height:1.6;">
+            المواصفة الموحدة للتحويلات المالية الفورية اللحظية بين البنوك ومزودي خدمات الدفع بالمملكة.
           </p>
-          <div style="background:var(--bg-surface); padding:0.75rem; border-radius:8px; margin-bottom:1.25rem; font-size:0.8rem; display:flex; justify-content:space-between;">
-            <div><strong>Endpoints:</strong> 2 مسار</div>
-            <div><strong>Rules:</strong> 2 شروط مصرفية</div>
-            <div><strong>التشفير:</strong> RSA-PSS-4096</div>
+          
+          <div style="background:var(--bg-input); border:1px solid var(--border-glass); padding:0.85rem 1.15rem; border-radius:var(--radius-md); margin-bottom:1.5rem; font-size:0.85rem; display:flex; justify-content:space-between;">
+            <div><strong>المسارات:</strong> <span class="outfit" style="color:var(--accent-cyan); font-weight:700;">2 Endpoints</span></div>
+            <div><strong>القواعد:</strong> <span class="outfit" style="color:var(--accent-emerald); font-weight:700;">2 Rules</span></div>
+            <div><strong>التشفير:</strong> <span class="outfit">RSA-PSS-4096</span></div>
           </div>
-          <div style="display:flex; gap:0.5rem;">
-            <button class="btn btn-outline" style="flex:1;" onclick="switchTab('explorer')">📖 استعراض المواصفة</button>
-            <button class="btn btn-primary" style="flex:1;" onclick="switchTab('vault')">🔐 غرفة الختم</button>
+
+          <div style="display:flex; gap:0.75rem;">
+            <button class="btn btn-outline" style="flex:1;" onclick="switchTab('explorer')">
+              <i class="fa-solid fa-book-open"></i> استعراض المواصفة
+            </button>
+            <button class="btn btn-primary" style="flex:1;" onclick="switchTab('vault')">
+              <i class="fa-solid fa-vault"></i> غرفة الختم
+            </button>
           </div>
         </div>
 
-        <!-- Card 2 -->
-        <div class="card" style="opacity: 0.9;">
+        <!-- بطاقة Card Gateway -->
+        <div class="glass-card">
           <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:1rem;">
             <div>
-              <span class="badge badge-draft" style="margin-bottom:0.5rem;">⏳ مسودة قيد التدقيق (DRAFT)</span>
+              <span class="badge badge-draft" style="margin-bottom:0.6rem;">
+                <i class="fa-solid fa-hourglass-half"></i> مسودة قيد التدقيق (DRAFT)
+              </span>
               <h3>Card Payment & Tokenization Gateway</h3>
-              <p class="mono" style="color:#ffc107; font-size:0.85rem;">CARD_GATEWAY • v1.1.0-draft</p>
+              <p class="mono" style="color:var(--accent-amber); font-size:0.88rem; font-weight:700;">CARD_GATEWAY • v1.1.0-draft</p>
             </div>
-            <span style="font-size:1.75rem;">💳</span>
+            <div style="width:48px; height:48px; border-radius:var(--radius-md); background:rgba(245,158,11,0.15); display:flex; align-items:center; justify-content:center; color:var(--accent-amber); font-size:1.4rem;">
+              <i class="fa-solid fa-credit-card"></i>
+            </div>
           </div>
-          <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.25rem;">
+          
+          <p style="color:var(--text-muted); font-size:0.92rem; margin-bottom:1.5rem; line-height:1.6;">
             بوابة المدفوعات لترميز البطاقات وعمليات المصادقة ثلاثية الأبعاد 3D-Secure 2.0.
           </p>
-          <div style="background:var(--bg-surface); padding:0.75rem; border-radius:8px; margin-bottom:1.25rem; font-size:0.8rem; display:flex; justify-content:space-between;">
-            <div><strong>Endpoints:</strong> 6 مسارات</div>
-            <div><strong>Rules:</strong> 4 شروط أمنية</div>
-            <div><strong>الحالة:</strong> في انتظار موافقة CSO</div>
+          
+          <div style="background:var(--bg-input); border:1px solid var(--border-glass); padding:0.85rem 1.15rem; border-radius:var(--radius-md); margin-bottom:1.5rem; font-size:0.85rem; display:flex; justify-content:space-between;">
+            <div><strong>المسارات:</strong> <span class="outfit">6 Endpoints</span></div>
+            <div><strong>القواعد:</strong> <span class="outfit">4 Rules</span></div>
+            <div><strong>الحالة:</strong> بانتظار CSO</div>
           </div>
-          <div style="display:flex; gap:0.5rem;">
-            <button class="btn btn-outline" style="flex:1;" onclick="switchTab('diff')">⚖️ فحص الفروقات</button>
+
+          <div style="display:flex; gap:0.75rem;">
+            <button class="btn btn-outline" style="flex:1;" onclick="switchTab('diff')">
+              <i class="fa-solid fa-code-compare"></i> فحص الفروقات
+            </button>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- TAB 2: SPEC EXPLORER -->
+    <!-- 2. شاشة مستعرض المواصفة التفاعلية -->
     <section id="tab-explorer" class="tab-content">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
         <div>
           <h2>مستعرض المواصفة التفصيلي: National Instant Payments</h2>
-          <p class="mono" style="color:var(--accent-cyan);">REL-INSTANT_PAYMENTS-2026-5871 • v1.0.0</p>
+          <p class="mono" style="color:var(--accent-cyan); font-weight:700;">REL-INSTANT_PAYMENTS-2026-5871 • v1.0.0</p>
         </div>
-        <button class="btn btn-outline" onclick="switchTab('catalog')">← العودة للكتالوج</button>
+        <button class="btn btn-outline" onclick="switchTab('catalog')">
+          <i class="fa-solid fa-arrow-right"></i> العودة للكتالوج
+        </button>
       </div>
 
-      <div style="display:grid; grid-template-columns: 280px 1fr; gap:1.5rem;">
-        <!-- Sidebar -->
-        <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:1rem;">
-          <h4 style="font-size:0.85rem; color:var(--text-muted); margin-bottom:0.75rem;">المسارات (Endpoints)</h4>
-          <div style="display:flex; flex-direction:column; gap:0.5rem;">
-            <div style="padding:0.6rem; background:rgba(0, 210, 255, 0.1); border:1px solid var(--accent-cyan); border-radius:6px; cursor:pointer;">
-              <span class="badge badge-method-post">POST</span> <span style="font-size:0.85rem;" class="mono">/v1/transfers</span>
+      <div style="display:grid; grid-template-columns: 290px 1fr; gap:1.75rem;">
+        <!-- القائمة الجانبية للمسارات والقواعد -->
+        <div class="glass-card" style="padding:1.25rem;">
+          <h4 style="font-size:0.85rem; color:var(--text-dim); margin-bottom:0.85rem;">المسارات (Endpoints)</h4>
+          <div style="display:flex; flex-direction:column; gap:0.6rem;">
+            <div style="padding:0.75rem 1rem; background:rgba(99,102,241,0.18); border:1px solid var(--primary); border-radius:var(--radius-md); cursor:pointer;">
+              <span class="badge badge-post">POST</span> <span style="font-size:0.85rem; font-weight:700;" class="mono">/v1/transfers</span>
             </div>
-            <div style="padding:0.6rem; background:var(--bg-surface); border-radius:6px; cursor:pointer;">
-              <span class="badge badge-method-get">GET</span> <span style="font-size:0.85rem;" class="mono">/v1/transfers/{id}</span>
+            <div style="padding:0.75rem 1rem; background:var(--bg-input); border:1px solid var(--border-glass); border-radius:var(--radius-md); cursor:pointer;">
+              <span class="badge badge-get">GET</span> <span style="font-size:0.85rem; font-weight:700;" class="mono">/v1/transfers/{id}</span>
             </div>
           </div>
 
-          <h4 style="font-size:0.85rem; color:var(--text-muted); margin:1.5rem 0 0.75rem;">قوانين العمل (Rules)</h4>
-          <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.6;">
-            <div>• BR_FIN_001 (حد الحوالة)</div>
-            <div>• BR_AML_002 (مكافحة غسيل الأموال)</div>
+          <h4 style="font-size:0.85rem; color:var(--text-dim); margin:1.75rem 0 0.85rem;">قوانين الحوكمة (Rules)</h4>
+          <div style="font-size:0.88rem; color:var(--text-muted); line-height:1.9;">
+            <div>• <strong class="outfit">BR_FIN_001</strong> (سقف الحوالة)</div>
+            <div>• <strong class="outfit">BR_AML_002</strong> (فحص مكافحة غسيل الأموال)</div>
           </div>
         </div>
 
-        <!-- Detail Content -->
-        <div class="card">
+        <!-- تفاصيل العملية المختارة -->
+        <div class="glass-card">
           <div style="display:flex; gap:0.75rem; align-items:center; margin-bottom:1rem;">
-            <span class="badge badge-method-post" style="font-size:1rem; padding:0.4rem 1rem;">POST</span>
-            <span class="mono" style="font-size:1.1rem; font-weight:700;">/v1/transfers</span>
+            <span class="badge badge-post" style="font-size:0.95rem; padding:0.4rem 1rem;">POST</span>
+            <span class="mono" style="font-size:1.2rem; font-weight:800;">/v1/transfers</span>
           </div>
-          <p style="color:var(--text-muted); margin-bottom:1.5rem;">تنفيذ عملية تحويل مالي لحظي بين حسابين بنكيين مع التحقق الفوري من الرصيد والحدود.</p>
+          <p style="color:var(--text-muted); margin-bottom:1.75rem; line-height:1.6;">
+            تنفيذ عملية تحويل مالي لحظي بين حسابين بنكيين مع التحقق الفوري من الرصيد والحدود المالية وقواعد مكافحة غسل الأموال.
+          </p>
 
-          <h3 style="font-size:1rem; margin-bottom:0.75rem;">مخطط البيانات المطلوب (TransferRequest Payload):</h3>
-          <div style="background:var(--bg-surface); border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:1.5rem;">
-            <table style="width:100%; text-align:right; border-collapse:collapse; font-size:0.85rem;">
-              <thead style="background:rgba(255,255,255,0.03); border-bottom:1px solid var(--border);">
+          <h3 style="font-size:1.05rem; margin-bottom:0.75rem;">مخطط البيانات المطلوب (TransferRequest Payload):</h3>
+          <div style="background:var(--bg-input); border:1px solid var(--border-glass); border-radius:var(--radius-md); overflow:hidden; margin-bottom:1.75rem;">
+            <table class="spec-table">
+              <thead>
                 <tr>
-                  <th style="padding:0.75rem 1rem;">اسم الحقل</th>
-                  <th style="padding:0.75rem 1rem;">النوع</th>
-                  <th style="padding:0.75rem 1rem;">إلزامي؟</th>
-                  <th style="padding:0.75rem 1rem;">الوصف</th>
+                  <th>اسم الحقل</th>
+                  <th>النوع</th>
+                  <th>إلزامي؟</th>
+                  <th>الوصف</th>
                 </tr>
               </thead>
               <tbody>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
-                  <td class="mono" style="padding:0.75rem 1rem; color:var(--accent-cyan);">sourceAccount</td>
-                  <td class="mono" style="padding:0.75rem 1rem; color:var(--text-muted);">string</td>
-                  <td style="padding:0.75rem 1rem; color:var(--accent-red);">نعم</td>
-                  <td style="padding:0.75rem 1rem;">رقم الحساب أو الآيبان للمرسل</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
-                  <td class="mono" style="padding:0.75rem 1rem; color:var(--accent-cyan);">destinationAccount</td>
-                  <td class="mono" style="padding:0.75rem 1rem; color:var(--text-muted);">string</td>
-                  <td style="padding:0.75rem 1rem; color:var(--accent-red);">نعم</td>
-                  <td style="padding:0.75rem 1rem;">رقم الحساب أو الآيبان للمستلم</td>
+                <tr>
+                  <td class="mono" style="color:var(--accent-cyan); font-weight:700;">sourceAccount</td>
+                  <td class="mono" style="color:var(--text-dim);">string</td>
+                  <td style="color:var(--accent-rose); font-weight:800;">نعم</td>
+                  <td>رقم الحساب أو الآيبان للمرسل</td>
                 </tr>
                 <tr>
-                  <td class="mono" style="padding:0.75rem 1rem; color:var(--accent-cyan);">amount</td>
-                  <td class="mono" style="padding:0.75rem 1rem; color:var(--text-muted);">number</td>
-                  <td style="padding:0.75rem 1rem; color:var(--accent-red);">نعم</td>
-                  <td style="padding:0.75rem 1rem;">المبلغ المراد تحويله (بحد أقصى 50,000 ريال)</td>
+                  <td class="mono" style="color:var(--accent-cyan); font-weight:700;">destinationAccount</td>
+                  <td class="mono" style="color:var(--text-dim);">string</td>
+                  <td style="color:var(--accent-rose); font-weight:800;">نعم</td>
+                  <td>رقم الحساب أو الآيبان للمستلم</td>
+                </tr>
+                <tr>
+                  <td class="mono" style="color:var(--accent-cyan); font-weight:700;">amount</td>
+                  <td class="mono" style="color:var(--text-dim);">number</td>
+                  <td style="color:var(--accent-rose); font-weight:800;">نعم</td>
+                  <td>المبلغ المراد تحويله (سقف 50,000 ريال)</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          <h3 style="font-size:1rem; margin-bottom:0.75rem;">قوانين العمل المصرفية الصارمة (Banking Rules):</h3>
-          <div style="background:rgba(255, 51, 102, 0.08); border:1px solid rgba(255, 51, 102, 0.3); border-radius:8px; padding:1rem; margin-bottom:1rem;">
-            <div style="display:flex; justify-content:space-between; margin-bottom:0.35rem;">
-              <strong style="color:#ff6b8b;">⛔ BR_FIN_001 (شرط حرج - BLOCKING)</strong>
-              <span class="mono" style="font-size:0.8rem; color:var(--text-muted);">request.amount &lt;= 50000</span>
+          <h3 style="font-size:1.05rem; margin-bottom:0.75rem;">قوانين الحوكمة الصارمة (Banking Compliance):</h3>
+          <div style="background:rgba(244, 63, 94, 0.12); border:1px solid rgba(244, 63, 94, 0.35); border-radius:var(--radius-md); padding:1.15rem;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:0.4rem;">
+              <strong style="color:var(--accent-rose);">⛔ BR_FIN_001 (شرط إلزامي - BLOCKING)</strong>
+              <span class="mono" style="font-size:0.85rem; color:var(--text-dim);">request.amount &lt;= 50000</span>
             </div>
-            <p style="font-size:0.85rem; color:var(--text-main);">الحد الأقصى للعملية الفورية الواحدة هو 50 ألف ريال وفق لوائح البنك المركزي.</p>
+            <p style="font-size:0.88rem; color:var(--text-main);">الحد الأقصى للعملية الفورية الواحدة هو 50 ألف ريال وفق تعليمات البنك المركزي.</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- TAB 3: DIFF ENGINE -->
+    <!-- 3. شاشة فحص الفروقات (Diff Engine) -->
     <section id="tab-diff" class="tab-content">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
         <div>
-          <h2>محرك مقارنة التغييرات (Breaking Changes Detector)</h2>
-          <p style="color:var(--text-muted);">فحص ومقارنة المسودة v1.1.0 مقابل النسخة المعتمدة v1.0.0</p>
+          <h2>محرك مقارنة الفروقات (Breaking Changes Detector)</h2>
+          <p style="color:var(--text-dim);">فحص التعديلات ومقارنة المسودة المقترحة v1.1.0 مقابل الإصدار المعتمد v1.0.0</p>
         </div>
-        <div style="display:flex; gap:0.5rem;">
-          <button class="btn btn-outline" style="color:var(--accent-red);" onclick="alert('تم رفض المسودة')">❌ رفض التعديل</button>
-          <button class="btn btn-primary" onclick="switchTab('vault')">⚖️ اعتماد والانتقال للختم</button>
+        <div style="display:flex; gap:0.75rem;">
+          <button class="btn btn-outline" style="color:var(--accent-rose);" onclick="alert('تم رفض المسودة وإعادتها للمطور للتعديل')">
+            <i class="fa-solid fa-xmark"></i> رفض التعديل
+          </button>
+          <button class="btn btn-primary" onclick="switchTab('vault')">
+            <i class="fa-solid fa-check-double"></i> اعتماد والانتقال للختم
+          </button>
         </div>
       </div>
 
-      <div style="background:rgba(255, 193, 7, 0.1); border:1px solid #ffc107; border-radius:10px; padding:1rem; margin-bottom:1.5rem; display:flex; align-items:center; gap:0.75rem;">
-        <span style="font-size:1.5rem;">⚠️</span>
+      <div style="background:rgba(245, 158, 11, 0.12); border:1px solid var(--accent-amber); border-radius:var(--radius-md); padding:1.15rem; margin-bottom:1.75rem; display:flex; align-items:center; gap:0.85rem;">
+        <i class="fa-solid fa-triangle-exclamation" style="font-size:1.6rem; color:var(--accent-amber);"></i>
         <div>
-          <strong style="color:#ffc107;">تنبيه كسر توافق (Breaking Change Detected)</strong>
-          <p style="font-size:0.85rem; color:var(--text-main); margin-top:0.25rem;">تمت إضافة حقل إلزامي جديد (<code class="mono">purposeCode</code>). هذا التغيير سيعطل الأنظمة البنكية القديمة إذا لم يتم ترقية إصدار الـ Major.</p>
+          <strong style="color:var(--accent-amber); font-size:0.95rem;">تنبيه كسر توافق (Breaking Change Detected)</strong>
+          <p style="font-size:0.88rem; color:var(--text-main); margin-top:0.25rem;">تمت إضافة حقل إلزامي جديد (<code class="mono">purposeCode</code>). هذا التغيير سيعطل تكاملات البنوك القديمة إذا لم يتم ترقية إصدار الـ Major.</p>
         </div>
       </div>
 
       <div class="diff-container">
         <div class="diff-pane">
-          <h4 style="color:var(--accent-cyan); margin-bottom:0.75rem;">النسخة المعتمدة الحالية (v1.0.0)</h4>
+          <h4 style="color:var(--accent-cyan); margin-bottom:0.85rem;"><i class="fa-solid fa-circle-check"></i> الإصدار المعتمد الحالي (v1.0.0)</h4>
           <div class="diff-line">"amount": { "type": "number", "max": 50000 },</div>
           <div class="diff-line">"currency": { "type": "string", "default": "SAR" }</div>
         </div>
         <div class="diff-pane">
-          <h4 style="color:var(--accent-green); margin-bottom:0.75rem;">المسودة المقترحة الجديدة (v1.1.0)</h4>
+          <h4 style="color:var(--accent-emerald); margin-bottom:0.85rem;"><i class="fa-solid fa-clock-rotate-left"></i> المسودة المقترحة (v1.1.0)</h4>
           <div class="diff-line add">"amount": { "type": "number", "max": 100000 },  // + رفع سقف الحوالة</div>
           <div class="diff-line">"currency": { "type": "string", "default": "SAR" },</div>
           <div class="diff-line add">"purposeCode": { "type": "string", "required": true } // + حقل إلزامي جديد</div>
@@ -373,37 +645,43 @@
       </div>
     </section>
 
-    <!-- TAB 4: RELEASE SEALER VAULT -->
+    <!-- 4. شاشة غرفة الختم الرقمي (CSO Vault) -->
     <section id="tab-vault" class="tab-content">
-      <div class="vault-hero">
-        <div class="vault-seal">🛡️</div>
-        <h2>الغرفة الحصينة للختم الرقمي (CSO Security Vault)</h2>
-        <p style="color:var(--text-muted); max-width:650px; margin:0.5rem auto 1.5rem;">
+      <div class="vault-box">
+        <div class="vault-seal">
+          <i class="fa-solid fa-fingerprint"></i>
+        </div>
+        <h2>الغرفة الحصينة للختم والتوقيع الرقمي</h2>
+        <p style="color:var(--text-dim); max-width:680px; margin:0.6rem auto 2rem; line-height:1.6;">
           ختم وتوقيع مواصفة الـ API بمفاتيح التشفير المصرفية (RSA-PSS-4096) لإنتاج الـ Snapshot النهائي غير القابل للتلاعب.
         </p>
 
-        <div style="background:var(--bg-surface); border:1px solid var(--border); border-radius:14px; padding:1.5rem; max-width:750px; margin:0 auto 2rem; text-align:right;">
-          <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:0.75rem; margin-bottom:0.75rem;">
-            <span style="color:var(--text-muted);">معرف الإصدار الرسمي:</span>
-            <strong class="mono" style="color:var(--accent-cyan);">REL-INSTANT_PAYMENTS-2026-5871</strong>
+        <div style="background:var(--bg-input); border:1px solid var(--border-glass); border-radius:var(--radius-lg); padding:1.75rem; max-width:760px; margin:0 auto 2.25rem; text-align:right;">
+          <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border-subtle); padding-bottom:0.85rem; margin-bottom:0.85rem;">
+            <span style="color:var(--text-dim);">معرف الإصدار الرسمي:</span>
+            <strong class="mono" style="color:var(--primary); font-size:0.95rem;">REL-INSTANT_PAYMENTS-2026-5871</strong>
           </div>
-          <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:0.75rem; margin-bottom:0.75rem;">
-            <span style="color:var(--text-muted);">بصمة التجزئة للمحتوى (SHA-256):</span>
-            <span class="mono" style="color:var(--accent-green); font-size:0.85rem;">71027c802f60c8f98fc49570a2ad629cbc616092398439499dad90d17cb4c00b</span>
+          <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border-subtle); padding-bottom:0.85rem; margin-bottom:0.85rem;">
+            <span style="color:var(--text-dim);">بصمة التجزئة للمحتوى (SHA-256):</span>
+            <span class="mono" style="color:var(--accent-emerald); font-size:0.85rem;">71027c802f60c8f98fc49570a2ad629cbc616092398439499dad90d17cb4c00b</span>
           </div>
-          <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:0.75rem; margin-bottom:0.75rem;">
-            <span style="color:var(--text-muted);">خوارزمية التوقيع المعتمدة:</span>
+          <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border-subtle); padding-bottom:0.85rem; margin-bottom:0.85rem;">
+            <span style="color:var(--text-dim);">خوارزمية التوقيع المعتمدة:</span>
             <strong class="mono">RSA-PSS-4096 (National Banking Standard)</strong>
           </div>
           <div style="display:flex; justify-content:space-between;">
-            <span style="color:var(--text-muted);">المسؤول المصرح له بالختم:</span>
+            <span style="color:var(--text-dim);">المسؤول المصرح له بالختم:</span>
             <span>Chief Security Officer (usr_sec_101)</span>
           </div>
         </div>
 
-        <div style="display:flex; justify-content:center; gap:1rem;">
-          <button class="btn btn-primary" onclick="triggerSealAnimation()">🔏 إتمام الختم والتوقيع المشفر</button>
-          <button class="btn btn-outline" onclick="downloadSnapshotJson()">📥 تصدير ملف الـ Snapshot (.json)</button>
+        <div style="display:flex; justify-content:center; gap:1.25rem;">
+          <button class="btn btn-primary" onclick="alert('🎉 تم التوقيع الرقمي بنجاح باستخدام RSA-PSS-4096!\nتم توليد وحفظ الـ Snapshot الرسمي بنجاح في مجلد snapshots/.')">
+            <i class="fa-solid fa-signature"></i> إتمام الختم والتوقيع المشفر
+          </button>
+          <button class="btn btn-outline" onclick="alert('📥 جاري تنزيل ملف المواصفة المختوم: REL-INSTANT_PAYMENTS-2026-5871-SPEC.json')">
+            <i class="fa-solid fa-download"></i> تصدير ملف الـ Snapshot (.json)
+          </button>
         </div>
       </div>
     </section>
@@ -411,6 +689,7 @@
   </main>
 
   <script>
+    // Tab Switching Functionality
     function switchTab(tabId) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -422,13 +701,21 @@
       if (targetContent) targetContent.classList.add('active');
     }
 
-    function triggerSealAnimation() {
-      alert('🎉 تم التوقيع الرقمي بنجاح باستخدام RSA-PSS-4096!\nتم توليد وحفظ الـ Snapshot الرسمي بنجاح في مجلد snapshots/.');
-    }
-
-    function downloadSnapshotJson() {
-      alert('📥 جاري تحميل: REL-INSTANT_PAYMENTS-2026-5871-SPEC.json');
+    // Theme Toggle Functionality (Dark / Light)
+    function toggleTheme() {
+      const html = document.documentElement;
+      const currentTheme = html.getAttribute('data-theme');
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', newTheme);
+      
+      const icon = document.getElementById('theme-icon');
+      if (newTheme === 'light') {
+        icon.className = 'fa-solid fa-sun';
+      } else {
+        icon.className = 'fa-solid fa-moon';
+      }
     }
   </script>
+
 </body>
 </html>
