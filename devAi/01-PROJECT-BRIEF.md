@@ -1,28 +1,51 @@
-# 🚀 PROJECT BRIEF — تعريف المشروع
+# 🚀 PROJECT BRIEF — تعريف المنظومة المؤسسية الشاملة
 
-> **إرشادات:** هذا الملف يستخدم لتعريف المشروع بالكامل للـ AI وأي مطور جديد. املأ الفراغات بالبيانات الخاصة بمشروعك الحالي.
+> **المرجع الأساسي:** مستند دستور المنظومة المؤسسية (107 بنود) لإدارة دورة حياة الـ APIs والتكاملات والاختبارات المصرفية.
 
 ---
 
 ## 1. نظرة عامة (Overview)
-- **اسم المشروع:** منصة حوكمة وتوثيق الـ APIs المالية (API Governance & Testing Platform)
-- **وصف مختصر:** منظومة متكاملة لمنصتين (التوثيق والاختبارات) لإدارة، ختم، وفحص مواصفات APIs المالية (مثل INSTANT PAYMENTS).
-- **الهدف الرئيسي (Core Value):** توفير مرجع موحد (Source of Truth) غير قابل للتلاعب لمواصفات الـ APIs (عبر Snapshots مختومة رقمياً)، لتبني عليها البنوك والجهات الشريكة، وتفحصها منصة الاختبارات آلياً.
+- **اسم المنظومة:** المنظومة المؤسسية لحوكمة وتوثيق الـ APIs وإدارة التكامل والاختبارات (Enterprise API Governance & Integration-Testing Ecosystem).
+- **المعمارية الأساسية:** **منصتان منفصلتان ومستقلتان معمارياً** تلتقيان عبر العقود الرسمية المشفرة (Official Release Snapshots) دون أي تكرار لبيانات الـ API:
+  1. **المنصة الأولى (Platform 1 - Documentation & Lifecycle):** الإجابة الرسمية السيادية عن *"ما هو الـ API وما تفاصيله؟"*
+  2. **المنصة الثانية (Platform 2 - Integration & Testing):** الإجابة التشغيلية الرسمية عن *"من يستخدم الـ API، في أي بيئة، وهل التكامل سليم ومختبر؟"*
+- **مركز الثقل:** تمكين وأتمتة دور مهندس **API Integrated & API Tester** ونقل المعرفة من عقول الموظفين وملفات Word/Excel/Postman إلى نظام مؤسسي دائم وموثوق.
 
-## 2. المستخدمون المستهدفون (Target Users)
-- **API Architect:** إنشاء وتعديل مواصفات الـ APIs.
-- **Chief Security Officer (CSO):** ختم وإصدار المواصفات والتوقيع الرقمي (RSA-PSS).
-- **QA Lead / Compliance Officer:** تشغيل محرك الاختبارات في المنصة الثانية وتأكيد الامتثال (100% Pass Rate).
+---
 
-## 3. الوحدات الأساسية للمشروع (Core Modules)
-> بناءً على هذا القسم، سيتم استنساخ `_templates/module-template` لكل وحدة.
+## 2. المنصتان وفصل المسؤوليات (The Two Decoupled Platforms)
 
-1. **المنصة الأولى (platform-1-documentation):** إدارة الكتالوج، محرك الفروقات (Diff Engine)، الختم والتوقيع (Release Sealer)، وحوكمة التوثيق.
-2. **المنصة الثانية (platform-2-testing):** تشغيل الاختبارات الآلية والمحاكاة بناءً على الـ Snapshots، وحوكمة الامتثال.
-3. **المشتركات (shared):** عقود البيانات المالية الأساسية وخوارزميات التشفير المشتركة بين المنصتين.
+```
+       ┌──────────────────────────────────────────────┐
+       │ PLATFORM 1: Documentation & Sovereign Spec   │
+       │ (Definition, Schemas, Rules, Errors, CR,     │
+       │  Semantic Diff, Multi-Sig Vault, Sealed Snap)│
+       └──────────────────────┬───────────────────────┘
+                              │ Official Sealed Release (RSA-PSS-4096)
+                              ▼
+       ┌──────────────────────────────────────────────┐
+       │ PLATFORM 2: Integration, Testing & Migration │
+       │ (Organizations, Matrix Envs, Test Suites,    │
+       │  Automated Runs, Audit Evidence, Migration)  │
+       └──────────────────────────────────────────────┘
+```
 
-## 4. التقنيات المستخدمة (Tech Stack)
-- **Frontend:** React 19, Vite, TypeScript, TailwindCSS (افتراضي)
-- **Backend:** Node.js (سيتم التفصيل لاحقاً)
-- **Database:** PostgreSQL / SQLite (حسب الحاجة)
-- **Other Tools:** محركات توليد Mock Data وأنظمة التوقيع الرقمي
+---
+
+## 3. المستخدمون المستهدفون (Target Personas)
+1. **Lead API Architect:** تصميم المواصفات، ضبط المخططات المشتركة، وإدارة شجرة التبعيات.
+2. **Chief Compliance Officer (CCO):** مراقبة تصنيفات الامتثال المالي (ISO 20022, PCI-DSS, PII).
+3. **Chief Security Officer (CSO):** التدقيق الأمني وإطلاق الختم الرقمي بمفتاح الـ KMS السيادي.
+4. **API Integrated & API Tester (المستخدم المحوري):**
+   - إدارة تكاملات البنوك والشركاء (Orgs).
+   - تشغيل حزم الفحص المعيارية (Functional, Regression, Security, Idempotency).
+   - توثيق أدلة الاختبار غير القابلة للإنكار (Audit Evidence).
+   - قيادة هجرة المستهلكين من الإصدارات القديمة إلى الجديدة.
+5. **Partner Banks & Integrators:** استعراض الوثائق الرسمية، استخدام خادم المحاكاة (Mock Sandbox)، والحصول على كود الربط المعتمد.
+
+---
+
+## 4. الحصانة الرقمية وحوكمة التغيير (Immutability & Integrity)
+- **لا تعديل مباشر على الإصدارات المنشورة (No Live Patches):** كل تغيير يتطلب Change Request.
+- **الختم المشفر (Canonical JCS + SHA-256 + RSA-PSS-4096):** إثبات سلامة الوثيقة قانونياً وفنياً.
+- **الملفات نواتج مشتقة وليست مصادر:** الـ PDF والـ OpenAPI مشتقة برمجياً من الـ Snapshot.
