@@ -1,0 +1,17 @@
+{
+  "id": "rel-9b80ywv",
+  "releaseNumber": "REL-INSTANT_PAYMENTS-2026-5871",
+  "apiId": "api_1791015257456_0k1kx",
+  "versionId": "ver_1791015257467_3w0vl",
+  "versionString": "v1.0.0",
+  "canonicalSpecJson": "{\"apiCode\":\"INSTANT_PAYMENTS\",\"category\":\"FINTECH\",\"displayName\":\"National Instant Payment Switch (IPS) API\",\"endpoints\":[{\"method\":\"POST\",\"operationId\":\"initiateTransfer\",\"parametersCount\":1,\"path\":\"/v1/transfers\",\"responses\":[201,400,422]},{\"method\":\"GET\",\"operationId\":\"getTransferStatus\",\"parametersCount\":1,\"path\":\"/v1/transfers/{transactionId}/status\",\"responses\":[200,404]}],\"errors\":[{\"code\":\"ERR_LIMIT_EXCEEDED\",\"http\":422},{\"code\":\"ERR_INSUFFICIENT_FUNDS\",\"http\":422}],\"releaseNumber\":\"REL-INSTANT_PAYMENTS-2026-5871\",\"rules\":[{\"code\":\"BR_FIN_001\",\"expr\":\"request.amount <= 50000\",\"sev\":\"BLOCKING\"},{\"code\":\"BR_AML_002\",\"expr\":\"amlService.check(destinationAccount) === \\\"PASS\\\"\",\"sev\":\"BLOCKING\"}],\"schemas\":[{\"fields\":[{\"name\":\"sourceAccount\",\"required\":true,\"type\":\"string\"},{\"name\":\"destinationAccount\",\"required\":true,\"type\":\"string\"},{\"name\":\"amount\",\"required\":true,\"type\":\"number\"},{\"name\":\"currency\",\"required\":true,\"type\":\"string\"}],\"name\":\"TransferRequest\"}],\"timestamp\":\"2026-10-03T08:14:53.356Z\",\"versionString\":\"v1.0.0\"}",
+  "sha256Checksum": "71027c802f60c8f98fc49570a2ad629cbc616092398439499dad90d17cb4c00b",
+  "digitalSignature": "U0lHLVJTQS1QU1MtNDA5Njo6MWU2ODI5OWFkMTM4OWIwMmJhNzdiZmRhYzhmMWNlM2M5NDU4OGVhYjM4MWYyNzMyNGZmMjc0YWM1ZjgzZjU0Yjo6VElNRVNUQU1QXzE3OTEwMTUyOTMzNjA=",
+  "signingAlgorithm": "RSA-PSS-4096",
+  "keyFingerprint": "SHA256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "sealedAt": "2026-10-03T08:14:53.361Z",
+  "sealedByUserId": "usr_sec_101",
+  "sealedByName": "Chief Security Officer",
+  "isSealed": true,
+  "documentationSnapshotUrl": "/snapshots/REL-INSTANT_PAYMENTS-2026-5871-SPEC.json"
+}
