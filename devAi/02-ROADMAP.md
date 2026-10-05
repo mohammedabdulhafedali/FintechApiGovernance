@@ -13,9 +13,10 @@
   - [x] التصميم المعماري: `devAi/platform-1-documentation/backend/ARCHITECTURE-DESIGN.md`
   - [x] عقود الواجهات: `devAi/platform-1-documentation/backend/API-CONTRACTS.md`
 - [ ] **الخطوة 4: تعريف المنصة الثانية (Define Platform 2 - Integration & Testing):**
-  - [ ] تحليل متطلبات المنصة الثانية واقتراح الإضافات النوعية.
-  - [ ] بناء النموذج التفاعلي الحي لشاشات المنصة الثانية (المنظمات، البيئات، محرك الفحص الآلي، وتتبع الهجرة).
-  - [ ] هندسة نموذج البيانات لبيانات الشركاء وحزم ونتائج الاختبارات.
+  - [x] تحليل متطلبات المنصة الثانية واقتراح الإضافات النوعية (`BRIEF.md`, `SCREENS-ANALYSIS.md`).
+  - [x] بناء النموذج التفاعلي الحي لشاشات المنصة الثانية (`devAi/platform-2-testing/frontend/ui-prototype.html`).
+  - [ ] هندسة نموذج البيانات لبيانات الشركاء وحزم ونتائج الاختبارات (`DATABASE-SCHEMA.md`).
+  - [ ] عقود الواجهات الخلفية للمنصة الثانية (`API-CONTRACTS.md`).
 - [ ] **الخطوة 5: تعريف العلاقة بين المنصتين (Define Cross-Platform Relationship):**
   - [ ] بروتوكول استعلام تحليل الأثر الفوري (Impact Analysis Protocol).
   - [ ] بروتوكول استهلاك الـ Snapshot المختوم بدون ازدواجية بيانات.

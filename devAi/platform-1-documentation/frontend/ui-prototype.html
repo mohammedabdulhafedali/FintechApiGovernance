@@ -1,1106 +1,685 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl" data-theme="dark">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>منظومة حوكمة وتوثيق الـ APIs — FinTech API Governance</title>
-  
-  <!-- Google Fonts: Cairo (Arabic) & Outfit (Latin/Numbers) -->
+  <title>منصة حوكمة وتوثيق المعايير المالية — API Governance Hub</title>
+
+  <!-- Google Fonts: Cairo & Outfit & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet">
+
   <!-- FontAwesome 6.5.1 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
-  <style>
-    /* ==========================================================================
-       FinTech API Governance - Visual Identity & Design System
-       Exact Implementation of VISUAL_IDENTITY_SYSTEM.md + 6 Architecture Pillars
-       ========================================================================== */
-    :root {
-      /* الكانفاس والطبقات (Dark Base - Maximum Clarity) */
-      --bg-main: #1a2d45;
-      --bg-secondary: #243d5c;
-      --bg-card: #2b4870;
-      --bg-card-hover: #345882;
-      --bg-input: #1c3250;
-
-      /* الحدود والزجاج الكريستالي */
-      --border-glass: rgba(255, 255, 255, 0.28);
-      --border-subtle: rgba(255, 255, 255, 0.18);
-      --border-accent: rgba(99, 102, 241, 0.85);
-      --border-glow: rgba(99, 102, 241, 0.60);
-
-      /* ألوان الهوية الأساسية */
-      --primary: #6366f1;
-      --primary-hover: #4f46e5;
-      --primary-glow: rgba(99, 102, 241, 0.40);
-      --primary-gradient: linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #06b6d4 100%);
-      --btn-gradient: linear-gradient(135deg, #4338ca 0%, #6366f1 100%);
-
-      /* ألوان التمييز والحالات الوظيفية */
-      --accent-cyan: #38bdf8;
-      --accent-emerald: #10b981;
-      --accent-amber: #f59e0b;
-      --accent-rose: #f43f5e;
-      --accent-purple: #a855f7;
-
-      /* ألوان النصوص والتباين */
-      --text-main: #ffffff;
-      --text-muted: #e2e8f0;
-      --text-dim: #b8c8d8;
-
-      /* الاستدارة والانحناءات */
-      --radius-xs: 6px;
-      --radius-sm: 8px;
-      --radius-md: 12px;
-      --radius-lg: 18px;
-      --radius-xl: 24px;
-      --radius-pill: 9999px;
-
-      /* الظلال والعمق ثلاثي الأبعاد */
-      --shadow-subtle: 0 2px 8px rgba(0, 0, 0, 0.30);
-      --shadow-soft: 0 10px 30px -5px rgba(0, 0, 0, 0.50), inset 0 1px 0 rgba(255, 255, 255, 0.22);
-      --shadow-card: 0 16px 44px -8px rgba(0, 0, 0, 0.60), inset 0 1px 0 rgba(255, 255, 255, 0.26), 0 0 0 1px rgba(255, 255, 255, 0.12);
-      --shadow-glow: 0 0 25px rgba(99, 102, 241, 0.40);
-      --shadow-glow-emerald: 0 0 20px rgba(16, 185, 129, 0.35);
-
-      /* فيزياء الحركة */
-      --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-      --transition-smooth: 0.28s cubic-bezier(0.16, 1, 0.3, 1);
-      --transition-spring: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-
-    /* دعم الوضع الفاتح (Light Mode Support) */
-    [data-theme="light"] {
-      --bg-main: #f8fafc;
-      --bg-secondary: #ffffff;
-      --bg-card: #ffffff;
-      --bg-card-hover: #f1f5f9;
-      --bg-input: #f8fafc;
-
-      --border-glass: rgba(0, 0, 0, 0.12);
-      --border-subtle: rgba(0, 0, 0, 0.08);
-      --border-accent: rgba(94, 106, 210, 0.45);
-
-      --primary: #5e6ad2;
-      --primary-hover: #4f5bbf;
-      --primary-glow: rgba(94, 106, 210, 0.15);
-      --primary-gradient: linear-gradient(135deg, #4f5bbf 0%, #5e6ad2 50%, #0284c7 100%);
-      --btn-gradient: linear-gradient(135deg, #4338ca 0%, #5e6ad2 100%);
-
-      --accent-cyan: #0284c7;
-      --accent-emerald: #059669;
-      --accent-amber: #d97706;
-      --accent-rose: #e11d48;
-      --accent-purple: #7c3aed;
-
-      --text-main: #09090b;
-      --text-muted: #334155;
-      --text-dim: #64748b;
-
-      --shadow-subtle: 0 2px 8px rgba(0, 0, 0, 0.05);
-      --shadow-soft: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
-      --shadow-card: 0 16px 36px -8px rgba(0, 0, 0, 0.10);
-    }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: 'Cairo', system-ui, -apple-system, sans-serif;
-      background-color: var(--bg-main);
-      color: var(--text-main);
-      line-height: 1.6;
-      direction: rtl;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      overflow-x: hidden;
-      transition: background-color var(--transition-smooth), color var(--transition-smooth);
-    }
-
-    .outfit { font-family: 'Outfit', sans-serif; }
-    .mono { font-family: 'JetBrains Mono', monospace; }
-
-    /* أنوار الخلفية (Ambient Glows) */
-    .ambient-glow {
-      position: fixed;
-      width: 550px;
-      height: 550px;
-      border-radius: 50%;
-      pointer-events: none;
-      z-index: 0;
-      opacity: 0.18;
-      filter: blur(120px);
-    }
-    .glow-top { top: -150px; right: -100px; background: var(--primary); }
-    .glow-bottom { bottom: -150px; left: -100px; background: var(--accent-cyan); }
-
-    /* رأس الصفحة (Header) */
-    header {
-      background: rgba(36, 61, 92, 0.85);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--border-glass);
-      padding: 0.85rem 2rem;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-    }
-    [data-theme="light"] header { background: rgba(255, 255, 255, 0.88); }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 0.85rem;
-    }
-
-    .brand-icon {
-      width: 44px;
-      height: 44px;
-      border-radius: var(--radius-md);
-      background: var(--primary-gradient);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.35rem;
-      color: #ffffff;
-      box-shadow: var(--shadow-glow);
-    }
-
-    .brand-text h1 {
-      font-size: 1.15rem;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-    }
-
-    .brand-text p {
-      font-size: 0.76rem;
-      color: var(--text-dim);
-    }
-
-    /* التبويبات العلوية الست (Navigation Tabs) */
-    .tabs-nav {
-      display: flex;
-      gap: 0.35rem;
-      background: var(--bg-card);
-      padding: 0.35rem;
-      border-radius: var(--radius-md);
-      border: 1px solid var(--border-subtle);
-    }
-
-    .tab-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      padding: 0.55rem 0.95rem;
-      border-radius: var(--radius-sm);
-      font-size: 0.88rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: var(--transition-fast);
-      display: flex;
-      align-items: center;
-      gap: 0.45rem;
-      font-family: inherit;
-    }
-    .tab-btn:hover { color: var(--text-main); background: var(--bg-card-hover); }
-    .tab-btn.active {
-      background: var(--btn-gradient);
-      color: #ffffff;
-      box-shadow: var(--shadow-glow);
-    }
-
-    /* أدوات التحكم العلوية وتبديل الثيم */
-    .header-actions { display: flex; align-items: center; gap: 0.75rem; }
-    .icon-btn {
-      width: 40px; height: 40px;
-      border-radius: var(--radius-sm);
-      background: var(--bg-card);
-      border: 1px solid var(--border-glass);
-      color: var(--text-muted);
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer;
-      transition: var(--transition-fast);
-      box-shadow: var(--shadow-subtle);
-    }
-    .icon-btn:hover {
-      color: var(--text-main);
-      border-color: var(--primary);
-      transform: translateY(-2px);
-    }
-
-    /* مساحة المحتوى */
-    main {
-      flex: 1;
-      padding: 2rem 2.25rem;
-      max-width: 1440px;
-      margin: 0 auto;
-      width: 100%;
-      position: relative;
-      z-index: 1;
-    }
-
-    .tab-content { display: none; animation: fadeIn var(--transition-smooth); }
-    .tab-content.active { display: block; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-
-    /* بطاقات الزجاج (Glass Cards) */
-    .glass-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-glass);
-      border-radius: var(--radius-lg);
-      padding: 1.6rem;
-      box-shadow: var(--shadow-card);
-      position: relative;
-      overflow: hidden;
-      transition: transform var(--transition-smooth), border-color var(--transition-smooth);
-    }
-    .glass-card:hover {
-      border-color: rgba(255, 255, 255, 0.4);
-    }
-
-    /* الشارات (Badges) */
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      padding: 0.3rem 0.75rem;
-      border-radius: var(--radius-pill);
-      font-size: 0.78rem;
-      font-weight: 700;
-    }
-    .badge-sealed { background: rgba(16, 185, 129, 0.2); color: var(--accent-emerald); border: 1px solid rgba(16, 185, 129, 0.4); }
-    .badge-draft { background: rgba(245, 158, 11, 0.2); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.4); }
-    .badge-deprecated { background: rgba(244, 63, 94, 0.2); color: var(--accent-rose); border: 1px solid rgba(244, 63, 94, 0.4); }
-    .badge-post { background: rgba(16, 185, 129, 0.25); color: var(--accent-emerald); font-weight: 900; }
-    .badge-get { background: rgba(56, 189, 248, 0.25); color: var(--accent-cyan); font-weight: 900; }
-    
-    /* شارات الامتثال المالي (Compliance Badges) */
-    .badge-pii { background: rgba(168, 85, 247, 0.22); color: var(--accent-purple); border: 1px solid rgba(168, 85, 247, 0.4); }
-    .badge-pci { background: rgba(244, 63, 94, 0.22); color: var(--accent-rose); border: 1px solid rgba(244, 63, 94, 0.4); }
-    .badge-iso { background: rgba(56, 189, 248, 0.22); color: var(--accent-cyan); border: 1px solid rgba(56, 189, 248, 0.4); }
-
-    /* الأزرار (Buttons) */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.55rem;
-      padding: 0.65rem 1.35rem;
-      border-radius: var(--radius-sm);
-      font-size: 0.9rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: var(--transition-fast);
-      border: none;
-      font-family: inherit;
-    }
-    .btn-primary {
-      background: var(--btn-gradient);
-      color: #ffffff;
-      box-shadow: var(--shadow-glow);
-    }
-    .btn-primary:hover {
-      filter: brightness(1.12);
-      transform: translateY(-2px);
-      box-shadow: 0 0 25px var(--primary-glow);
-    }
-    .btn-outline {
-      background: var(--bg-card);
-      border: 1px solid var(--border-glass);
-      color: var(--text-muted);
-    }
-    .btn-outline:hover {
-      color: var(--text-main);
-      border-color: var(--primary);
-      background: var(--bg-card-hover);
-    }
-    .btn-success {
-      background: linear-gradient(135deg, #059669 0%, #10b981 100%);
-      color: #ffffff;
-      box-shadow: var(--shadow-glow-emerald);
-    }
-    .btn-success:hover {
-      filter: brightness(1.12);
-      transform: translateY(-2px);
-    }
-
-    /* الجداول (Spec Tables) */
-    .spec-table {
-      width: 100%;
-      border-collapse: collapse;
-      text-align: right;
-    }
-    .spec-table th {
-      background: var(--bg-card-hover);
-      padding: 0.85rem 1.15rem;
-      font-size: 0.82rem;
-      color: var(--text-dim);
-      font-weight: 700;
-      border-bottom: 1px solid var(--border-glass);
-    }
-    .spec-table td {
-      padding: 0.95rem 1.15rem;
-      border-bottom: 1px solid var(--border-subtle);
-      font-size: 0.88rem;
-    }
-    .spec-table tr:hover td {
-      background: rgba(255, 255, 255, 0.03);
-    }
-
-    /* كود العرض المرجعي والـ Snippets */
-    .code-box {
-      background: #0f172a;
-      border: 1px solid var(--border-glass);
-      border-radius: var(--radius-md);
-      padding: 1.15rem;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.85rem;
-      color: #f8fafc;
-      overflow-x: auto;
-      direction: ltr;
-      text-align: left;
-      line-height: 1.6;
-    }
-    .code-tabs {
-      display: flex;
-      gap: 0.35rem;
-      margin-bottom: 0.6rem;
-      border-bottom: 1px solid var(--border-subtle);
-      padding-bottom: 0.5rem;
-      direction: ltr;
-    }
-    .code-tab-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-dim);
-      font-family: 'Outfit', sans-serif;
-      font-weight: 700;
-      font-size: 0.8rem;
-      padding: 0.3rem 0.75rem;
-      border-radius: var(--radius-xs);
-      cursor: pointer;
-    }
-    .code-tab-btn.active {
-      background: var(--primary);
-      color: #ffffff;
-    }
-
-    /* المقارنة (Diff) */
-    .diff-container {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1.25rem;
-      direction: ltr;
-      text-align: left;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.86rem;
-    }
-    .diff-pane {
-      background: #0f172a;
-      border: 1px solid var(--border-glass);
-      border-radius: var(--radius-md);
-      padding: 1.15rem;
-      overflow-x: auto;
-    }
-    .diff-line { padding: 0.25rem 0.5rem; border-radius: 4px; margin-bottom: 2px; }
-    .diff-line.add { background: rgba(16, 185, 129, 0.2); color: #34d399; }
-    .diff-line.del { background: rgba(244, 63, 94, 0.2); color: #fb7185; }
-
-    /* الشبكات (Grids) */
-    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
-    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; }
-
-    /* صناديق المحاكاة (Mock Sandbox) */
-    .sandbox-split {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1.5rem;
-    }
-
-    /* التوقيع المتعدد (Multi-Sig Cards) */
-    .sig-step {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      padding: 1rem 1.25rem;
-      border-radius: var(--radius-md);
-      background: var(--bg-input);
-      border: 1px solid var(--border-glass);
-      margin-bottom: 0.75rem;
-    }
-    .sig-step.signed { border-color: var(--accent-emerald); background: rgba(16, 185, 129, 0.08); }
-    .sig-step.pending { border-color: var(--accent-amber); background: rgba(245, 158, 11, 0.08); }
-  </style>
+  <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
 
-  <!-- أنوار محيطية -->
-  <div class="ambient-glow glow-top"></div>
-  <div class="ambient-glow glow-bottom"></div>
-
-  <!-- Header -->
-  <header>
-    <div class="brand">
-      <div class="brand-icon">
-        <i class="fa-solid fa-shield-halved"></i>
-      </div>
-      <div class="brand-text">
-        <h1>منظومة حوكمة وتوثيق الـ APIs</h1>
-        <p class="outfit">Platform 1: API Documentation & Sovereign Lifecycle</p>
-      </div>
+  <!-- =========================================================================
+       1. SIDEBAR: STRICTLY ENTITIES ONLY + MINIMALIST DIVIDERS
+       ========================================================================= -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon"><i class="fa-solid fa-cube"></i></div>
+      <div class="brand-title">حوكمة المعايير</div>
     </div>
 
-    <!-- Navigation Tabs للشاشات الست -->
-    <nav class="tabs-nav">
-      <button class="tab-btn active" onclick="switchTab('catalog')">
-        <i class="fa-solid fa-layer-group"></i> الكتالوج
-      </button>
-      <button class="tab-btn" onclick="switchTab('explorer')">
-        <i class="fa-solid fa-code"></i> المستعرض & SDK
-      </button>
-      <button class="tab-btn" onclick="switchTab('lineage')">
-        <i class="fa-solid fa-diagram-project"></i> شجرة التبعيات
-      </button>
-      <button class="tab-btn" onclick="switchTab('mock')">
-        <i class="fa-solid fa-server"></i> خادم المحاكاة
-      </button>
-      <button class="tab-btn" onclick="switchTab('diff')">
-        <i class="fa-solid fa-code-compare"></i> الفحص الدلالي
-      </button>
-      <button class="tab-btn" onclick="switchTab('vault')">
-        <i class="fa-solid fa-fingerprint"></i> الختم المشترك (Vault)
-      </button>
+    <nav class="sidebar-menu">
+      <a class="nav-btn active" id="btn-nav-dashboard" onclick="goView('dashboard')">
+        <i class="fa-solid fa-chart-pie" style="color:var(--primary);"></i>
+        <span>الداش بورد</span>
+      </a>
+
+      <!-- Soft Divider -->
+      <hr class="nav-divider">
+
+      <!-- Entities Only -->
+      <a class="nav-btn" id="btn-sec-banking" onclick="selectSector('banking')">
+        <i class="fa-solid fa-building-columns" style="color:#38bdf8;"></i>
+        <span>المؤسسات المالية والبنوك</span>
+      </a>
+
+      <a class="nav-btn" id="btn-sec-merchants" onclick="selectSector('merchants')">
+        <i class="fa-solid fa-cart-shopping" style="color:#34d399;"></i>
+        <span>أنظمة التجار والمدفوعات</span>
+      </a>
+
+      <a class="nav-btn" id="btn-sec-aml" onclick="selectSector('aml')">
+        <i class="fa-solid fa-shield-halved" style="color:#f59e0b;"></i>
+        <span>مكافحة غسل الأموال (AML)</span>
+      </a>
+
+      <!-- Soft Divider -->
+      <hr class="nav-divider">
+
+      <a class="nav-btn" id="btn-nav-approvals" onclick="goView('approvals')">
+        <i class="fa-solid fa-stamp" style="color:#10b981;"></i>
+        <span>الاعتمادات وطلبات التغيير</span>
+      </a>
+
+      <a class="nav-btn" id="btn-nav-versions" onclick="goView('versions')">
+        <i class="fa-solid fa-code-branch" style="color:var(--emerald);"></i>
+        <span>سجل الإصدارات</span>
+      </a>
+
+      <a class="nav-btn" id="btn-nav-security" onclick="goView('security')">
+        <i class="fa-solid fa-shield-halved" style="color:#f43f5e;"></i>
+        <span>المعايير الأمنية والأدوات</span>
+      </a>
+
+      <a class="nav-btn" id="btn-nav-rbac" onclick="goView('rbac')">
+        <i class="fa-solid fa-user-shield" style="color:#c4b5fd;"></i>
+        <span>مصفوفة الصلاحيات (RBAC)</span>
+      </a>
+
+      <a class="nav-btn" id="btn-nav-export" onclick="goView('export')">
+        <i class="fa-solid fa-file-export" style="color:#38bdf8;"></i>
+        <span>مركز التصدير المخصص</span>
+      </a>
     </nav>
 
-    <div class="header-actions">
-      <!-- Dark / Light Toggle -->
-      <button class="icon-btn" onclick="toggleTheme()" title="تبديل الثيم الداكن / الفاتح">
-        <i id="theme-icon" class="fa-solid fa-moon"></i>
-      </button>
-      <span class="badge badge-sealed">
-        <i class="fa-solid fa-circle-check"></i> المصدر الرسمي الوحيد للحقيقة
-      </span>
+    <div class="sidebar-footer">
+      <span><i class="fa-solid fa-lock"></i> الختم المشفر</span>
+      <span class="mono" style="font-weight:700;">RSA-4096</span>
     </div>
-  </header>
+  </aside>
 
-  <!-- Main Content -->
-  <main>
+  <!-- =========================================================================
+       2. MAIN APPLICATION CONTENT
+       ========================================================================= -->
+  <main class="main">
+    <!-- ULTRA-CLEAN TOPBAR -->
+    <header class="topbar">
+      <div class="topbar-left-zone">
+        <!-- Direct Route Badge (Hidden on Dashboard) -->
+        <div class="topbar-context-badge" id="topbar-context-badge" style="display:none;"></div>
 
-    <!-- =========================================================================
-         1. شاشة كتالوج الـ APIs (Catalog)
-         ========================================================================= -->
-    <section id="tab-catalog" class="tab-content active">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-        <div>
-          <h2>كتالوج مواصفات الـ APIs المصرفية المعتمدة</h2>
-          <p style="color: var(--text-dim); font-size: 0.95rem;">إدارة دورة حياة الـ APIs المصرفية مع تصنيفات الامتثال المالي (PII, PCI-DSS, ISO 20022)</p>
+        <!-- Global Platform Release Selector (Always visible for everyone) -->
+        <div class="global-release-wrap">
+          <i class="fa-solid fa-code-branch" style="color:var(--emerald); font-size:0.75rem;"></i>
+          <span style="font-size:0.75rem; color:var(--text-dim); font-weight:700;">الإصدار العام:</span>
+          <select id="global-release-select" class="global-release-select" onchange="onGlobalReleaseChange(this.value)">
+            <option value="v2026.2">v2026.2 (رسمي معتمد)</option>
+            <option value="v2026.1">v2026.1 (مؤرشف)</option>
+            <option value="v2027.0-draft">v2027.0 (مسودة سنوية)</option>
+          </select>
         </div>
-        <button class="btn btn-primary" onclick="alert('فتح معالج إنشاء مسودة مواصفة جديدة')">
-          <i class="fa-solid fa-plus"></i> إنشاء مسودة مواصفة جديدة
+
+        <!-- Static Platform Base URL (Permanent & Non-dynamic) -->
+        <div class="topbar-base-url-wrap">
+          <span style="font-size:0.73rem; color:var(--text-dim); font-weight:700;">Base URL:</span>
+          <code class="mono topbar-base-url" id="topbar-base-url">https://api.gov.fintech/v1</code>
+          <button class="btn btn-ghost btn-copy-icon" onclick="copyBaseUrl()" title="نسخ الرابط الأساسي">
+            <i class="fa-solid fa-copy"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="topbar-actions">
+        <!-- Theme Toggle -->
+        <button class="btn btn-ghost" onclick="toggleTheme()" title="تبديل الثيم">
+          <i class="fa-solid fa-circle-half-stroke"></i>
         </button>
       </div>
+    </header>
 
-      <div class="grid-2">
-        <!-- بطاقة IPS المعتمدة -->
-        <div class="glass-card">
-          <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:1rem;">
-            <div>
-              <span class="badge badge-sealed" style="margin-bottom:0.6rem;">
-                <i class="fa-solid fa-lock"></i> معتمد ومختوم رسمياً (SEALED)
-              </span>
-              <h3>National Instant Payment Switch (IPS)</h3>
-              <p class="mono" style="color:var(--primary); font-size:0.88rem; font-weight:700;">INSTANT_PAYMENTS • v1.0.0 (Release 5871)</p>
+    <div class="content-area">
+
+      <!-- =====================================================================
+           VIEW 1: DASHBOARD (CARDS ONLY, ZERO ADMINISTRATIVE TABLES)
+           ===================================================================== -->
+      <section id="pane-dashboard" class="view-pane active">
+        <div class="sectors-grid">
+          <!-- Sector 1 -->
+          <div class="sector-card">
+            <div class="sector-card-top">
+              <div class="sector-icon-box" style="color:#38bdf8;"><i class="fa-solid fa-building-columns"></i></div>
+              <strong style="font-size:0.95rem;">المؤسسات المالية والبنوك</strong>
             </div>
-            <div style="width:48px; height:48px; border-radius:var(--radius-md); background:rgba(99,102,241,0.15); display:flex; align-items:center; justify-content:center; color:var(--primary); font-size:1.4rem;">
-              <i class="fa-solid fa-bolt"></i>
+            <div style="margin-top:0.75rem; display:flex; justify-content:space-between; align-items:center;">
+              <span class="mono" style="font-size:0.8rem; font-weight:700; color:var(--emerald);">3 APIs</span>
+              <button class="btn btn-ghost" style="font-size:0.75rem; padding:0.25rem 0.65rem;" onclick="selectSector('banking')">استعراض &larr;</button>
             </div>
           </div>
+
+          <!-- Sector 2 -->
+          <div class="sector-card">
+            <div class="sector-card-top">
+              <div class="sector-icon-box" style="color:#34d399;"><i class="fa-solid fa-cart-shopping"></i></div>
+              <strong style="font-size:0.95rem;">أنظمة التجار والمدفوعات</strong>
+            </div>
+            <div style="margin-top:0.75rem; display:flex; justify-content:space-between; align-items:center;">
+              <span class="mono" style="font-size:0.8rem; font-weight:700; color:var(--emerald);">2 APIs</span>
+              <button class="btn btn-ghost" style="font-size:0.75rem; padding:0.25rem 0.65rem;" onclick="selectSector('merchants')">استعراض &larr;</button>
+            </div>
+          </div>
+
+          <!-- Sector 3 -->
+          <div class="sector-card">
+            <div class="sector-card-top">
+              <div class="sector-icon-box" style="color:#f59e0b;"><i class="fa-solid fa-shield-halved"></i></div>
+              <strong style="font-size:0.95rem;">مكافحة غسل الأموال (AML)</strong>
+            </div>
+            <div style="margin-top:0.75rem; display:flex; justify-content:space-between; align-items:center;">
+              <span class="mono" style="font-size:0.8rem; font-weight:700; color:var(--emerald);">1 API</span>
+              <button class="btn btn-ghost" style="font-size:0.75rem; padding:0.25rem 0.65rem;" onclick="selectSector('aml')">استعراض &larr;</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           VIEW 2: SPEC EXPLORER (ENDPOINTS RIBBON + TWO-COLUMN SPLIT)
+           ===================================================================== -->
+      <section id="pane-spec" class="view-pane">
+        <!-- Endpoints Ribbon (Concise Resource Names) -->
+        <div class="endpoints-ribbon" id="endpoints-ribbon">
+          <!-- Dynamically populated -->
+        </div>
+
+        <!-- Two-Column Split Screen: Property Tree + Live Code Console -->
+        <div class="two-column-split">
+
+          <!-- Column 1 (Right): Clean Property Tree (Zero Tables) -->
+          <div class="spec-doc-pane">
+            <!-- Header Meta -->
+            <div class="block-card">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                  <span id="active-ep-method" class="method-badge method-post">POST</span>
+                  <span class="mono" id="active-ep-path"
+                    style="font-size:0.95rem; font-weight:700; color:#38bdf8;">/v1/transfers</span>
+                </div>
+                <div style="display:flex; gap:0.4rem;">
+                  <span class="badge-pill badge-fin">Financial</span>
+                  <span class="badge-pill badge-iso">OAuth 2.0</span>
+                </div>
+              </div>
+              <div id="active-ep-desc" style="font-size:0.78rem; color:var(--text-muted); line-height:1.4;">تنفيذ أمر
+                تحويل بنكي فوري مطابق لسقف العمليات وضوابط المقاصة.</div>
+            </div>
+
+            <!-- Parameters Tree (Request Body) -->
+            <div class="block-card">
+              <div class="block-card-header">
+                <div class="block-card-title">
+                  <i class="fa-solid fa-code-fork" style="color:var(--primary);"></i>
+                  <span>حقول الطلب (Payload Schema)</span>
+                </div>
+                <span class="mono" style="font-size:0.7rem; color:var(--text-dim);">application/json</span>
+              </div>
+
+              <!-- Property List -->
+              <div class="param-list" id="param-list-container">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+
+            <!-- Business Rules -->
+            <div class="block-card">
+              <div class="block-card-header">
+                <div class="block-card-title">
+                  <i class="fa-solid fa-scale-balanced" style="color:var(--amber);"></i>
+                  <span>قواعد العمل والحوكمة (Business Rules)</span>
+                </div>
+              </div>
+
+              <div id="rules-list-container">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Column 2 (Left): Live Code & Response Console -->
+          <div class="console-pane">
+            <div class="console-card">
+              <div class="console-header">
+                <div class="console-tabs">
+                  <button class="c-tab active" onclick="switchConsoleTab('payload', this)">Payload JSON</button>
+                  <button class="c-tab" onclick="switchConsoleTab('200', this)">200 Success</button>
+                  <button class="c-tab" onclick="switchConsoleTab('422', this)">422 Error</button>
+                  <button class="c-tab" onclick="switchConsoleTab('curl', this)">cURL</button>
+                </div>
+                <button class="btn btn-ghost" style="padding:0.15rem 0.4rem; font-size:0.7rem;"
+                  onclick="copyConsoleCode()" title="نسخ الكود">
+                  <i class="fa-solid fa-copy"></i>
+                </button>
+              </div>
+
+              <div class="console-body" id="console-display-box">
+                <!-- Dynamically populated code -->
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           VIEW 3: DYNAMIC RBAC (MODERN PERMISSION DECK, ZERO TABLES)
+           ===================================================================== -->
+      <section id="pane-rbac" class="view-pane">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <span style="font-size:0.78rem; color:var(--text-dim);">الدور المختار:</span>
+            <select id="rbac-role-select" class="version-select"
+              style="background:var(--bg-card); padding:0.35rem 0.65rem; border:1px solid var(--border); border-radius:var(--radius);"
+              onchange="onRoleChange(this.value)">
+              <option value="admin">مسؤول الحوكمة (Platform Admin)</option>
+              <option value="architect">مهندس المعايير (Spec Architect)</option>
+              <option value="auditor">مدقق الامتثال (Compliance Auditor)</option>
+              <option value="partner">شريك خارجي (Partner Integrator)</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="saveRbac()">حفظ التعديلات</button>
+        </div>
+
+        <div class="rbac-deck" id="rbac-deck-container">
+          <!-- Dynamically populated cards -->
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           VIEW 4: DYNAMIC CUSTOM EXPORT STUDIO (STEPPED BUILDER + CRYPTO SEAL)
+           ===================================================================== -->
+      <section id="pane-export" class="view-pane">
+        <div class="export-studio-grid">
           
-          <p style="color:var(--text-muted); font-size:0.92rem; margin-bottom:1.25rem; line-height:1.6;">
-            المواصفة الوطنية الرسمية للتحويلات الفورية اللحظية بين البنوك ومحافظ الدفع الإلكتروني بالمملكة مع الالتزام بمعيار ISO 20022 (pacs.008).
-          </p>
-
-          <div style="display:flex; gap:0.5rem; margin-bottom:1.25rem; flex-wrap:wrap;">
-            <span class="badge badge-iso"><i class="fa-solid fa-building-columns"></i> ISO 20022 pacs.008</span>
-            <span class="badge badge-pci"><i class="fa-solid fa-shield-virus"></i> PCI-DSS Level 1</span>
-            <span class="badge badge-pii"><i class="fa-solid fa-user-shield"></i> PII Masked</span>
-          </div>
-          
-          <div style="background:var(--bg-input); border:1px solid var(--border-glass); padding:0.85rem 1.15rem; border-radius:var(--radius-md); margin-bottom:1.5rem; font-size:0.85rem; display:flex; justify-content:space-between;">
-            <div><strong>المسارات:</strong> <span class="outfit" style="color:var(--accent-cyan); font-weight:700;">2 Endpoints</span></div>
-            <div><strong>قواعد العمل:</strong> <span class="outfit" style="color:var(--accent-emerald); font-weight:700;">2 Rules</span></div>
-            <div><strong>الختم المشفر:</strong> <span class="outfit">RSA-PSS-4096</span></div>
-          </div>
-
-          <div style="display:flex; gap:0.75rem;">
-            <button class="btn btn-outline" style="flex:1;" onclick="switchTab('explorer')">
-              <i class="fa-solid fa-book-open"></i> استعراض المواصفة & SDK
-            </button>
-            <button class="btn btn-primary" style="flex:1;" onclick="switchTab('vault')">
-              <i class="fa-solid fa-vault"></i> غرفة الختم الرقمي
-            </button>
-          </div>
-        </div>
-
-        <!-- بطاقة Card Payment Gateway مسودة -->
-        <div class="glass-card">
-          <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:1rem;">
-            <div>
-              <span class="badge badge-draft" style="margin-bottom:0.6rem;">
-                <i class="fa-solid fa-hourglass-half"></i> مسودة قيد التدقيق (DRAFT CR-0050)
-              </span>
-              <h3>Card Payment & Tokenization Gateway</h3>
-              <p class="mono" style="color:var(--accent-amber); font-size:0.88rem; font-weight:700;">CARD_GATEWAY • v1.1.0-draft</p>
-            </div>
-            <div style="width:48px; height:48px; border-radius:var(--radius-md); background:rgba(245,158,11,0.15); display:flex; align-items:center; justify-content:center; color:var(--accent-amber); font-size:1.4rem;">
-              <i class="fa-solid fa-credit-card"></i>
-            </div>
-          </div>
-          
-          <p style="color:var(--text-muted); font-size:0.92rem; margin-bottom:1.25rem; line-height:1.6;">
-            بوابة المدفوعات لترميز البطاقات البنكية وعمليات المصادقة ثلاثية الأبعاد 3D-Secure 2.2 مع دعم حقول الدفع السريع.
-          </p>
-
-          <div style="display:flex; gap:0.5rem; margin-bottom:1.25rem; flex-wrap:wrap;">
-            <span class="badge badge-pci"><i class="fa-solid fa-shield-virus"></i> PCI-DSS Scope</span>
-            <span class="badge badge-pii"><i class="fa-solid fa-user-shield"></i> PII Sensitive</span>
-          </div>
-          
-          <div style="background:var(--bg-input); border:1px solid var(--border-glass); padding:0.85rem 1.15rem; border-radius:var(--radius-md); margin-bottom:1.5rem; font-size:0.85rem; display:flex; justify-content:space-between;">
-            <div><strong>المسارات:</strong> <span class="outfit">6 Endpoints</span></div>
-            <div><strong>قواعد العمل:</strong> <span class="outfit">4 Rules</span></div>
-            <div><strong>الحالة:</strong> في انتظار موافقة CSO</div>
-          </div>
-
-          <div style="display:flex; gap:0.75rem;">
-            <button class="btn btn-outline" style="flex:1;" onclick="switchTab('diff')">
-              <i class="fa-solid fa-code-compare"></i> فحص الفروقات الدلالي
-            </button>
-            <button class="btn btn-outline" style="flex:1;" onclick="switchTab('mock')">
-              <i class="fa-solid fa-server"></i> تجربة المحاكاة
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- =========================================================================
-         2. شاشة مستعرض المواصفة ومولد الأكواد (Explorer & Multi-Lang SDK)
-         ========================================================================= -->
-    <section id="tab-explorer" class="tab-content">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
-        <div>
-          <h2>مستعرض المواصفة التفصيلي & مولد الأكواد المرجعية (SDK)</h2>
-          <p class="mono" style="color:var(--accent-cyan); font-weight:700;">REL-INSTANT_PAYMENTS-2026-5871 • v1.0.0 (Official Contract)</p>
-        </div>
-        <div style="display:flex; gap:0.75rem;">
-          <button class="btn btn-outline" onclick="switchTab('lineage')">
-            <i class="fa-solid fa-diagram-project"></i> شجرة نسب الحقول
-          </button>
-          <button class="btn btn-outline" onclick="switchTab('mock')">
-            <i class="fa-solid fa-play"></i> تشغيل خادم المحاكاة
-          </button>
-        </div>
-      </div>
-
-      <div style="display:grid; grid-template-columns: 280px 1fr; gap:1.75rem;">
-        <!-- القائمة الجانبية -->
-        <div class="glass-card" style="padding:1.25rem;">
-          <h4 style="font-size:0.85rem; color:var(--text-dim); margin-bottom:0.85rem;">المسارات المعتمدة (Endpoints)</h4>
-          <div style="display:flex; flex-direction:column; gap:0.6rem;">
-            <div style="padding:0.75rem 1rem; background:rgba(99,102,241,0.18); border:1px solid var(--primary); border-radius:var(--radius-md); cursor:pointer;">
-              <span class="badge badge-post">POST</span> <span style="font-size:0.85rem; font-weight:700;" class="mono">/v1/transfers</span>
-            </div>
-            <div style="padding:0.75rem 1rem; background:var(--bg-input); border:1px solid var(--border-glass); border-radius:var(--radius-md); cursor:pointer;">
-              <span class="badge badge-get">GET</span> <span style="font-size:0.85rem; font-weight:700;" class="mono">/v1/transfers/{id}</span>
-            </div>
-          </div>
-
-          <h4 style="font-size:0.85rem; color:var(--text-dim); margin:1.75rem 0 0.85rem;">كتالوج الأخطاء المعياري</h4>
-          <div style="font-size:0.85rem; color:var(--text-muted); line-height:1.8;">
-            <div>• <strong class="mono" style="color:var(--accent-rose);">ERR_4001:</strong> رصيد غير كافٍ</div>
-            <div>• <strong class="mono" style="color:var(--accent-rose);">ERR_4002:</strong> تجاوز السقف اللحظي</div>
-            <div>• <strong class="mono" style="color:var(--accent-rose);">ERR_4091:</strong> تكرار العملية (Idempotency)</div>
-          </div>
-        </div>
-
-        <!-- تفاصيل العملية المختارة مع تصنيف الامتثال المالي ومولد الأكواد -->
-        <div class="glass-card">
-          <div style="display:flex; gap:0.75rem; align-items:center; margin-bottom:0.75rem;">
-            <span class="badge badge-post" style="font-size:0.95rem; padding:0.4rem 1rem;">POST</span>
-            <span class="mono" style="font-size:1.25rem; font-weight:800;">/v1/transfers</span>
-          </div>
-          <p style="color:var(--text-muted); margin-bottom:1.5rem; line-height:1.6;">
-            تنفيذ عملية تحويل مالي لحظي بين حسابين بنكيين مع التحقق الفوري من الرصيد والحدود المالية وقواعد مكافحة غسل الأموال (AML).
-          </p>
-
-          <!-- جدول الحقول مع تصنيف الامتثال وحساسية البيانات -->
-          <h3 style="font-size:1.05rem; margin-bottom:0.75rem; display:flex; align-items:center; justify-content:space-between;">
-            <span>عقد البيانات المطلوب (TransferRequest Payload):</span>
-            <span style="font-size:0.8rem; color:var(--accent-cyan); font-weight:400;">مدعوم بتصنيف الامتثال المصرفي</span>
-          </h3>
-          <div style="background:var(--bg-input); border:1px solid var(--border-glass); border-radius:var(--radius-md); overflow:hidden; margin-bottom:1.75rem;">
-            <table class="spec-table">
-              <thead>
-                <tr>
-                  <th>اسم الحقل</th>
-                  <th>النوع</th>
-                  <th>إلزامي؟</th>
-                  <th>تصنيف الامتثال المصرفي</th>
-                  <th>الوصف</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td class="mono" style="color:var(--accent-cyan); font-weight:700;">sourceAccount</td>
-                  <td class="mono" style="color:var(--text-dim);">string (IBAN)</td>
-                  <td style="color:var(--accent-rose); font-weight:800;">نعم</td>
-                  <td><span class="badge badge-pci"><i class="fa-solid fa-lock"></i> PCI-Masked</span></td>
-                  <td>رقم الآيبان البنكي للمرسل (معتمد في ISO 20022)</td>
-                </tr>
-                <tr>
-                  <td class="mono" style="color:var(--accent-cyan); font-weight:700;">destinationAccount</td>
-                  <td class="mono" style="color:var(--text-dim);">string (IBAN)</td>
-                  <td style="color:var(--accent-rose); font-weight:800;">نعم</td>
-                  <td><span class="badge badge-pii"><i class="fa-solid fa-user-shield"></i> PII Sensitive</span></td>
-                  <td>رقم الآيبان البنكي للمستلم</td>
-                </tr>
-                <tr>
-                  <td class="mono" style="color:var(--accent-cyan); font-weight:700;">amount</td>
-                  <td class="mono" style="color:var(--text-dim);">number</td>
-                  <td style="color:var(--accent-rose); font-weight:800;">نعم</td>
-                  <td><span class="badge badge-iso"><i class="fa-solid fa-coins"></i> Financial/Audit</span></td>
-                  <td>المبلغ المراد تحويله (سقف 50,000 ريال)</td>
-                </tr>
-                <tr>
-                  <td class="mono" style="color:var(--accent-cyan); font-weight:700;">idempotencyKey</td>
-                  <td class="mono" style="color:var(--text-dim);">UUID v4</td>
-                  <td style="color:var(--accent-rose); font-weight:800;">نعم</td>
-                  <td><span class="badge badge-sealed"><i class="fa-solid fa-fingerprint"></i> Anti-Replay</span></td>
-                  <td>مفتاح فريد لمنع تكرار العملية والخصم المزدوج</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <!-- مولد حزم الأكواد المرجعية المتعددة (SDK Generator) -->
-          <h3 style="font-size:1.05rem; margin-bottom:0.75rem;">مولد كود الربط الرسمي المعتمد (Multi-Language SDK):</h3>
-          <div style="background:var(--bg-input); border:1px solid var(--border-glass); border-radius:var(--radius-md); padding:1rem;">
-            <div class="code-tabs">
-              <button class="code-tab-btn active" onclick="setSdkLang('java')">Java (Spring Boot)</button>
-              <button class="code-tab-btn" onclick="setSdkLang('csharp')">C# (.NET 8)</button>
-              <button class="code-tab-btn" onclick="setSdkLang('python')">Python (HTTPX)</button>
-              <button class="code-tab-btn" onclick="setSdkLang('curl')">cURL</button>
-            </div>
-            <pre id="sdk-code-box" class="code-box">// Spring Boot WebClient with HMAC Signature
-TransferResponse response = webClient.post()
-    .uri("https://ips.centralbank.gov/v1/transfers")
-    .header("X-Signature-SHA256", HmacSigner.sign(payload, secretKey))
-    .header("X-Idempotency-Key", UUID.randomUUID().toString())
-    .bodyValue(transferPayload)
-    .retrieve()
-    .bodyToMono(TransferResponse.class)
-    .block();</pre>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- =========================================================================
-         3. شاشة شجرة التبعيات والنسب (Field & Schema Lineage)
-         ========================================================================= -->
-    <section id="tab-lineage" class="tab-content">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
-        <div>
-          <h2>شجرة التبعيات ونسب الحقول والـ Schemas (Lineage Graph)</h2>
-          <p style="color:var(--text-dim);">رؤية الأثر العكسي والمباشر عند تعديل أي حقل أو Schema على كافة الـ APIs والأنظمة المصرفية</p>
-        </div>
-        <div style="background:var(--bg-input); padding:0.4rem 0.85rem; border-radius:var(--radius-sm); border:1px solid var(--border-glass); font-size:0.85rem;">
-          <i class="fa-solid fa-search" style="color:var(--primary);"></i> فحص الحقل المشترك: <strong class="mono" style="color:var(--accent-cyan);">sourceAccount (IBAN)</strong>
-        </div>
-      </div>
-
-      <div class="glass-card">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; border-bottom:1px solid var(--border-subtle); padding-bottom:1rem;">
+          <!-- Column 1: Config Steps -->
           <div>
-            <span class="badge badge-pii" style="margin-bottom:0.4rem;">مخطط بيانات مركزي (Shared Schema)</span>
-            <h3 class="mono" style="color:var(--primary);">Schema: AccountReference_v1</h3>
-            <p style="font-size:0.85rem; color:var(--text-dim);">يحتوي على: IBAN, BankCode, AccountHolderName</p>
-          </div>
-          <div style="text-align:left;">
-            <div style="font-size:0.85rem; color:var(--text-dim);">درجة الأثر الإجمالي:</div>
-            <strong style="color:var(--accent-rose); font-size:1.1rem;">أثر عالي (High Impact) — 4 APIs و 28 بنك</strong>
-          </div>
-        </div>
+            <!-- Step 1: Scope -->
+            <div class="export-step-box">
+              <div class="export-step-header">
+                <span class="step-number-badge">1</span>
+                <strong style="font-size:0.88rem;">نطاق التصدير المعماري (Export Scope)</strong>
+              </div>
 
-        <div class="grid-3">
-          <!-- العمود 1: الـ Endpoints المتأثرة -->
-          <div style="background:var(--bg-input); border:1px solid var(--border-glass); border-radius:var(--radius-md); padding:1.25rem;">
-            <h4 style="font-size:0.9rem; color:var(--accent-cyan); margin-bottom:1rem;">
-              <i class="fa-solid fa-link"></i> المسارات المعتمدة على هذا الـ Schema
-            </h4>
-            <div style="display:flex; flex-direction:column; gap:0.75rem; font-size:0.85rem;">
-              <div style="padding:0.6rem; background:var(--bg-card); border-radius:var(--radius-xs);">
-                <span class="badge badge-post">POST</span> <span class="mono">/v1/transfers</span> (IPS)
+              <div style="display:flex; gap:0.75rem; margin-bottom:0.65rem;">
+                <label class="export-check-card" style="flex:1;">
+                  <input type="radio" name="export-scope-type" value="all" checked onchange="setExportScopeType('all')">
+                  <div>
+                    <strong style="font-size:0.82rem; display:block;">الكتالوج الوطني المعتمد بالكامل</strong>
+                    <span style="font-size:0.72rem; color:var(--text-dim);">تضمين كافة القطاعات والواجهات (6 APIs)</span>
+                  </div>
+                </label>
+
+                <label class="export-check-card" style="flex:1;">
+                  <input type="radio" name="export-scope-type" value="custom" onchange="setExportScopeType('custom')">
+                  <div>
+                    <strong style="font-size:0.82rem; display:block;">تخصيص قطاعات محددة</strong>
+                    <span style="font-size:0.72rem; color:var(--text-dim);">اختيار قطاعات بعينها للتصدير</span>
+                  </div>
+                </label>
               </div>
-              <div style="padding:0.6rem; background:var(--bg-card); border-radius:var(--radius-xs);">
-                <span class="badge badge-post">POST</span> <span class="mono">/v1/refunds</span> (Refunds API)
-              </div>
-              <div style="padding:0.6rem; background:var(--bg-card); border-radius:var(--radius-xs);">
-                <span class="badge badge-post">POST</span> <span class="mono">/v2/settlements</span> (Settlement API)
+
+              <!-- Custom Sectors Checkboxes (Hidden by default) -->
+              <div id="export-custom-sectors-wrap" class="export-options-grid" style="display:none; margin-top:0.6rem; padding-top:0.6rem; border-top:1px dashed var(--border-subtle);">
+                <label class="export-check-card">
+                  <input type="checkbox" checked onchange="toggleExportSector('banking', this.checked)">
+                  <span style="font-size:0.8rem; font-weight:700;">المؤسسات المالية والبنوك (3 APIs)</span>
+                </label>
+                <label class="export-check-card">
+                  <input type="checkbox" checked onchange="toggleExportSector('merchants', this.checked)">
+                  <span style="font-size:0.8rem; font-weight:700;">أنظمة التجار والمدفوعات (2 APIs)</span>
+                </label>
+                <label class="export-check-card">
+                  <input type="checkbox" checked onchange="toggleExportSector('aml', this.checked)">
+                  <span style="font-size:0.8rem; font-weight:700;">مكافحة غسل الأموال (1 API)</span>
+                </label>
               </div>
             </div>
-          </div>
 
-          <!-- العمود 2: القواعد المصرفية المرتبطة -->
-          <div style="background:var(--bg-input); border:1px solid var(--border-glass); border-radius:var(--radius-md); padding:1.25rem;">
-            <h4 style="font-size:0.9rem; color:var(--accent-emerald); margin-bottom:1rem;">
-              <i class="fa-solid fa-gavel"></i> قواعد الحوكمة والتحقق المرتبطة
-            </h4>
-            <div style="display:flex; flex-direction:column; gap:0.75rem; font-size:0.85rem;">
-              <div style="padding:0.6rem; background:var(--bg-card); border-radius:var(--radius-xs);">
-                <strong>BR_IBAN_MOD97:</strong> خوارزمية التحقق من صحة رقم الآيبان
+            <!-- Step 2: Content Modules -->
+            <div class="export-step-box">
+              <div class="export-step-header">
+                <span class="step-number-badge">2</span>
+                <strong style="font-size:0.88rem;">محتويات الحزمة التوثيقية (Content Modules)</strong>
               </div>
-              <div style="padding:0.6rem; background:var(--bg-card); border-radius:var(--radius-xs);">
-                <strong>BR_AML_SANCTION:</strong> فحص القوائم المحظورة التلقائي
+
+              <div class="export-options-grid">
+                <label class="export-check-card">
+                  <input type="checkbox" checked onchange="toggleExportModule('schemas', this.checked)">
+                  <div>
+                    <span style="font-size:0.8rem; font-weight:700; display:block;">مخططات الحقول (Schemas)</span>
+                    <span style="font-size:0.72rem; color:var(--text-dim);">أنواع البيانات، الإلزامية، وتصنيف PII</span>
+                  </div>
+                </label>
+
+                <label class="export-check-card">
+                  <input type="checkbox" checked onchange="toggleExportModule('rules', this.checked)">
+                  <div>
+                    <span style="font-size:0.8rem; font-weight:700; display:block;">قواعد الحوكمة (Business Rules)</span>
+                    <span style="font-size:0.72rem; color:var(--text-dim);">الحدود المالية، مفتاح عدم التكرار، والتحقق</span>
+                  </div>
+                </label>
+
+                <label class="export-check-card">
+                  <input type="checkbox" checked onchange="toggleExportModule('errors', this.checked)">
+                  <div>
+                    <span style="font-size:0.8rem; font-weight:700; display:block;">سجل الأخطاء (Error Catalog)</span>
+                    <span style="font-size:0.72rem; color:var(--text-dim);">رموز ومعاني استجابات 400 و 422 و 500</span>
+                  </div>
+                </label>
+
+                <label class="export-check-card">
+                  <input type="checkbox" checked onchange="toggleExportModule('samples', this.checked)">
+                  <div>
+                    <span style="font-size:0.8rem; font-weight:700; display:block;">أمثلة الاستدعاء (Code Samples)</span>
+                    <span style="font-size:0.72rem; color:var(--text-dim);">أوامر cURL ونماذج Payload الناجحة</span>
+                  </div>
+                </label>
+
+                <label class="export-check-card" style="grid-column: span 2;">
+                  <input type="checkbox" checked onchange="toggleExportModule('rbac', this.checked)">
+                  <div>
+                    <span style="font-size:0.8rem; font-weight:700; display:block;">ملحق مصفوفة الصلاحيات (RBAC Appendix)</span>
+                    <span style="font-size:0.72rem; color:var(--text-dim);">جدول مصفوفة الأدوار والصلاحيات المعتمدة للقطاع</span>
+                  </div>
+                </label>
               </div>
             </div>
-          </div>
 
-          <!-- العمود 3: المستهلكون المتأثرون في المنصة الثانية -->
-          <div style="background:var(--bg-input); border:1px solid var(--border-glass); border-radius:var(--radius-md); padding:1.25rem;">
-            <h4 style="font-size:0.9rem; color:var(--accent-amber); margin-bottom:1rem;">
-              <i class="fa-solid fa-building-columns"></i> الجهات المستهلكة في المنصة 2
-            </h4>
-            <div style="display:flex; flex-direction:column; gap:0.75rem; font-size:0.85rem;">
-              <div style="padding:0.6rem; background:var(--bg-card); border-radius:var(--radius-xs); display:flex; justify-content:space-between;">
-                <span>مصرف الراجحي (UAT & Prod)</span>
-                <span class="badge badge-sealed">Active</span>
+            <!-- Step 3: Format Selection -->
+            <div class="export-step-box">
+              <div class="export-step-header">
+                <span class="step-number-badge">3</span>
+                <strong style="font-size:0.88rem;">صيغة الحزمة والتشفير (Output Format)</strong>
               </div>
-              <div style="padding:0.6rem; background:var(--bg-card); border-radius:var(--radius-xs); display:flex; justify-content:space-between;">
-                <span>البنك الأهلي السعودي (Prod)</span>
-                <span class="badge badge-sealed">Active</span>
-              </div>
-              <div style="padding:0.6rem; background:var(--bg-card); border-radius:var(--radius-xs); display:flex; justify-content:space-between;">
-                <span>محفظة STC Pay (Testing)</span>
-                <span class="badge badge-draft">Testing</span>
+
+              <div class="export-format-selector">
+                <div class="format-card active" data-fmt="pdf" onclick="selectExportFormat('pdf')">
+                  <i class="fa-solid fa-file-pdf" style="font-size:1.8rem; color:var(--rose);"></i>
+                  <strong style="font-size:0.84rem;">PDF رسمي مختوم</strong>
+                  <span style="font-size:0.7rem; color:var(--text-dim);">توقيع RSA-4096 وباركود تدقيق</span>
+                </div>
+
+                <div class="format-card" data-fmt="docx" onclick="selectExportFormat('docx')">
+                  <i class="fa-solid fa-file-word" style="font-size:1.8rem; color:#2563eb;"></i>
+                  <strong style="font-size:0.84rem;">مستند Word (.docx)</strong>
+                  <span style="font-size:0.7rem; color:var(--text-dim);">جاهز للتحرير والمواءمة الداخلية</span>
+                </div>
+
+                <div class="format-card" data-fmt="openapi" onclick="selectExportFormat('openapi')">
+                  <i class="fa-solid fa-code" style="font-size:1.8rem; color:var(--emerald);"></i>
+                  <strong style="font-size:0.84rem;">OpenAPI 3.1 JSON</strong>
+                  <span style="font-size:0.7rem; color:var(--text-dim);">استيراد مباشر لبوابات المطورين</span>
+                </div>
               </div>
             </div>
+
           </div>
-        </div>
-      </div>
-    </section>
 
-    <!-- =========================================================================
-         4. شاشة خادم المحاكاة الفوري (Instant Mock Sandbox)
-         ========================================================================= -->
-    <section id="tab-mock" class="tab-content">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
-        <div>
-          <h2>خادم المحاكاة الفوري المشتق من العقود (Sandbox Mock Server)</h2>
-          <p style="color:var(--text-dim);">تجربة الـ Endpoints برمجياً فور اعتماد الـ Contract وقبل بدء التطوير الفعلي</p>
-        </div>
-        <span class="badge badge-sealed">
-          <i class="fa-solid fa-circle-dot"></i> Mock Engine Running (Active)
-        </span>
-      </div>
-
-      <div class="glass-card">
-        <div style="display:flex; gap:0.75rem; margin-bottom:1.25rem;">
-          <span class="badge badge-post" style="padding:0.6rem 1rem; font-size:0.9rem;">POST</span>
-          <input type="text" value="https://mock.fintech.gov/v1/transfers" class="mono" readonly style="flex:1; background:var(--bg-input); border:1px solid var(--border-glass); border-radius:var(--radius-sm); padding:0.6rem 1rem; color:var(--text-main); font-size:0.9rem;">
-          <button class="btn btn-primary" onclick="runMockCall()">
-            <i class="fa-solid fa-paper-plane"></i> إرسال الطلب للمحاكي (Send Mock)
-          </button>
-        </div>
-
-        <div class="sandbox-split">
-          <!-- Request Payload -->
+          <!-- Column 2: Live Summary & Crypto Sealing (Sticky) -->
           <div>
-            <h4 style="font-size:0.85rem; color:var(--text-dim); margin-bottom:0.5rem;">Request Headers & Payload:</h4>
-            <div class="code-box" style="height:260px;">{
-  "sourceAccount": "SA4420000001234567890123",
-  "destinationAccount": "SA1180000009876543210987",
-  "amount": 2500.00,
-  "currency": "SAR",
-  "idempotencyKey": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
-}</div>
+            <div class="sealing-summary-card">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.85rem; padding-bottom:0.55rem; border-bottom:1px solid var(--border);">
+                <strong style="font-size:0.9rem; color:#38bdf8;">
+                  <i class="fa-solid fa-box-archive" style="margin-left:0.4rem;"></i>ملخص الحزمة المعتمدة
+                </strong>
+                <span class="badge-pill badge-fin">جاهز للتوليد</span>
+              </div>
+
+              <div class="summary-row">
+                <span style="color:var(--text-dim);">الإصدار المرجعي:</span>
+                <strong class="mono" id="exp-sum-version" style="color:var(--emerald);">v2026.2</strong>
+              </div>
+
+              <div class="summary-row">
+                <span style="color:var(--text-dim);">واجهات الربط المشمولة:</span>
+                <span class="mono" id="exp-sum-apis" style="font-weight:700;">6 APIs</span>
+              </div>
+
+              <div class="summary-row">
+                <span style="color:var(--text-dim);">المسارات البرمجية:</span>
+                <span class="mono" id="exp-sum-endpoints" style="font-weight:700;">14 مسار برمجي</span>
+              </div>
+
+              <div class="summary-row">
+                <span style="color:var(--text-dim);">المحتويات:</span>
+                <span id="exp-sum-modules" style="font-size:0.75rem; color:var(--text-muted); text-align:left;">المخططات • قواعد العمل • رموز الأخطاء • أمثلة الكود • الصلاحيات</span>
+              </div>
+
+              <div class="summary-row">
+                <span style="color:var(--text-dim);">صيغة الملف:</span>
+                <strong id="exp-sum-format" style="font-size:0.78rem; color:#38bdf8;">وثيقة رسمية مشفرة (PDF RSA-4096)</strong>
+              </div>
+
+              <!-- Cryptographic Stamp Box -->
+              <div class="crypto-stamp-box">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+                  <span style="font-size:0.74rem; font-weight:700; color:var(--emerald);">
+                    <i class="fa-solid fa-fingerprint" style="margin-left:0.3rem;"></i>ختم الحوكمة السيادي
+                  </span>
+                  <span class="mono" style="font-size:0.68rem; background:rgba(16,185,129,0.15); color:var(--emerald); padding:0.1rem 0.4rem; border-radius:3px;">VALID</span>
+                </div>
+                <div class="mono" id="exp-sum-hash" style="font-size:0.68rem; color:var(--text-dim); word-break:break-all;">SHA256: 4f9d8a17e82b...9a0c</div>
+                <div style="font-size:0.68rem; color:var(--text-dim); margin-top:0.3rem;">مفتاح التشفير: RSA-PSS 4096-bit • شهادة وطنية سارية</div>
+              </div>
+
+              <!-- Main Execution Button -->
+              <button id="btn-execute-download" class="btn btn-primary" style="width:100%; margin-top:1rem; padding:0.65rem 1rem; font-size:0.86rem; font-weight:700; justify-content:center;" onclick="executeExportDownload()">
+                <i class="fa-solid fa-download" style="margin-left:0.5rem;"></i>
+                <span>توليد وتنزيل الحزمة الرسمية</span>
+              </button>
+            </div>
           </div>
 
-          <!-- Mock Response -->
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           VIEW 5: CHANGE REQUESTS & APPROVALS (الاعتمادات وطلبات التغيير)
+           ===================================================================== -->
+      <section id="pane-approvals" class="view-pane">
+        <div class="block-card" style="margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center;">
           <div>
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
-              <h4 style="font-size:0.85rem; color:var(--text-dim);">Mock Response (Derived from Contract Examples):</h4>
-              <span id="mock-status" class="badge badge-sealed outfit">201 Created • 38ms</span>
+            <div class="block-card-title" style="color:var(--text); font-size:1rem; margin-bottom:0.25rem;">
+              <i class="fa-solid fa-stamp" style="color:#10b981;"></i>
+              <span>سجل طلبات الاعتماد وتغيير المعايير (Change Requests & Approvals)</span>
             </div>
-            <div id="mock-response-box" class="code-box" style="height:260px;">{
-  "transactionId": "TXN-2026-988412",
-  "status": "SETTLED",
-  "amount": 2500.00,
-  "currency": "SAR",
-  "settlementTimestamp": "2026-10-04T11:45:00Z",
-  "signatureProof": "MEQCIFq91...RSA-PSS-VERIFIED"
-}</div>
+            <p style="font-size:0.78rem; color:var(--text-muted);">بوابة تقديم ومراجعة مقترحات تعديل المسارات، الحقول الجديدة، والترقيات المعمارية قبل اعتمادها رسمياً.</p>
+          </div>
+          <button class="btn btn-primary" onclick="toast('بوابة تقديم طلبات التغيير قيد الإطلاق')">
+            <i class="fa-solid fa-plus" style="margin-left:0.4rem;"></i> تقديم مقترح تغيير
+          </button>
+        </div>
+
+        <div style="background:var(--bg-card); border:1px dashed var(--border); border-radius:var(--radius); padding:3.5rem 1.5rem; text-align:center;">
+          <div style="width:54px; height:54px; border-radius:50%; background:var(--bg-active); color:#10b981; display:inline-flex; align-items:center; justify-content:center; font-size:1.6rem; margin-bottom:1rem;">
+            <i class="fa-solid fa-file-signature"></i>
+          </div>
+          <h3 style="font-size:0.95rem; font-weight:700; margin-bottom:0.4rem;">لا توجد طلبات تغيير قيد المراجعة حالياً</h3>
+          <p style="font-size:0.78rem; color:var(--text-dim); max-width:440px; margin:0 auto;">سيتم إدراج طلبات ترقية المعايير، وتعديلات الحقول، وملاحظات الشركاء هنا لإجراء التدقيق الفني والاعتماد السيادي.</p>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           VIEW 6: SECURITY STANDARDS & TOOLING (المعايير الأمنية والأدوات)
+           ===================================================================== -->
+      <section id="pane-security" class="view-pane">
+        <div class="block-card" style="margin-bottom:1.25rem;">
+          <div class="block-card-title" style="color:var(--text); font-size:1rem; margin-bottom:0.25rem;">
+            <i class="fa-solid fa-shield-halved" style="color:#f43f5e;"></i>
+            <span>المعايير الأمنية والأدوات التشفيرية المعتمدة (Security Standards & Tooling)</span>
+          </div>
+          <p style="font-size:0.78rem; color:var(--text-muted);">الدليل المرجعي لبروتوكولات الأمان، طبقات التشفير، وإجراءات التحقق المالي الإلزامية عبر كافة واجهات الربط.</p>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:1rem;">
+          <!-- Card 1 -->
+          <div class="block-card">
+            <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.75rem;">
+              <i class="fa-solid fa-lock" style="color:var(--emerald); font-size:1.2rem;"></i>
+              <strong style="font-size:0.88rem;">التوقيع الرقمي السيادي</strong>
+            </div>
+            <p style="font-size:0.76rem; color:var(--text-muted); line-height:1.5; margin-bottom:0.75rem;">اعتماد خوارزمية RSA-PSS بطول مفتاح 4096-bit مع SHA-256 لتوقيع وتأمين كافة الوثائق الرسمية وسجلات التغيير.</p>
+            <span class="mono badge-pill badge-fin">RSA-PSS-4096 / SHA-256</span>
+          </div>
+
+          <!-- Card 2 -->
+          <div class="block-card">
+            <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.75rem;">
+              <i class="fa-solid fa-network-wired" style="color:#38bdf8; font-size:1.2rem;"></i>
+              <strong style="font-size:0.88rem;">أمان الاتصال والربط</strong>
+            </div>
+            <p style="font-size:0.76rem; color:var(--text-muted); line-height:1.5; margin-bottom:0.75rem;">إلزامية بروتوكول TLS 1.3 مع التوثيق المتبادل للشهادات (mTLS) لكافة نقاط الربط المصرفية الحساسة لضمان عزل القنوات.</p>
+            <span class="mono badge-pill badge-iso">mTLS • TLS 1.3 Strict</span>
+          </div>
+
+          <!-- Card 3 -->
+          <div class="block-card">
+            <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.75rem;">
+              <i class="fa-solid fa-key" style="color:#f59e0b; font-size:1.2rem;"></i>
+              <strong style="font-size:0.88rem;">الهوية وتفويض الصلاحيات</strong>
+            </div>
+            <p style="font-size:0.76rem; color:var(--text-muted); line-height:1.5; margin-bottom:0.75rem;">تطبيق معايير OAuth 2.0 المتوافقة مع ملف الأمان المصرفي المتقدم (FAPI 1.0 Advanced) وحصر الصلاحيات عبر الـ Scopes.</p>
+            <span class="mono badge-pill badge-opt">OAuth 2.0 • FAPI 1.0</span>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- =========================================================================
-         5. شاشة محرك الفحص الدلالي للفروقات (Semantic Breaking Detector)
-         ========================================================================= -->
-    <section id="tab-diff" class="tab-content">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
-        <div>
-          <h2>محرك الفحص الدلالي للفروقات وتحليل التأثير (Semantic Diff Engine)</h2>
-          <p style="color:var(--text-dim);">كشف تلقائي للتغييرات الكاسرة وفرض قواعد SemVer الصارمة</p>
-        </div>
-        <div style="display:flex; gap:0.75rem;">
-          <button class="btn btn-outline" style="color:var(--accent-rose);" onclick="alert('تم رفض طلب التغيير وإعادته للمطور')">
-            <i class="fa-solid fa-xmark"></i> رفض التعديل
-          </button>
-          <button class="btn btn-primary" onclick="switchTab('vault')">
-            <i class="fa-solid fa-check-double"></i> اعتماد والانتقال لغرفة الختم
-          </button>
-        </div>
-      </div>
-
-      <!-- تحذير الكشف الدلالي التلقائي -->
-      <div style="background:rgba(244, 63, 94, 0.12); border:1px solid var(--accent-rose); border-radius:var(--radius-md); padding:1.25rem; margin-bottom:1.75rem; display:flex; align-items:center; justify-content:space-between;">
-        <div style="display:flex; align-items:center; gap:1rem;">
-          <i class="fa-solid fa-triangle-exclamation" style="font-size:2rem; color:var(--accent-rose);"></i>
+      <!-- =====================================================================
+           VIEW 7: VERSIONS & DIFF CENTER (سجل مقارنة الإصدارات)
+           ===================================================================== -->
+      <section id="pane-versions" class="view-pane">
+        <div class="block-card" style="margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center;">
           <div>
-            <strong style="color:var(--accent-rose); font-size:1.05rem;">تنبيه كسر توافق إلزامي (CRITICAL BREAKING CHANGE DETECTED)</strong>
-            <p style="font-size:0.88rem; color:var(--text-main); margin-top:0.25rem;">
-              تمت إضافة حقل إلزامي (<code class="mono">purposeCode</code>) وتغيير نطاق الحد الأقصى للمبلغ.
-              <strong style="color:var(--accent-amber);">النظام يفرض ترقية الإصدار الرئيسي Major Version (v1.0.0 → v2.0.0).</strong>
-            </p>
-          </div>
-        </div>
-        <div style="text-align:left;">
-          <div style="font-size:0.8rem; color:var(--text-dim);">استعلام المنصة الثانية:</div>
-          <span class="badge badge-deprecated" style="font-size:0.9rem;">20 بنك متأثر • 3 ستتوقف</span>
-        </div>
-      </div>
-
-      <div class="diff-container">
-        <div class="diff-pane">
-          <h4 style="color:var(--accent-cyan); margin-bottom:0.85rem;"><i class="fa-solid fa-circle-check"></i> الإصدار المعتمد الحالي (v1.0.0)</h4>
-          <div class="diff-line">"amount": { "type": "number", "max": 50000 },</div>
-          <div class="diff-line">"currency": { "type": "string", "default": "SAR" },</div>
-          <div class="diff-line">"idempotencyKey": { "type": "string" }</div>
-        </div>
-        <div class="diff-pane">
-          <h4 style="color:var(--accent-emerald); margin-bottom:0.85rem;"><i class="fa-solid fa-clock-rotate-left"></i> المسودة المقترحة (v1.1.0-draft)</h4>
-          <div class="diff-line del">"amount": { "type": "number", "max": 50000 },</div>
-          <div class="diff-line add">"amount": { "type": "number", "max": 100000 }, // + رفع السقف المالي</div>
-          <div class="diff-line">"currency": { "type": "string", "default": "SAR" },</div>
-          <div class="diff-line add">"purposeCode": { "type": "string", "required": true }, // ⛔ حقل إلزامي كاسر</div>
-          <div class="diff-line">"idempotencyKey": { "type": "string" }</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- =========================================================================
-         6. شاشة غرفة الختم التوافقي المتعدد (Multi-Sig CSO Vault)
-         ========================================================================= -->
-    <section id="tab-vault" class="tab-content">
-      <div class="glass-card" style="max-width:960px; margin:0 auto; padding:2.5rem; text-align:center;">
-        <div style="width:70px; height:70px; border-radius:50%; background:radial-gradient(circle, rgba(99,102,241,0.25), transparent); border:2px solid var(--primary); display:flex; align-items:center; justify-content:center; margin:0 auto 1.25rem; font-size:2rem; color:var(--primary); box-shadow:var(--shadow-glow);">
-          <i class="fa-solid fa-fingerprint"></i>
-        </div>
-        <h2>الغرفة الحصينة للختم التوافقي المتعدد (Multi-Party Sign-Off)</h2>
-        <p style="color:var(--text-dim); max-width:650px; margin:0.5rem auto 2rem; font-size:0.92rem;">
-          تنفيذ مبدأ حماية الأعين الأربع (4-Eyes Principle)؛ لا يمكن ختم ونشر مواصفة مالية رسمية إلا باكتمال تواقيع الجهات الثلاث.
-        </p>
-
-        <!-- خطوات التوقيع الثلاثي المشترك -->
-        <div style="text-align:right; margin-bottom:2rem;">
-          <!-- توقيع 1: مهندس المعمارية -->
-          <div class="sig-step signed">
-            <i class="fa-solid fa-circle-check" style="font-size:1.4rem; color:var(--accent-emerald);"></i>
-            <div style="flex:1;">
-              <strong>1. موافقة كبير مهندسي المعمارية (Lead API Architect)</strong>
-              <p style="font-size:0.8rem; color:var(--text-dim);">تم فحص العقد وتوافق الـ Schemas • المهندس: أحمد المعماري (usr_arch_01) • 2026-10-04 09:30 AM</p>
+            <div class="block-card-title" style="color:var(--text); font-size:1rem; margin-bottom:0.25rem;">
+              <i class="fa-solid fa-code-branch" style="color:var(--emerald);"></i>
+              <span>سجل ومصفوفة مقارنة الإصدارات (Versions & Diff Center)</span>
             </div>
-            <span class="badge badge-sealed">موقع مشفراً</span>
-          </div>
-
-          <!-- توقيع 2: مسؤول الامتثال والحوكمة -->
-          <div class="sig-step signed">
-            <i class="fa-solid fa-circle-check" style="font-size:1.4rem; color:var(--accent-emerald);"></i>
-            <div style="flex:1;">
-              <strong>2. موافقة مسؤول الامتثال المصرفي (Chief Compliance Officer)</strong>
-              <p style="font-size:0.8rem; color:var(--text-dim);">تم التأكد من توافق معايير ISO 20022 و PCI-DSS • د. سارة الحوكمة (usr_comp_04) • 2026-10-04 10:15 AM</p>
-            </div>
-            <span class="badge badge-sealed">موقع مشفراً</span>
-          </div>
-
-          <!-- توقيع 3: رئيس الأمن السيبراني CSO -->
-          <div id="cso-sig-step" class="sig-step pending">
-            <i id="cso-sig-icon" class="fa-solid fa-clock" style="font-size:1.4rem; color:var(--accent-amber);"></i>
-            <div style="flex:1;">
-              <strong>3. التوقيع النهائي بمفتاح الأمن السيبراني (Chief Security Officer - CSO)</strong>
-              <p style="font-size:0.8rem; color:var(--text-dim);">بانتظار تفعيل ختم المفتاح السيادي (RSA-PSS-4096 Hardware Token KMS)</p>
-            </div>
-            <span id="cso-sig-badge" class="badge badge-draft">قيد الانتظار</span>
+            <p style="font-size:0.78rem; color:var(--text-muted);">المستودع المركزي لإدارة ومقارنة الفروقات بين الإصدارات المعمارية لجميع القطاعات.</p>
           </div>
         </div>
 
-        <!-- تفاصيل شهادة الختم الرسمية -->
-        <div style="background:var(--bg-input); border:1px solid var(--border-glass); border-radius:var(--radius-lg); padding:1.5rem; margin-bottom:2rem; text-align:right;">
-          <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border-subtle); padding-bottom:0.75rem; margin-bottom:0.75rem;">
-            <span style="color:var(--text-dim);">معرف الإصدار الرسمي:</span>
-            <strong class="mono" style="color:var(--primary);">REL-INSTANT_PAYMENTS-2026-5871</strong>
+        <div style="background:var(--bg-card); border:1px dashed var(--border); border-radius:var(--radius); padding:3.5rem 1.5rem; text-align:center;">
+          <div style="width:54px; height:54px; border-radius:50%; background:var(--bg-active); color:var(--emerald); display:inline-flex; align-items:center; justify-content:center; font-size:1.6rem; margin-bottom:1rem;">
+            <i class="fa-solid fa-code-compare"></i>
           </div>
-          <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border-subtle); padding-bottom:0.75rem; margin-bottom:0.75rem;">
-            <span style="color:var(--text-dim);">بصمة التجزئة للوثيقة (SHA-256):</span>
-            <span class="mono" style="color:var(--accent-emerald); font-size:0.82rem;">71027c802f60c8f98fc49570a2ad629cbc616092398439499dad90d17cb4c00b</span>
-          </div>
-          <div style="display:flex; justify-content:space-between;">
-            <span style="color:var(--text-dim);">خوارزمية التشفير البنكية:</span>
-            <strong class="mono">RSA-PSS-4096 (KMS HSM Hardware Secured)</strong>
-          </div>
+          <h3 style="font-size:0.95rem; font-weight:700; margin-bottom:0.4rem;">سجل مقارنة الإصدارات متاح للربط</h3>
+          <p style="font-size:0.78rem; color:var(--text-dim); max-width:440px; margin:0 auto;">سيتم من هنا استعراض مقارنة الفروقات (Inline Diff) وسجل التغييرات الكامل بين الإصدارات السنوية والمرحلية.</p>
         </div>
+      </section>
 
-        <div style="display:flex; justify-content:center; gap:1.25rem;">
-          <button id="btn-cso-seal" class="btn btn-primary" onclick="completeCsoSign()">
-            <i class="fa-solid fa-signature"></i> توقيع الـ CSO وإتمام الختم السيادي (Sign & Seal)
-          </button>
-          <button class="btn btn-outline" onclick="alert('📥 جاري تنزيل ملف الـ Snapshot الرسمي المختوم: REL-INSTANT_PAYMENTS-2026-5871-SPEC.json')">
-            <i class="fa-solid fa-download"></i> تصدير الـ Snapshot المختوم
-          </button>
-        </div>
-      </div>
-    </section>
-
+    </div>
   </main>
 
-  <script>
-    // Tab Switching
-    function switchTab(tabId) {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  <!-- =========================================================================
+       MODAL: INLINE VERSION DIFF
+       ========================================================================= -->
+  <div id="modal-diff" class="modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <strong style="font-size:0.9rem;"><i class="fa-solid fa-code-compare"
+            style="color:var(--purple); margin-left:0.4rem;"></i>مقارنة الفروقات بين الإصدارات</strong>
+        <span onclick="closeDiffModal()" style="cursor:pointer; color:var(--text-dim);">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div
+          style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.85rem; background:var(--bg-input); padding:0.5rem 0.75rem; border-radius:var(--radius);">
+          <div>
+            <span style="font-size:0.75rem; color:var(--text-dim);">مقارنة: </span>
+            <strong class="mono" id="diff-v-target" style="color:var(--emerald);">v2.0.0</strong>
+            <span style="font-size:0.75rem; color:var(--text-dim); margin:0 0.4rem;">مع</span>
+            <strong class="mono" id="diff-v-base" style="color:#c4b5fd;">v1.9.0</strong>
+          </div>
+          <span class="badge-pill badge-fin"><i class="fa-solid fa-check"></i> Non-breaking</span>
+        </div>
 
-      const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick').includes(tabId));
-      if (targetBtn) targetBtn.classList.add('active');
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.65rem;">
+          <div>
+            <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:0.3rem;">الإصدار السابق (v1.9.0)</div>
+            <div class="console-body" style="height:200px;">{
+              "api": "CHECKOUT_API",
+              "version": "1.9.0",
+              "fields": [
+              "merchantId",
+              "orderRef",
+              "amount"
+              ]
+              }</div>
+          </div>
+          <div>
+            <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:0.3rem;">الإصدار المختار (v2.0.0)</div>
+            <div class="console-body" style="height:200px; color:#a7f3d0;">{
+              "api": "CHECKOUT_API",
+              "version": "2.0.0",
+              "fields": [
+              "merchantId",
+              "orderRef",
+              "amount",
+              <span style="background:rgba(16,185,129,0.25); color:#34d399; font-weight:700;">+ "idempotencyKey"</span>,
+              <span style="background:rgba(16,185,129,0.25); color:#34d399; font-weight:700;">+ "customerIban"</span>
+              ]
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeDiffModal()">إغلاق</button>
+      </div>
+    </div>
+  </div>
 
-      const targetContent = document.getElementById('tab-' + tabId);
-      if (targetContent) targetContent.classList.add('active');
-    }
+  <!-- =========================================================================
+       MODAL: GLOBAL RELEASES CHANGELOG
+       ========================================================================= -->
+  <div id="modal-changelog" class="modal">
+    <div class="modal-box" style="max-width:680px;">
+      <div class="modal-header">
+        <strong style="font-size:0.9rem;"><i class="fa-solid fa-clock-rotate-left" style="color:var(--emerald); margin-left:0.4rem;"></i>سجل الإصدارات المعمارية العامة للمنظومة</strong>
+        <span onclick="closeChangelogModal()" style="cursor:pointer; color:var(--text-dim);">&times;</span>
+      </div>
+      <div class="modal-body" style="display:flex; flex-direction:column; gap:0.85rem;">
+        <div style="background:var(--bg-input); border:1px solid var(--border); border-right:3px solid var(--emerald); padding:0.85rem; border-radius:var(--radius);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+            <strong class="mono" style="color:var(--emerald); font-size:0.85rem;">الإصدار العام: v2026.2 (الساري المعتمد)</strong>
+            <span class="badge-pill badge-fin">اعتماد البنك المركزي</span>
+          </div>
+          <p style="font-size:0.78rem; color:var(--text-muted); line-height:1.5;">اعتماد معايير التحويل اللحظي المحدثة IPS v1.0.0، وبوابة الدفع السريع v2.0.0، وتعميم متطلب مفتاح عدم التكرار IdempotencyKey لمنع ازدواجية الصرف المالي.</p>
+        </div>
 
-    // Theme Toggle (Dark / Light)
-    function toggleTheme() {
-      const html = document.documentElement;
-      const currentTheme = html.getAttribute('data-theme');
-      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-      html.setAttribute('data-theme', newTheme);
-      
-      const icon = document.getElementById('theme-icon');
-      if (newTheme === 'light') {
-        icon.className = 'fa-solid fa-sun';
-      } else {
-        icon.className = 'fa-solid fa-moon';
-      }
-    }
+        <div style="background:var(--bg-input); border:1px solid var(--border); border-right:3px solid var(--amber); padding:0.85rem; border-radius:var(--radius);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+            <strong class="mono" style="color:var(--amber); font-size:0.85rem;">الإصدار القادم: v2027.0-Draft (مسودة قيد المراجعة)</strong>
+            <span class="badge-pill badge-req">مسودة استشارية</span>
+          </div>
+          <p style="font-size:0.78rem; color:var(--text-muted); line-height:1.5;">مقترح رفع سقف الحوالات اللحظية وتوسيع بروتوكول المصرفية المفتوحة ليشمل خدمات تمويل الشركات والتسويات الإجمالية الدولية.</p>
+        </div>
 
-    // Multi-Language SDK Snippets Switcher
-    const codeSnippets = {
-      java: `// Spring Boot WebClient with HMAC Signature
-TransferResponse response = webClient.post()
-    .uri("https://ips.centralbank.gov/v1/transfers")
-    .header("X-Signature-SHA256", HmacSigner.sign(payload, secretKey))
-    .header("X-Idempotency-Key", UUID.randomUUID().toString())
-    .bodyValue(transferPayload)
-    .retrieve()
-    .bodyToMono(TransferResponse.class)
-    .block();`,
-      csharp: `// C# .NET 8 HttpClient with Banking Security Header
-using var client = new HttpClient();
-client.DefaultRequestHeaders.Add("X-Signature-SHA256", SecurityHelper.ComputeHmac(payloadJson, secretKey));
-client.DefaultRequestHeaders.Add("X-Idempotency-Key", Guid.NewGuid().ToString());
+        <div style="background:var(--bg-input); border:1px solid var(--border); border-right:3px solid var(--text-dim); padding:0.85rem; border-radius:var(--radius); opacity:0.8;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+            <strong class="mono" style="color:var(--text-dim); font-size:0.85rem;">الإصدار السابق: v2026.1 (مؤرشف)</strong>
+            <span class="badge-pill badge-opt">مؤرشف ومجمد</span>
+          </div>
+          <p style="font-size:0.78rem; color:var(--text-muted); line-height:1.5;">الإصدار التأسيسي لخدمات استعلام الحسابات البنكية ومكافحة غسل الأموال AML.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeChangelogModal()">إغلاق</button>
+      </div>
+    </div>
+  </div>
 
-var content = new StringContent(payloadJson, Encoding.UTF8, "application/json");
-var response = await client.PostAsync("https://ips.centralbank.gov/v1/transfers", content);
-var result = await response.Content.ReadFromJsonAsync<TransferResponse>();`,
-      python: `import httpx, uuid, hmac, hashlib
+  <!-- Toast -->
+  <div id="toast" class="toast">
+    <i class="fa-solid fa-check" style="color:var(--emerald);"></i>
+    <span id="toast-msg">تمت العملية بنجاح</span>
+  </div>
 
-signature = hmac.new(secret_key.encode(), payload_json.encode(), hashlib.sha256).hexdigest()
-headers = {
-    "X-Signature-SHA256": signature,
-    "X-Idempotency-Key": str(uuid.uuid4()),
-    "Content-Type": "application/json"
-}
-
-with httpx.Client() as client:
-    response = client.post("https://ips.centralbank.gov/v1/transfers", content=payload_json, headers=headers)
-    print(response.json())`,
-      curl: `curl -X POST "https://ips.centralbank.gov/v1/transfers" \\
-  -H "Content-Type: application/json" \\
-  -H "X-Idempotency-Key: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" \\
-  -H "X-Signature-SHA256: 71027c802f60c8f98fc49570a2ad629cb..." \\
-  -d '{"sourceAccount":"SA442000...","destinationAccount":"SA118000...","amount":2500.00,"currency":"SAR"}'`
-    };
-
-    function setSdkLang(lang) {
-      document.querySelectorAll('.code-tab-btn').forEach(b => b.classList.remove('active'));
-      const activeBtn = Array.from(document.querySelectorAll('.code-tab-btn')).find(b => b.getAttribute('onclick').includes(lang));
-      if (activeBtn) activeBtn.classList.add('active');
-
-      document.getElementById('sdk-code-box').textContent = codeSnippets[lang] || '';
-    }
-
-    // Mock Sandbox Simulator
-    function runMockCall() {
-      const respBox = document.getElementById('mock-response-box');
-      const statusBadge = document.getElementById('mock-status');
-      
-      respBox.textContent = "// جاري الاتصال بخادم المحاكاة الفوري...";
-      statusBadge.textContent = "Connecting...";
-      statusBadge.className = "badge badge-draft outfit";
-
-      setTimeout(() => {
-        statusBadge.textContent = "201 Created • 41ms";
-        statusBadge.className = "badge badge-sealed outfit";
-        respBox.textContent = JSON.stringify({
-          transactionId: "TXN-2026-" + Math.floor(100000 + Math.random() * 900000),
-          status: "SETTLED",
-          amount: 2500.00,
-          currency: "SAR",
-          settlementTimestamp: new Date().toISOString(),
-          complianceVerification: "PASSED_ISO20022_PACS008",
-          signatureProof: "MEQCIFq91...RSA-PSS-VERIFIED"
-        }, null, 2);
-      }, 500);
-    }
-
-    // CSO Multi-Sig Completion
-    function completeCsoSign() {
-      const step = document.getElementById('cso-sig-step');
-      const icon = document.getElementById('cso-sig-icon');
-      const badge = document.getElementById('cso-sig-badge');
-      const btn = document.getElementById('btn-cso-seal');
-
-      step.className = 'sig-step signed';
-      icon.className = 'fa-solid fa-circle-check';
-      icon.style.color = 'var(--accent-emerald)';
-      badge.className = 'badge badge-sealed';
-      badge.textContent = 'موقع ومختوم بنجاح';
-
-      btn.disabled = true;
-      btn.style.opacity = '0.6';
-      btn.innerHTML = '<i class="fa-solid fa-check"></i> تم اكتمال كافة التواقيع والختم السيادي بنجاح!';
-
-      alert('🎉 تم اكتمال تواقيع الجهات الثلاث (Lead Architect + Compliance + CSO) بنجاح!\nتم تشغيل مفتاح التشفير KMS وإصدار النسخة الرسمية REL-INSTANT_PAYMENTS-2026-5871.');
-    }
-  </script>
-
+  <!-- =========================================================================
+       DYNAMIC SCRIPT ENGINE (STATE + DECLARATIVE RENDERING)
+       ========================================================================= -->
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
 </body>
+
 </html>
