@@ -6,11 +6,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>منصة حوكمة وتوثيق المعايير المالية — API Governance Hub</title>
 
-  <!-- Google Fonts: Cairo & Outfit & JetBrains Mono -->
+  <!-- Google Fonts: Tajawal, Readex Pro, Cairo, Outfit & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
-    href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=Readex+Pro:wght@400;500;600;700&family=Cairo:wght@400;600;700;800&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
     rel="stylesheet">
 
   <!-- FontAwesome 6.5.1 -->
@@ -27,12 +27,12 @@
   <aside class="sidebar">
     <div class="sidebar-brand">
       <div class="brand-icon"><i class="fa-solid fa-cube"></i></div>
-      <div class="brand-title">حوكمة المعايير</div>
+      <div class="brand-title">إدارة توثيق API</div>
     </div>
 
     <nav class="sidebar-menu">
       <a class="nav-btn active" id="btn-nav-dashboard" onclick="goView('dashboard')">
-        <i class="fa-solid fa-chart-pie" style="color:var(--primary);"></i>
+        <i class="fa-solid fa-chart-pie"></i>
         <span>الداش بورد</span>
       </a>
 
@@ -41,17 +41,17 @@
 
       <!-- Entities Only -->
       <a class="nav-btn" id="btn-sec-banking" onclick="selectSector('banking')">
-        <i class="fa-solid fa-building-columns" style="color:#38bdf8;"></i>
+        <i class="fa-solid fa-building-columns"></i>
         <span>المؤسسات المالية والبنوك</span>
       </a>
 
       <a class="nav-btn" id="btn-sec-merchants" onclick="selectSector('merchants')">
-        <i class="fa-solid fa-cart-shopping" style="color:#34d399;"></i>
+        <i class="fa-solid fa-cart-shopping"></i>
         <span>أنظمة التجار والمدفوعات</span>
       </a>
 
       <a class="nav-btn" id="btn-sec-aml" onclick="selectSector('aml')">
-        <i class="fa-solid fa-shield-halved" style="color:#f59e0b;"></i>
+        <i class="fa-solid fa-shield-halved"></i>
         <span>مكافحة غسل الأموال (AML)</span>
       </a>
 
@@ -59,35 +59,30 @@
       <hr class="nav-divider">
 
       <a class="nav-btn" id="btn-nav-approvals" onclick="goView('approvals')">
-        <i class="fa-solid fa-stamp" style="color:#10b981;"></i>
+        <i class="fa-solid fa-stamp"></i>
         <span>الاعتمادات وطلبات التغيير</span>
       </a>
 
       <a class="nav-btn" id="btn-nav-versions" onclick="goView('versions')">
-        <i class="fa-solid fa-code-branch" style="color:var(--emerald);"></i>
+        <i class="fa-solid fa-code-branch"></i>
         <span>سجل الإصدارات</span>
       </a>
 
       <a class="nav-btn" id="btn-nav-security" onclick="goView('security')">
-        <i class="fa-solid fa-shield-halved" style="color:#f43f5e;"></i>
+        <i class="fa-solid fa-shield-halved"></i>
         <span>المعايير الأمنية والأدوات</span>
       </a>
 
       <a class="nav-btn" id="btn-nav-rbac" onclick="goView('rbac')">
-        <i class="fa-solid fa-user-shield" style="color:#c4b5fd;"></i>
+        <i class="fa-solid fa-user-shield"></i>
         <span>مصفوفة الصلاحيات (RBAC)</span>
       </a>
 
       <a class="nav-btn" id="btn-nav-export" onclick="goView('export')">
-        <i class="fa-solid fa-file-export" style="color:#38bdf8;"></i>
+        <i class="fa-solid fa-file-export"></i>
         <span>مركز التصدير المخصص</span>
       </a>
     </nav>
-
-    <div class="sidebar-footer">
-      <span><i class="fa-solid fa-lock"></i> الختم المشفر</span>
-      <span class="mono" style="font-weight:700;">RSA-4096</span>
-    </div>
   </aside>
 
   <!-- =========================================================================
@@ -97,8 +92,6 @@
     <!-- ULTRA-CLEAN TOPBAR -->
     <header class="topbar">
       <div class="topbar-left-zone">
-        <!-- Direct Route Badge (Hidden on Dashboard) -->
-        <div class="topbar-context-badge" id="topbar-context-badge" style="display:none;"></div>
 
         <!-- Global Platform Release Selector (Always visible for everyone) -->
         <div class="global-release-wrap">
@@ -115,7 +108,7 @@
         <div class="topbar-base-url-wrap">
           <span style="font-size:0.73rem; color:var(--text-dim); font-weight:700;">Base URL:</span>
           <code class="mono topbar-base-url" id="topbar-base-url">https://api.gov.fintech/v1</code>
-          <button class="btn btn-ghost btn-copy-icon" onclick="copyBaseUrl()" title="نسخ الرابط الأساسي">
+          <button class="btn btn-ghost btn-copy-icon" onclick="copyBaseUrl(event)" title="نسخ الرابط الأساسي">
             <i class="fa-solid fa-copy"></i>
           </button>
         </div>
@@ -123,6 +116,11 @@
 
       <!-- Actions -->
       <div class="topbar-actions">
+        <!-- New Primary Action: Dynamic API Creation -->
+        <button class="btn btn-primary" onclick="openAddApiWizard()" style="padding:0.4rem 0.85rem; font-size:0.8rem; display:inline-flex; align-items:center; gap:0.4rem;">
+          <i class="fa-solid fa-plus"></i> <span>إضافة API جديد</span>
+        </button>
+
         <!-- Theme Toggle -->
         <button class="btn btn-ghost" onclick="toggleTheme()" title="تبديل الثيم">
           <i class="fa-solid fa-circle-half-stroke"></i>
@@ -184,78 +182,180 @@
           <!-- Dynamically populated -->
         </div>
 
-        <!-- Two-Column Split Screen: Property Tree + Live Code Console -->
-        <div class="two-column-split">
-
-          <!-- Column 1 (Right): Clean Property Tree (Zero Tables) -->
-          <div class="spec-doc-pane">
-            <!-- Header Meta -->
-            <div class="block-card">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
-                <div style="display:flex; align-items:center; gap:0.5rem;">
-                  <span id="active-ep-method" class="method-badge method-post">POST</span>
-                  <span class="mono" id="active-ep-path"
-                    style="font-size:0.95rem; font-weight:700; color:#38bdf8;">/v1/transfers</span>
-                </div>
-                <div style="display:flex; gap:0.4rem;">
-                  <span class="badge-pill badge-fin">Financial</span>
-                  <span class="badge-pill badge-iso">OAuth 2.0</span>
-                </div>
-              </div>
-              <div id="active-ep-desc" style="font-size:0.78rem; color:var(--text-muted); line-height:1.4;">تنفيذ أمر
-                تحويل بنكي فوري مطابق لسقف العمليات وضوابط المقاصة.</div>
-            </div>
-
-            <!-- Parameters Tree (Request Body) -->
-            <div class="block-card">
-              <div class="block-card-header">
-                <div class="block-card-title">
-                  <i class="fa-solid fa-code-fork" style="color:var(--primary);"></i>
-                  <span>حقول الطلب (Payload Schema)</span>
-                </div>
-                <span class="mono" style="font-size:0.7rem; color:var(--text-dim);">application/json</span>
-              </div>
-
-              <!-- Property List -->
-              <div class="param-list" id="param-list-container">
-                <!-- Dynamically populated -->
-              </div>
-            </div>
-
-            <!-- Business Rules -->
-            <div class="block-card">
-              <div class="block-card-header">
-                <div class="block-card-title">
-                  <i class="fa-solid fa-scale-balanced" style="color:var(--amber);"></i>
-                  <span>قواعد العمل والحوكمة (Business Rules)</span>
-                </div>
-              </div>
-
-              <div id="rules-list-container">
-                <!-- Dynamically populated -->
-              </div>
-            </div>
-          </div>
-
-          <!-- Column 2 (Left): Live Code & Response Console -->
-          <div class="console-pane">
-            <div class="console-card">
-              <div class="console-header">
-                <div class="console-tabs">
-                  <button class="c-tab active" onclick="switchConsoleTab('payload', this)">Payload JSON</button>
-                  <button class="c-tab" onclick="switchConsoleTab('200', this)">200 Success</button>
-                  <button class="c-tab" onclick="switchConsoleTab('422', this)">422 Error</button>
-                  <button class="c-tab" onclick="switchConsoleTab('curl', this)">cURL</button>
-                </div>
-                <button class="btn btn-ghost" style="padding:0.15rem 0.4rem; font-size:0.7rem;"
-                  onclick="copyConsoleCode()" title="نسخ الكود">
+        <!-- Financial Spec Workbench (Ultra-Slim Content-First Architecture) -->
+        <div class="spec-workbench-container">
+          <!-- Ultra-Slim Consolidated Single-Row Header Bar (42px) -->
+          <!-- Ultra-Slim Consolidated Single-Row Header Bar (42px) -->
+          <div class="spec-slim-toolbar">
+            <div class="spec-slim-meta">
+              <div class="spec-slim-path-wrap" style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                <span id="active-ep-method" class="method-badge method-post">POST</span>
+                <span class="mono spec-slim-path" id="active-ep-path">/v1/transfers</span>
+                <span class="badge-pill badge-iso" id="active-ep-status-badge"><i class="fa-solid fa-shield-check"></i> معتمد رسمي v2026.2</span>
+                <button class="btn btn-emerald" id="btn-seal-active-ep" style="display:none; padding:0.2rem 0.6rem; font-size:0.75rem;" onclick="sealActiveEndpoint()"><i class="fa-solid fa-stamp"></i> ختم واعتماد فوري</button>
+                <button class="btn-slim-action" onclick="copyActiveEndpointPath(event)" title="نسخ المسار">
                   <i class="fa-solid fa-copy"></i>
                 </button>
               </div>
+            </div>
 
-              <div class="console-body" id="console-display-box">
-                <!-- Dynamically populated code -->
+            <div class="spec-slim-controls">
+              <!-- Example Format Switcher (Directly in toolbar to save vertical row) -->
+              <div class="spec-format-switcher" id="toolbar-format-switcher" style="display:none;">
+                <button class="format-mini-btn active" id="btn-format-json" onclick="switchExampleFormat('json')">JSON</button>
+                <button class="format-mini-btn" id="btn-format-xml" onclick="switchExampleFormat('xml')">XML</button>
+                <button class="format-mini-btn" id="btn-format-yaml" onclick="switchExampleFormat('yaml')">YAML</button>
               </div>
+
+              <!-- Compact Segmented Control (Tabs) -->
+              <div class="spec-slim-segmented">
+                <button class="spec-slim-seg-btn active" id="btn-tab-spec-doc" onclick="switchSpecTwoTab('doc')">
+                  <span>1. جداول المواصفة</span>
+                </button>
+                <button class="spec-slim-seg-btn" id="btn-tab-spec-example" onclick="switchSpecTwoTab('example')">
+                  <span>2. أمثلة الاستدعاء الكاملة</span>
+                </button>
+              </div>
+
+              <!-- Fast Action -->
+              <button class="btn btn-ghost btn-slim-action" onclick="copyCurlSnippet(event)" title="نسخ أمر cURL كاملاً">
+                <i class="fa-solid fa-copy"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- PANE 1: SPECIFICATION TABLES (Headers -> Request -> Response -> Errors with Master Dict Link) -->
+          <div id="pane-spec-doc" class="spec-tables-stack">
+
+            <!-- 1. Headers Table Block -->
+            <div class="spec-table-block">
+              <div class="spec-table-block-header">
+                <div class="spec-table-block-title">
+                  <span>ترويسات الطلب والأمان الإلزامية (Request Headers)</span>
+                </div>
+                <span class="badge-pill badge-iso">Mandatory Security</span>
+              </div>
+              <div style="overflow-x:auto;">
+                <table class="spec-data-table">
+                  <thead>
+                    <tr>
+                      <th style="width:25%;">اسم الترويسة (Header)</th>
+                      <th style="width:20%;">النوع والتنسيق</th>
+                      <th style="width:15%;">الإلزامية</th>
+                      <th style="width:40%;">الوصف والغرض الرقابي والمالي</th>
+                    </tr>
+                  </thead>
+                  <tbody id="headers-table-body">
+                    <!-- Dynamically populated -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- 2. Request Body Table Block -->
+            <div class="spec-table-block">
+              <div class="spec-table-block-header">
+                <div class="spec-table-block-title">
+                  <span>حقول جسم الطلب (Request Body Schema)</span>
+                </div>
+                <span class="mono" style="font-size:0.75rem; color:var(--text-dim);">Content-Type: application/json</span>
+              </div>
+              <div style="overflow-x:auto;">
+                <table class="spec-data-table">
+                  <thead>
+                    <tr>
+                      <th style="width:25%;">اسم الحقل (Field)</th>
+                      <th style="width:20%;">نوع البيانات (Type)</th>
+                      <th style="width:15%;">الإلزامية والتصنيف</th>
+                      <th style="width:40%;">شروط التحقق والحدود الرقابية (Validation Rules)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="request-table-body">
+                    <!-- Dynamically populated -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- 3. Response Body Table Block -->
+            <div class="spec-table-block">
+              <div class="spec-table-block-header">
+                <div class="spec-table-block-title">
+                  <span>حقول استجابة النجاح (Response Body Schema — HTTP 200 OK)</span>
+                </div>
+                <span class="badge-pill badge-fin">Status: 200 OK</span>
+              </div>
+              <div style="overflow-x:auto;">
+                <table class="spec-data-table">
+                  <thead>
+                    <tr>
+                      <th style="width:25%;">حقل الاستجابة (Attribute)</th>
+                      <th style="width:20%;">نوع البيانات (Type)</th>
+                      <th style="width:15%;">الإلزامية بالرد</th>
+                      <th style="width:40%;">المعنى والدلالة في النظام المصرفي</th>
+                    </tr>
+                  </thead>
+                  <tbody id="response-table-body">
+                    <!-- Dynamically populated -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- 4. Error Summary Banner & Master Dictionary Link -->
+            <div class="error-summary-banner">
+              <div class="error-summary-info">
+                <div>
+                  <strong style="font-size:0.88rem; color:var(--text); display:block;">أبرز حالات الأخطاء لهذا المسار:</strong>
+                  <div style="display:flex; gap:0.4rem; margin-top:0.35rem;" id="endpoint-error-chips">
+                    <!-- Dynamically populated chips -->
+                  </div>
+                </div>
+              </div>
+              <button class="btn-open-error-dict" onclick="openErrorDictionaryModal()">
+                <span>القاموس الشامل لرموز وأكواد الأخطاء (HTTP & Custom 10xxx) &larr;</span>
+              </button>
+            </div>
+
+          </div>
+
+          <!-- PANE 2: FULL WORKING EXAMPLE & CODE PLAYGROUND (MULTI-FORMAT) -->
+          <div id="pane-spec-example" style="display:none;">
+
+            <div class="full-example-grid">
+              
+              <!-- Column 1: Full Request Example -->
+              <div class="example-box-card">
+                <div class="example-box-header">
+                  <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <strong style="font-size:0.85rem; color:var(--text);">الطلب الكامل (Full Wire Request)</strong>
+                    <span class="badge-pill badge-iso" id="badge-req-format">POST / JSON</span>
+                  </div>
+                  <button class="btn btn-ghost" style="padding:0.2rem 0.55rem; font-size:0.75rem;" onclick="copyFullRequestSnippet(event)">
+                    <i class="fa-solid fa-copy"></i> <span id="btn-copy-req-label">نسخ الطلب (JSON)</span>
+                  </button>
+                </div>
+                <div class="example-code-pane" id="full-request-code-pane">
+                  <!-- Dynamically populated -->
+                </div>
+              </div>
+
+              <!-- Column 2: Full Response Example -->
+              <div class="example-box-card">
+                <div class="example-box-header">
+                  <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <strong style="font-size:0.85rem; color:var(--text);">الاستجابة الكاملة (Full Wire Response)</strong>
+                    <span class="badge-pill badge-fin" id="badge-res-format">HTTP 200 / JSON</span>
+                  </div>
+                  <button class="btn btn-ghost" style="padding:0.2rem 0.55rem; font-size:0.75rem;" onclick="copyFullResponse(event)">
+                    <i class="fa-solid fa-copy"></i> <span id="btn-copy-res-label">نسخ الاستجابة (JSON)</span>
+                  </button>
+                </div>
+                <div class="example-code-pane" id="full-response-code-pane" style="color:#a7f3d0;">
+                  <!-- Dynamically populated -->
+                </div>
+              </div>
+
             </div>
           </div>
 
@@ -289,186 +389,148 @@
       <!-- =====================================================================
            VIEW 4: DYNAMIC CUSTOM EXPORT STUDIO (STEPPED BUILDER + CRYPTO SEAL)
            ===================================================================== -->
+      <!-- =====================================================================
+           VIEW 4: SOVEREIGN CUSTOM EXPORT STUDIO (CLEAN & MINIMAL ARCHITECTURE)
+           ===================================================================== -->
       <section id="pane-export" class="view-pane">
-        <div class="export-studio-grid">
+        <div class="export-clean-wrap" id="export-resizable-wrap">
           
-          <!-- Column 1: Config Steps -->
-          <div>
-            <!-- Step 1: Scope -->
-            <div class="export-step-box">
-              <div class="export-step-header">
-                <span class="step-number-badge">1</span>
-                <strong style="font-size:0.88rem;">نطاق التصدير المعماري (Export Scope)</strong>
+          <!-- Column 1: Clean Configuration Panel (Compact Side Rail) -->
+          <div class="export-config-panel" id="export-config-panel">
+
+            <!-- Primary Instant Export Button (Always Accessible at Top) -->
+            <div class="export-top-action-bar">
+              <button id="btn-execute-download" class="btn-export-direct" onclick="executeExportDownload()" title="تصدير المستند المعتمد">
+                <i class="fa-solid fa-file-export"></i>
+                <span id="btn-download-label">تصدير</span>
+              </button>
+            </div>
+            
+            <!-- Group 1: Sectors -->
+            <div class="export-group">
+              <div class="export-group-header">
+                <div class="export-group-title">
+                  <i class="fa-solid fa-layer-group" style="color:#38bdf8;"></i>
+                  <span>القطاعات المشمولة</span>
+                </div>
+                <span class="mono" id="export-scope-count" style="font-size:0.75rem; color:var(--text-dim);">3 قطاعات مختارة</span>
               </div>
-
-              <div style="display:flex; gap:0.75rem; margin-bottom:0.65rem;">
-                <label class="export-check-card" style="flex:1;">
-                  <input type="radio" name="export-scope-type" value="all" checked onchange="setExportScopeType('all')">
-                  <div>
-                    <strong style="font-size:0.82rem; display:block;">الكتالوج الوطني المعتمد بالكامل</strong>
-                    <span style="font-size:0.72rem; color:var(--text-dim);">تضمين كافة القطاعات والواجهات (6 APIs)</span>
-                  </div>
+              <div class="export-chips-row">
+                <label class="export-chip">
+                  <input type="checkbox" id="chk-sec-banking" checked onchange="toggleExportSectorDirect('banking', this.checked)">
+                  <span>قطاع البنوك والمصارف</span>
                 </label>
-
-                <label class="export-check-card" style="flex:1;">
-                  <input type="radio" name="export-scope-type" value="custom" onchange="setExportScopeType('custom')">
-                  <div>
-                    <strong style="font-size:0.82rem; display:block;">تخصيص قطاعات محددة</strong>
-                    <span style="font-size:0.72rem; color:var(--text-dim);">اختيار قطاعات بعينها للتصدير</span>
-                  </div>
+                <label class="export-chip">
+                  <input type="checkbox" id="chk-sec-merchants" checked onchange="toggleExportSectorDirect('merchants', this.checked)">
+                  <span>بوابات الدفع والتجار</span>
                 </label>
-              </div>
-
-              <!-- Custom Sectors Checkboxes (Hidden by default) -->
-              <div id="export-custom-sectors-wrap" class="export-options-grid" style="display:none; margin-top:0.6rem; padding-top:0.6rem; border-top:1px dashed var(--border-subtle);">
-                <label class="export-check-card">
-                  <input type="checkbox" checked onchange="toggleExportSector('banking', this.checked)">
-                  <span style="font-size:0.8rem; font-weight:700;">المؤسسات المالية والبنوك (3 APIs)</span>
-                </label>
-                <label class="export-check-card">
-                  <input type="checkbox" checked onchange="toggleExportSector('merchants', this.checked)">
-                  <span style="font-size:0.8rem; font-weight:700;">أنظمة التجار والمدفوعات (2 APIs)</span>
-                </label>
-                <label class="export-check-card">
-                  <input type="checkbox" checked onchange="toggleExportSector('aml', this.checked)">
-                  <span style="font-size:0.8rem; font-weight:700;">مكافحة غسل الأموال (1 API)</span>
+                <label class="export-chip">
+                  <input type="checkbox" id="chk-sec-aml" checked onchange="toggleExportSectorDirect('aml', this.checked)">
+                  <span>مكافحة غسل الأموال</span>
                 </label>
               </div>
             </div>
 
-            <!-- Step 2: Content Modules -->
-            <div class="export-step-box">
-              <div class="export-step-header">
-                <span class="step-number-badge">2</span>
-                <strong style="font-size:0.88rem;">محتويات الحزمة التوثيقية (Content Modules)</strong>
+            <!-- Group 2: Content Modules -->
+            <div class="export-group">
+              <div class="export-group-header">
+                <div class="export-group-title">
+                  <i class="fa-solid fa-boxes-stacked" style="color:#38bdf8;"></i>
+                  <span>محتويات الحزمة</span>
+                </div>
+                <span class="mono" id="export-modules-count" style="font-size:0.75rem; color:var(--text-dim);">5 أقسام</span>
               </div>
-
-              <div class="export-options-grid">
-                <label class="export-check-card">
-                  <input type="checkbox" checked onchange="toggleExportModule('schemas', this.checked)">
-                  <div>
-                    <span style="font-size:0.8rem; font-weight:700; display:block;">مخططات الحقول (Schemas)</span>
-                    <span style="font-size:0.72rem; color:var(--text-dim);">أنواع البيانات، الإلزامية، وتصنيف PII</span>
-                  </div>
+              <div class="export-chips-row">
+                <label class="export-chip">
+                  <input type="checkbox" id="mod-schemas" checked onchange="onExportModuleToggle('schemas', this.checked)">
+                  <span>مخططات الحقول</span>
                 </label>
-
-                <label class="export-check-card">
-                  <input type="checkbox" checked onchange="toggleExportModule('rules', this.checked)">
-                  <div>
-                    <span style="font-size:0.8rem; font-weight:700; display:block;">قواعد الحوكمة (Business Rules)</span>
-                    <span style="font-size:0.72rem; color:var(--text-dim);">الحدود المالية، مفتاح عدم التكرار، والتحقق</span>
-                  </div>
+                <label class="export-chip">
+                  <input type="checkbox" id="mod-wire" checked onchange="onExportModuleToggle('wire', this.checked)">
+                  <span>نماذج الطلبات والاستجابات</span>
                 </label>
-
-                <label class="export-check-card">
-                  <input type="checkbox" checked onchange="toggleExportModule('errors', this.checked)">
-                  <div>
-                    <span style="font-size:0.8rem; font-weight:700; display:block;">سجل الأخطاء (Error Catalog)</span>
-                    <span style="font-size:0.72rem; color:var(--text-dim);">رموز ومعاني استجابات 400 و 422 و 500</span>
-                  </div>
+                <label class="export-chip">
+                  <input type="checkbox" id="mod-crypto" checked onchange="onExportModuleToggle('crypto', this.checked)">
+                  <span>معايير الأمان والتشفير</span>
                 </label>
-
-                <label class="export-check-card">
-                  <input type="checkbox" checked onchange="toggleExportModule('samples', this.checked)">
-                  <div>
-                    <span style="font-size:0.8rem; font-weight:700; display:block;">أمثلة الاستدعاء (Code Samples)</span>
-                    <span style="font-size:0.72rem; color:var(--text-dim);">أوامر cURL ونماذج Payload الناجحة</span>
-                  </div>
+                <label class="export-chip">
+                  <input type="checkbox" id="mod-errors" checked onchange="onExportModuleToggle('errors', this.checked)">
+                  <span>سجل وقاموس الأخطاء</span>
                 </label>
-
-                <label class="export-check-card" style="grid-column: span 2;">
-                  <input type="checkbox" checked onchange="toggleExportModule('rbac', this.checked)">
-                  <div>
-                    <span style="font-size:0.8rem; font-weight:700; display:block;">ملحق مصفوفة الصلاحيات (RBAC Appendix)</span>
-                    <span style="font-size:0.72rem; color:var(--text-dim);">جدول مصفوفة الأدوار والصلاحيات المعتمدة للقطاع</span>
-                  </div>
+                <label class="export-chip">
+                  <input type="checkbox" id="mod-sla" checked onchange="onExportModuleToggle('sla', this.checked)">
+                  <span>مستويات الخدمة (SLA)</span>
                 </label>
               </div>
             </div>
 
-            <!-- Step 3: Format Selection -->
-            <div class="export-step-box">
-              <div class="export-step-header">
-                <span class="step-number-badge">3</span>
-                <strong style="font-size:0.88rem;">صيغة الحزمة والتشفير (Output Format)</strong>
+            <!-- Group 3: Format Selection -->
+            <div class="export-group">
+              <div class="export-group-header">
+                <div class="export-group-title">
+                  <i class="fa-solid fa-file-code" style="color:#38bdf8;"></i>
+                  <span>صيغة التصدير</span>
+                </div>
+                <span class="mono" id="export-format-badge" style="font-size:0.75rem; color:#38bdf8;">PDF</span>
               </div>
-
-              <div class="export-format-selector">
-                <div class="format-card active" data-fmt="pdf" onclick="selectExportFormat('pdf')">
-                  <i class="fa-solid fa-file-pdf" style="font-size:1.8rem; color:var(--rose);"></i>
-                  <strong style="font-size:0.84rem;">PDF رسمي مختوم</strong>
-                  <span style="font-size:0.7rem; color:var(--text-dim);">توقيع RSA-4096 وباركود تدقيق</span>
+              <div class="export-formats-grid">
+                <div class="format-pill active" data-fmt="pdf" onclick="selectExportFormat('pdf')">
+                  <i class="fa-solid fa-file-pdf" style="color:#ef4444; margin-left:0.25rem;"></i>
+                  <span>مستند (PDF)</span>
                 </div>
-
-                <div class="format-card" data-fmt="docx" onclick="selectExportFormat('docx')">
-                  <i class="fa-solid fa-file-word" style="font-size:1.8rem; color:#2563eb;"></i>
-                  <strong style="font-size:0.84rem;">مستند Word (.docx)</strong>
-                  <span style="font-size:0.7rem; color:var(--text-dim);">جاهز للتحرير والمواءمة الداخلية</span>
+                <div class="format-pill" data-fmt="word" onclick="selectExportFormat('word')">
+                  <i class="fa-solid fa-file-word" style="color:#2563eb; margin-left:0.25rem;"></i>
+                  <span>Word (.docx)</span>
                 </div>
-
-                <div class="format-card" data-fmt="openapi" onclick="selectExportFormat('openapi')">
-                  <i class="fa-solid fa-code" style="font-size:1.8rem; color:var(--emerald);"></i>
-                  <strong style="font-size:0.84rem;">OpenAPI 3.1 JSON</strong>
-                  <span style="font-size:0.7rem; color:var(--text-dim);">استيراد مباشر لبوابات المطورين</span>
+                <div class="format-pill" data-fmt="openapi" onclick="selectExportFormat('openapi')">
+                  <i class="fa-solid fa-code" style="color:#10b981; margin-left:0.25rem;"></i>
+                  <span>OpenAPI</span>
+                </div>
+                <div class="format-pill" data-fmt="postman" onclick="selectExportFormat('postman')">
+                  <i class="fa-solid fa-paper-plane" style="color:#f97316; margin-left:0.25rem;"></i>
+                  <span>Postman</span>
+                </div>
+                <div class="format-pill" data-fmt="iso" onclick="selectExportFormat('iso')">
+                  <i class="fa-solid fa-file-lines" style="color:#38bdf8; margin-left:0.25rem;"></i>
+                  <span>ISO 20022</span>
                 </div>
               </div>
             </div>
 
           </div>
 
-          <!-- Column 2: Live Summary & Crypto Sealing (Sticky) -->
-          <div>
-            <div class="sealing-summary-card">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.85rem; padding-bottom:0.55rem; border-bottom:1px solid var(--border);">
-                <strong style="font-size:0.9rem; color:#38bdf8;">
-                  <i class="fa-solid fa-box-archive" style="margin-left:0.4rem;"></i>ملخص الحزمة المعتمدة
-                </strong>
-                <span class="badge-pill badge-fin">جاهز للتوليد</span>
-              </div>
-
-              <div class="summary-row">
-                <span style="color:var(--text-dim);">الإصدار المرجعي:</span>
-                <strong class="mono" id="exp-sum-version" style="color:var(--emerald);">v2026.2</strong>
-              </div>
-
-              <div class="summary-row">
-                <span style="color:var(--text-dim);">واجهات الربط المشمولة:</span>
-                <span class="mono" id="exp-sum-apis" style="font-weight:700;">6 APIs</span>
-              </div>
-
-              <div class="summary-row">
-                <span style="color:var(--text-dim);">المسارات البرمجية:</span>
-                <span class="mono" id="exp-sum-endpoints" style="font-weight:700;">14 مسار برمجي</span>
-              </div>
-
-              <div class="summary-row">
-                <span style="color:var(--text-dim);">المحتويات:</span>
-                <span id="exp-sum-modules" style="font-size:0.75rem; color:var(--text-muted); text-align:left;">المخططات • قواعد العمل • رموز الأخطاء • أمثلة الكود • الصلاحيات</span>
-              </div>
-
-              <div class="summary-row">
-                <span style="color:var(--text-dim);">صيغة الملف:</span>
-                <strong id="exp-sum-format" style="font-size:0.78rem; color:#38bdf8;">وثيقة رسمية مشفرة (PDF RSA-4096)</strong>
-              </div>
-
-              <!-- Cryptographic Stamp Box -->
-              <div class="crypto-stamp-box">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
-                  <span style="font-size:0.74rem; font-weight:700; color:var(--emerald);">
-                    <i class="fa-solid fa-fingerprint" style="margin-left:0.3rem;"></i>ختم الحوكمة السيادي
-                  </span>
-                  <span class="mono" style="font-size:0.68rem; background:rgba(16,185,129,0.15); color:var(--emerald); padding:0.1rem 0.4rem; border-radius:3px;">VALID</span>
-                </div>
-                <div class="mono" id="exp-sum-hash" style="font-size:0.68rem; color:var(--text-dim); word-break:break-all;">SHA256: 4f9d8a17e82b...9a0c</div>
-                <div style="font-size:0.68rem; color:var(--text-dim); margin-top:0.3rem;">مفتاح التشفير: RSA-PSS 4096-bit • شهادة وطنية سارية</div>
-              </div>
-
-              <!-- Main Execution Button -->
-              <button id="btn-execute-download" class="btn btn-primary" style="width:100%; margin-top:1rem; padding:0.65rem 1rem; font-size:0.86rem; font-weight:700; justify-content:center;" onclick="executeExportDownload()">
-                <i class="fa-solid fa-download" style="margin-left:0.5rem;"></i>
-                <span>توليد وتنزيل الحزمة الرسمية</span>
-              </button>
+          <!-- Dynamic Resizer / Splitter Gutter -->
+          <div class="export-splitter" id="export-splitter" title="اسحب يميناً أو يساراً للتحكم بالمسافة بين لوحة التصدير والمعاينة">
+            <div class="splitter-line"></div>
+            <div class="splitter-handle">
+              <i class="fa-solid fa-grip-lines-vertical"></i>
             </div>
+          </div>
+
+          <!-- Column 2: Large Wide Preview Area (Main Focus) -->
+          <div class="export-summary-card" id="export-summary-card">
+            <!-- Floating Zero-Space Maximize Icon Button (Top Corner Overlay, Detached from Content) -->
+            <button type="button" class="btn-pdf-floating-expand" id="btn-toggle-pdf-expand" onclick="togglePdfWebsiteExpand()" title="تكبير لملء مساحة الموقع">
+              <i class="fa-solid fa-expand" id="icon-pdf-expand"></i>
+            </button>
+
+            <!-- Permanent Floating Stage Frame (Ensures Permanent Safe Distance from Edges) -->
+            <div class="pdf-viewer-stage">
+              <!-- Top Permanent Ambient Fade Guard -->
+              <div class="pdf-viewport-guard-top"></div>
+
+              <!-- Real Opened PDF / Word / Code Sheet Preview -->
+              <div id="preview-tab-doc" class="pdf-viewer-viewport">
+                <!-- Multi-page stack for all pages and deliverable formats -->
+                <div class="pdf-pages-stack" id="pdf-pages-stack-container">
+                  <!-- Dynamically populated with active format preview -->
+                </div>
+              </div>
+
+              <!-- Bottom Permanent Ambient Fade Guard -->
+              <div class="pdf-viewport-guard-bottom"></div>
+            </div>
+
           </div>
 
         </div>
@@ -481,20 +543,16 @@
         <div class="block-card" style="margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center;">
           <div>
             <div class="block-card-title" style="color:var(--text); font-size:1rem; margin-bottom:0.25rem;">
-              <i class="fa-solid fa-stamp" style="color:#10b981;"></i>
               <span>سجل طلبات الاعتماد وتغيير المعايير (Change Requests & Approvals)</span>
             </div>
             <p style="font-size:0.78rem; color:var(--text-muted);">بوابة تقديم ومراجعة مقترحات تعديل المسارات، الحقول الجديدة، والترقيات المعمارية قبل اعتمادها رسمياً.</p>
           </div>
           <button class="btn btn-primary" onclick="toast('بوابة تقديم طلبات التغيير قيد الإطلاق')">
-            <i class="fa-solid fa-plus" style="margin-left:0.4rem;"></i> تقديم مقترح تغيير
+            تقديم مقترح تغيير
           </button>
         </div>
 
         <div style="background:var(--bg-card); border:1px dashed var(--border); border-radius:var(--radius); padding:3.5rem 1.5rem; text-align:center;">
-          <div style="width:54px; height:54px; border-radius:50%; background:var(--bg-active); color:#10b981; display:inline-flex; align-items:center; justify-content:center; font-size:1.6rem; margin-bottom:1rem;">
-            <i class="fa-solid fa-file-signature"></i>
-          </div>
           <h3 style="font-size:0.95rem; font-weight:700; margin-bottom:0.4rem;">لا توجد طلبات تغيير قيد المراجعة حالياً</h3>
           <p style="font-size:0.78rem; color:var(--text-dim); max-width:440px; margin:0 auto;">سيتم إدراج طلبات ترقية المعايير، وتعديلات الحقول، وملاحظات الشركاء هنا لإجراء التدقيق الفني والاعتماد السيادي.</p>
         </div>
@@ -506,7 +564,6 @@
       <section id="pane-security" class="view-pane">
         <div class="block-card" style="margin-bottom:1.25rem;">
           <div class="block-card-title" style="color:var(--text); font-size:1rem; margin-bottom:0.25rem;">
-            <i class="fa-solid fa-shield-halved" style="color:#f43f5e;"></i>
             <span>المعايير الأمنية والأدوات التشفيرية المعتمدة (Security Standards & Tooling)</span>
           </div>
           <p style="font-size:0.78rem; color:var(--text-muted);">الدليل المرجعي لبروتوكولات الأمان، طبقات التشفير، وإجراءات التحقق المالي الإلزامية عبر كافة واجهات الربط.</p>
@@ -515,9 +572,8 @@
         <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:1rem;">
           <!-- Card 1 -->
           <div class="block-card">
-            <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.75rem;">
-              <i class="fa-solid fa-lock" style="color:var(--emerald); font-size:1.2rem;"></i>
-              <strong style="font-size:0.88rem;">التوقيع الرقمي السيادي</strong>
+            <div style="margin-bottom:0.75rem;">
+              <strong style="font-size:0.88rem; display:block;">التوقيع الرقمي السيادي</strong>
             </div>
             <p style="font-size:0.76rem; color:var(--text-muted); line-height:1.5; margin-bottom:0.75rem;">اعتماد خوارزمية RSA-PSS بطول مفتاح 4096-bit مع SHA-256 لتوقيع وتأمين كافة الوثائق الرسمية وسجلات التغيير.</p>
             <span class="mono badge-pill badge-fin">RSA-PSS-4096 / SHA-256</span>
@@ -525,9 +581,8 @@
 
           <!-- Card 2 -->
           <div class="block-card">
-            <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.75rem;">
-              <i class="fa-solid fa-network-wired" style="color:#38bdf8; font-size:1.2rem;"></i>
-              <strong style="font-size:0.88rem;">أمان الاتصال والربط</strong>
+            <div style="margin-bottom:0.75rem;">
+              <strong style="font-size:0.88rem; display:block;">أمان الاتصال والربط</strong>
             </div>
             <p style="font-size:0.76rem; color:var(--text-muted); line-height:1.5; margin-bottom:0.75rem;">إلزامية بروتوكول TLS 1.3 مع التوثيق المتبادل للشهادات (mTLS) لكافة نقاط الربط المصرفية الحساسة لضمان عزل القنوات.</p>
             <span class="mono badge-pill badge-iso">mTLS • TLS 1.3 Strict</span>
@@ -535,9 +590,8 @@
 
           <!-- Card 3 -->
           <div class="block-card">
-            <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.75rem;">
-              <i class="fa-solid fa-key" style="color:#f59e0b; font-size:1.2rem;"></i>
-              <strong style="font-size:0.88rem;">الهوية وتفويض الصلاحيات</strong>
+            <div style="margin-bottom:0.75rem;">
+              <strong style="font-size:0.88rem; display:block;">الهوية وتفويض الصلاحيات</strong>
             </div>
             <p style="font-size:0.76rem; color:var(--text-muted); line-height:1.5; margin-bottom:0.75rem;">تطبيق معايير OAuth 2.0 المتوافقة مع ملف الأمان المصرفي المتقدم (FAPI 1.0 Advanced) وحصر الصلاحيات عبر الـ Scopes.</p>
             <span class="mono badge-pill badge-opt">OAuth 2.0 • FAPI 1.0</span>
@@ -552,7 +606,6 @@
         <div class="block-card" style="margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center;">
           <div>
             <div class="block-card-title" style="color:var(--text); font-size:1rem; margin-bottom:0.25rem;">
-              <i class="fa-solid fa-code-branch" style="color:var(--emerald);"></i>
               <span>سجل ومصفوفة مقارنة الإصدارات (Versions & Diff Center)</span>
             </div>
             <p style="font-size:0.78rem; color:var(--text-muted);">المستودع المركزي لإدارة ومقارنة الفروقات بين الإصدارات المعمارية لجميع القطاعات.</p>
@@ -560,9 +613,6 @@
         </div>
 
         <div style="background:var(--bg-card); border:1px dashed var(--border); border-radius:var(--radius); padding:3.5rem 1.5rem; text-align:center;">
-          <div style="width:54px; height:54px; border-radius:50%; background:var(--bg-active); color:var(--emerald); display:inline-flex; align-items:center; justify-content:center; font-size:1.6rem; margin-bottom:1rem;">
-            <i class="fa-solid fa-code-compare"></i>
-          </div>
           <h3 style="font-size:0.95rem; font-weight:700; margin-bottom:0.4rem;">سجل مقارنة الإصدارات متاح للربط</h3>
           <p style="font-size:0.78rem; color:var(--text-dim); max-width:440px; margin:0 auto;">سيتم من هنا استعراض مقارنة الفروقات (Inline Diff) وسجل التغييرات الكامل بين الإصدارات السنوية والمرحلية.</p>
         </div>
@@ -639,7 +689,7 @@
         <span onclick="closeChangelogModal()" style="cursor:pointer; color:var(--text-dim);">&times;</span>
       </div>
       <div class="modal-body" style="display:flex; flex-direction:column; gap:0.85rem;">
-        <div style="background:var(--bg-input); border:1px solid var(--border); border-right:3px solid var(--emerald); padding:0.85rem; border-radius:var(--radius);">
+        <div style="background:var(--bg-input); border:1px solid var(--border); border-inline-start:3px solid var(--emerald); padding:0.85rem; border-radius:var(--radius-md);">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
             <strong class="mono" style="color:var(--emerald); font-size:0.85rem;">الإصدار العام: v2026.2 (الساري المعتمد)</strong>
             <span class="badge-pill badge-fin">اعتماد البنك المركزي</span>
@@ -647,7 +697,7 @@
           <p style="font-size:0.78rem; color:var(--text-muted); line-height:1.5;">اعتماد معايير التحويل اللحظي المحدثة IPS v1.0.0، وبوابة الدفع السريع v2.0.0، وتعميم متطلب مفتاح عدم التكرار IdempotencyKey لمنع ازدواجية الصرف المالي.</p>
         </div>
 
-        <div style="background:var(--bg-input); border:1px solid var(--border); border-right:3px solid var(--amber); padding:0.85rem; border-radius:var(--radius);">
+        <div style="background:var(--bg-input); border:1px solid var(--border); border-inline-start:3px solid var(--amber); padding:0.85rem; border-radius:var(--radius-md);">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
             <strong class="mono" style="color:var(--amber); font-size:0.85rem;">الإصدار القادم: v2027.0-Draft (مسودة قيد المراجعة)</strong>
             <span class="badge-pill badge-req">مسودة استشارية</span>
@@ -655,7 +705,7 @@
           <p style="font-size:0.78rem; color:var(--text-muted); line-height:1.5;">مقترح رفع سقف الحوالات اللحظية وتوسيع بروتوكول المصرفية المفتوحة ليشمل خدمات تمويل الشركات والتسويات الإجمالية الدولية.</p>
         </div>
 
-        <div style="background:var(--bg-input); border:1px solid var(--border); border-right:3px solid var(--text-dim); padding:0.85rem; border-radius:var(--radius); opacity:0.8;">
+        <div style="background:var(--bg-input); border:1px solid var(--border); border-inline-start:3px solid var(--text-dim); padding:0.85rem; border-radius:var(--radius-md); opacity:0.8;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
             <strong class="mono" style="color:var(--text-dim); font-size:0.85rem;">الإصدار السابق: v2026.1 (مؤرشف)</strong>
             <span class="badge-pill badge-opt">مؤرشف ومجمد</span>
@@ -665,6 +715,164 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" onclick="closeChangelogModal()">إغلاق</button>
+      </div>
+    </div>
+  <!-- =========================================================================
+       MODAL: MASTER ERROR CODES & BUSINESS DICTIONARY (القاموس الشامل لرموز الأخطاء)
+       ========================================================================= -->
+  <div id="modal-error-dictionary" class="modal">
+    <div class="modal-box" style="max-width:880px;">
+      <div class="modal-header">
+        <div style="display:flex; align-items:center; gap:0.6rem;">
+          <i class="fa-solid fa-book-bookmark" style="color:var(--rose); font-size:1.15rem;"></i>
+          <div>
+            <strong style="font-size:0.95rem;">القاموس الشامل لرموز وأكواد الأخطاء (Master Error Dictionary)</strong>
+            <span style="font-size:0.74rem; color:var(--text-dim); display:block;">المرجع الموحد لأكواد بروتوكول HTTP القياسية وأكواد الأعمال المخصصة للمطورين (10xxx)</span>
+          </div>
+        </div>
+        <span onclick="closeErrorDictionaryModal()" style="cursor:pointer; color:var(--text-dim); font-size:1.4rem;">&times;</span>
+      </div>
+
+      <div class="modal-body">
+        <!-- Search & Filter Controls -->
+        <div class="error-dict-search-wrap">
+          <input type="text" id="error-dict-search-input" class="error-dict-search-input"
+                 placeholder="ابحث برمز الخطأ (مثال: 10111 أو 422) أو بالاسم أو السبب..."
+                 oninput="filterErrorDictionary(this.value)">
+        </div>
+
+        <div class="error-filter-chips">
+          <button class="error-filter-chip active" id="chip-err-all" onclick="filterErrorCategory('all')">كافة الأكواد (All)</button>
+          <button class="error-filter-chip" id="chip-err-custom" onclick="filterErrorCategory('custom')">أكواد النظام والمبرمج (10xxx)</button>
+          <button class="error-filter-chip" id="chip-err-http" onclick="filterErrorCategory('http')">أكواد HTTP الرسمية (4xx / 5xx)</button>
+        </div>
+
+        <!-- Error Cards List -->
+        <div class="error-dict-list" id="error-dict-list-container">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <div class="modal-footer" style="justify-content:space-between; align-items:center;">
+        <span style="font-size:0.75rem; color:var(--text-dim);"><i class="fa-solid fa-shield-halved"></i> معتمد ومطابق لضوابط التدقيق المالي</span>
+        <button class="btn btn-ghost" onclick="closeErrorDictionaryModal()">إغلاق القاموس</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       SLIDE-OVER DRAWER: إضافة مسار جديد من نفس الشاشة في المنصة الأولى
+       ========================================================================= -->
+  <div class="drawer-backdrop" id="drawer-endpoint-backdrop" onclick="closeAddEndpointDrawer()"></div>
+  <aside class="drawer" id="drawer-endpoint-add">
+    <div class="drawer-header">
+      <div style="display:flex; align-items:center; gap:0.65rem;">
+        <div style="width:32px; height:32px; background:var(--primary); border-radius:var(--radius-sm); display:flex; align-items:center; justify-content:center; color:#fff;">
+          <i class="fa-solid fa-bolt"></i>
+        </div>
+        <div>
+          <strong style="font-size:0.95rem; display:block;">إضافة وتخصيص مسار من نفس الشاشة</strong>
+          <span style="font-size:0.72rem; color:var(--text-dim);">Platform 1 Sovereign Spec Studio</span>
+        </div>
+      </div>
+      <button class="btn btn-ghost" style="padding:0.25rem 0.5rem; font-size:1.1rem;" onclick="closeAddEndpointDrawer()">&times;</button>
+    </div>
+
+    <div class="drawer-body">
+      <!-- Fast Pre-Approved Presets Bar -->
+      <div style="background:var(--bg-input); padding:0.85rem; border-radius:var(--radius-md); border:1px solid var(--border);">
+        <label style="font-size:0.76rem; font-weight:700; color:var(--text-dim); display:block; margin-bottom:0.4rem;">
+          <i class="fa-solid fa-shield-check" style="color:var(--emerald);"></i> استيراد قالب مالي معتمد مسبقاً (Pre-Approved Schemas):
+        </label>
+        <select id="drawer-preset-select" class="form-control" style="width:100%; font-size:0.82rem; padding:0.45rem 0.75rem; background:var(--bg-card); color:var(--text); border:1px solid var(--border); border-radius:var(--radius-sm);" onchange="applyEndpointPreset(this.value)">
+          <option value="custom">-- مسار مخصص فارغ (Custom Blank) --</option>
+          <option value="iso_transfer">تحويل مالي فوري (ISO 20022 pacs.008)</option>
+          <option value="iso_balance">استعلام الرصيد والحساب (ISO 20022 camt.053)</option>
+          <option value="instant_pay">مدفوعات التجار السريعة (Instant Merchant Pay)</option>
+          <option value="aml_check">فحص قوائم الحظر ومكافحة غسل الأموال (AML)</option>
+        </select>
+      </div>
+
+      <!-- Path & Method Form -->
+      <div>
+        <label style="font-size:0.76rem; font-weight:700; color:var(--text-dim); display:block; margin-bottom:0.35rem;">طريقة الطلب (HTTP Method) والمسار (Path):</label>
+        <div style="display:flex; gap:0.5rem;">
+          <select id="drawer-ep-method" class="form-control" style="width:105px; font-weight:700; background:var(--bg-input); color:var(--text); border:1px solid var(--border); border-radius:var(--radius-sm); padding:0.45rem;">
+            <option value="POST">POST</option>
+            <option value="GET">GET</option>
+            <option value="PUT">PUT</option>
+            <option value="DELETE">DELETE</option>
+          </select>
+          <input type="text" id="drawer-ep-path" class="mono form-control" style="flex:1; background:var(--bg-input); color:#38bdf8; font-weight:700; border:1px solid var(--border); border-radius:var(--radius-sm); padding:0.45rem 0.75rem;" placeholder="/v1/transfers/fx-instant">
+        </div>
+      </div>
+
+      <div>
+        <label style="font-size:0.76rem; font-weight:700; color:var(--text-dim); display:block; margin-bottom:0.35rem;">اسم المسار المختصر (يظهر في الشريط العلوي):</label>
+        <input type="text" id="drawer-ep-shortname" class="form-control" style="width:100%; background:var(--bg-input); color:var(--text); border:1px solid var(--border); border-radius:var(--radius-sm); padding:0.45rem 0.75rem;" placeholder="مثال: fx-transfer">
+      </div>
+
+      <div>
+        <label style="font-size:0.76rem; font-weight:700; color:var(--text-dim); display:block; margin-bottom:0.35rem;">الوصف والغرض الرقابي والمصرفي:</label>
+        <textarea id="drawer-ep-desc" class="form-control" style="width:100%; height:75px; background:var(--bg-input); color:var(--text); border:1px solid var(--border); border-radius:var(--radius-sm); padding:0.5rem; font-family:inherit; font-size:0.8rem;" placeholder="تنفيذ عمليات صرف العملات والتحويل الفوري بين الحسابات متعددة العملات..."></textarea>
+      </div>
+
+      <div>
+        <label style="font-size:0.76rem; font-weight:700; color:var(--text-dim); display:block; margin-bottom:0.35rem;">حالة الاعتماد الأولية:</label>
+        <select id="drawer-ep-status" class="form-control" style="width:100%; font-size:0.82rem; padding:0.45rem 0.75rem; background:var(--bg-input); color:var(--text); border:1px solid var(--border); border-radius:var(--radius-sm);">
+          <option value="draft">مسودة جديدة قيد التدقيق (Draft Proposed)</option>
+          <option value="approved">معتمد ومختوم سيادياً مباشر (Official Sealed)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="drawer-footer">
+      <button class="btn btn-ghost" onclick="closeAddEndpointDrawer()">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveNewEndpointFromDrawer()"><i class="fa-solid fa-check"></i> حفظ وإدراج في المواصفة</button>
+    </div>
+  </aside>
+
+  <!-- =========================================================================
+       MODAL: ADD NEW API WIZARD (معالج إضافة API جديد للمنصة الأولى)
+       ========================================================================= -->
+  <div id="modal-add-api-wizard" class="modal">
+    <div class="modal-box" style="max-width:580px;">
+      <div class="modal-header">
+        <div style="display:flex; align-items:center; gap:0.6rem;">
+          <i class="fa-solid fa-layer-group" style="color:var(--primary); font-size:1.15rem;"></i>
+          <strong>معالج إضافة API / خدمة جديدة في المنظومة</strong>
+        </div>
+        <span onclick="closeAddApiWizard()" style="cursor:pointer; color:var(--text-dim); font-size:1.3rem;">&times;</span>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-group" style="margin-bottom:1rem;">
+          <label style="font-size:0.78rem; font-weight:700; color:var(--text-dim); display:block; margin-bottom:0.35rem;">القطاع التابع له:</label>
+          <select id="wiz-api-sector" class="form-control" style="width:100%; background:var(--bg-input); color:var(--text); border:1px solid var(--border); border-radius:var(--radius-sm); padding:0.5rem;">
+            <option value="banking">المؤسسات المالية والبنوك</option>
+            <option value="merchants">أنظمة التجار والمدفوعات</option>
+            <option value="aml">مكافحة غسل الأموال (AML)</option>
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom:1rem;">
+          <label style="font-size:0.78rem; font-weight:700; color:var(--text-dim); display:block; margin-bottom:0.35rem;">اسم الـ API أو الخدمة:</label>
+          <input type="text" id="wiz-api-name" class="form-control" style="width:100%; background:var(--bg-input); color:var(--text); border:1px solid var(--border); border-radius:var(--radius-sm); padding:0.5rem;" placeholder="مثال: خدمة المقاصة اللحظية والتحقق من الهوية">
+        </div>
+
+        <div class="form-group" style="margin-bottom:1rem;">
+          <label style="font-size:0.78rem; font-weight:700; color:var(--text-dim); display:block; margin-bottom:0.35rem;">المسار التأسيسي الأول (Initial Endpoint):</label>
+          <input type="text" id="wiz-api-endpoint" class="form-control mono" style="width:100%; background:var(--bg-input); color:#38bdf8; border:1px solid var(--border); border-radius:var(--radius-sm); padding:0.5rem;" placeholder="/v1/clearing/instant">
+        </div>
+
+        <div style="background:rgba(99,102,241,0.1); border:1px dashed var(--primary); padding:0.85rem; border-radius:var(--radius-sm); font-size:0.78rem; color:#a5b4fc;">
+          <i class="fa-solid fa-circle-info"></i> سيتم توليد مواصفة OpenAPI 3.1 تلقائياً وإتاحة إضافة المسارات والحقول فوراً من الشاشة.
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeAddApiWizard()">إلغاء</button>
+        <button class="btn btn-primary" onclick="commitNewApi()"><i class="fa-solid fa-check"></i> إنشاء الـ API وتفعيله</button>
       </div>
     </div>
   </div>
@@ -678,8 +886,10 @@
   <!-- =========================================================================
        DYNAMIC SCRIPT ENGINE (STATE + DECLARATIVE RENDERING)
        ========================================================================= -->
+  <script src="js/html2pdf.bundle.min.js"></script>
+  <script src="js/jszip.min.js"></script>
   <script src="js/data.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=4pages"></script>
 </body>
 
 </html>
