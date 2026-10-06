@@ -635,12 +635,12 @@ function copyCurlSnippet(e) {
 
   let curlCmd = '';
   if (isGet) {
-    curlCmd = `curl -X GET "https://api.gov.fintech/v1${ep.path}/TXN-88492019-SA" \\
+    curlCmd = `curl -X GET "https://api.gov.fintech${ep.path}/TXN-88492019-SA" \\
   -H "Authorization: Bearer ${jwtSample}" \\
   -H "X-Correlation-ID: b5a78c1e-9204-4f11-9a99-52e8964d4ef1" \\
   -H "Accept: ${mimeType}"`;
   } else {
-    curlCmd = `curl -X ${ep.method} "https://api.gov.fintech/v1${ep.path}" \\
+    curlCmd = `curl -X ${ep.method} "https://api.gov.fintech${ep.path}" \\
   -H "Authorization: Bearer ${jwtSample}" \\
   -H "X-Idempotency-Key: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" \\
   -H "X-Signature: ${rsaSigSample}" \\
@@ -915,7 +915,7 @@ function switchConsoleTab(tabKey, clickedBtn) {
 // Copy Static Base URL
 function copyBaseUrl(e) {
   const urlEl = document.getElementById('topbar-base-url');
-  const url = urlEl ? urlEl.textContent : 'https://api.gov.fintech/v1';
+  const url = urlEl ? urlEl.textContent : 'https://api.gov.fintech';
   navigator.clipboard.writeText(url);
   triggerCopySuccess(e || document.querySelector('.btn-copy-icon'));
   toast("تم نسخ الرابط الأساسي: " + url);
@@ -2415,7 +2415,7 @@ function copyBaseUrl(e) {
             version: ver,
             description: "مواصفة الحوكمة الرقمية لمعايير واجهات الربط المالية."
           },
-          servers: [{ url: "https://api.gov.fintech/v1", description: "بوابة الإنتاج (mTLS Strict)" }],
+          servers: [{ url: "https://api.gov.fintech", description: "بوابة الإنتاج (mTLS Strict)" }],
           paths
         };
         codeEl.textContent = JSON.stringify(oas, null, 2);
@@ -2595,48 +2595,64 @@ function copyBaseUrl(e) {
      *    واجهة COM Automation (Word.Application) ويقوم بحفظ المستند فوراً كـ PDF.
      * 4. استقبال ملف الـ PDF الأصلي وتحميله تلقائياً للمستخدم بنصوص متجهة حقيقية 100%،
      *    تكون فيها الحروف متصلة بدقة فائقة وقابلة للبحث والتحديد والنسخ، وبدون أي صور.
-     * 5. Fallback آمن: في حال انقطاع خادم التحويل، يوفر النظام تنزيلاً فورياً 
-     *    لمستند الـ Word (.docx) ليتمكن المستخدم من فتحه وحفظه كـ PDF بلمسة واحدة.
+     * 5. محرك التصدير المباشر (Client-Side PDF Engine): في حال عدم تشغيل خادم التحويل 
+     *    أو فتح الملف محلياً بصيغة file://، يتم توليد مستند الـ PDF بالكامل (4 صفحات)
+     *    مباشرة داخل المتصفح وبنفس التصميم الرسمي، دون أي تحويل لصيغة Word منعاً لأي لبس.
      * =========================================================================
      */
-    async function downloadRealPdfDocument(ver) {
-      const btn = document.getElementById('btn-execute-download');
-      const origText = btn ? btn.innerHTML : '';
+    async function exportClientSidePdf(ver, filename, btn) {
       if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-left:0.4rem;"></i> جاري بناء مستند Word والتحويل الصامت عبر Word...`;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-left:0.4rem;"></i> جاري توليد ملف الـ PDF (4 صفحات)...`;
       }
 
-      const filename = `fintech-specification-${ver}.pdf`;
-      const { selectedServices, totalEndpoints } = getSelectedExportItems();
-
-      try {
-        // المرحلة 1: بناء مستند Word (.docx) حقيقي من الصفر وفق معايير OpenXML
-        const docxBlob = await generateRealDocxBlob(ver, selectedServices, totalEndpoints);
-
-        if (btn) {
-          btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-left:0.4rem;"></i> جاري التصدير عبر محرك Word الرسمي (Vector PDF)...`;
+      // الحصول على الصفحات الأربع من المعاينة الحالية أو بناؤها إن لم تكن معروضة
+      let pages = document.querySelectorAll('#pdf-pages-stack-container .pdf-paper-page');
+      if (!pages || pages.length === 0) {
+        const { selectedServices } = getSelectedExportItems();
+        const stackContainer = document.getElementById('pdf-pages-stack-container');
+        if (stackContainer) {
+          stackContainer.innerHTML = generateFullPdfDocumentPagesHtml(selectedServices, ver);
+          pages = stackContainer.querySelectorAll('.pdf-paper-page');
         }
+      }
 
-        // المرحلة 2: إرسال ملف الـ Word إلى محرك الأتمتة المكتبي لتحويله إلى PDF نقي
-        const response = await fetch('/api/convert-docx-to-pdf', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-          },
-          body: docxBlob
-        });
+      if (!pages || pages.length === 0) {
+        throw new Error('لم يتم العثور على صفحات المستند لتوليد ملف الـ PDF');
+      }
 
-        if (!response.ok) {
-          throw new Error(`Word Automated Engine returned HTTP status ${response.status}`);
+      // بناء حاوية منفصلة ونظيفة للتصدير بدقة A4
+      const tempContainer = document.createElement('div');
+      tempContainer.style.background = '#ffffff';
+      tempContainer.style.width = '794px';
+      tempContainer.style.padding = '0';
+      tempContainer.style.margin = '0';
+      tempContainer.style.direction = 'rtl';
+
+      pages.forEach((p, idx) => {
+        const clone = p.cloneNode(true);
+        clone.style.margin = '0';
+        clone.style.boxShadow = 'none';
+        clone.style.border = 'none';
+        clone.style.width = '100%';
+        clone.style.background = '#ffffff';
+        if (idx < pages.length - 1) {
+          clone.style.pageBreakAfter = 'always';
+          clone.style.breakAfter = 'page';
         }
+        tempContainer.appendChild(clone);
+      });
 
-        const pdfBlob = await response.blob();
-        if (!pdfBlob || pdfBlob.size === 0) {
-          throw new Error('Empty PDF received from Word Engine');
-        }
+      const opt = {
+        margin: [0, 0, 0, 0],
+        filename: filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 1.5, useCORS: true, logging: false },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['css', 'legacy'] }
+      };
 
-        // المرحلة 3: تنزيل ملف الـ PDF المتجه الحقيقي مباشرة للمستخدم
+      if (typeof html2pdf !== 'undefined') {
+        const pdfBlob = await html2pdf().set(opt).from(tempContainer).outputPdf('blob');
         const url = URL.createObjectURL(pdfBlob);
         const link = document.createElement('a');
         link.href = url;
@@ -2644,33 +2660,82 @@ function copyBaseUrl(e) {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+        toast(`تم بنجاح تصدير وتحميل ملف PDF معتمد (${filename})`);
+      } else {
+        window.print();
+      }
+    }
 
-        toast(`تم بنجاح تصدير ملف PDF رسمي فائق النقاء عبر محرك Word (${filename})`);
+    async function downloadRealPdfDocument(ver) {
+      const btn = document.getElementById('btn-execute-download');
+      const origText = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-left:0.4rem;"></i> جاري تجهيز وتصدير ملف الـ PDF...`;
+      }
 
+      const filename = `fintech-specification-${ver}.pdf`;
+      const { selectedServices, totalEndpoints } = getSelectedExportItems();
+
+      let convertedViaWord = false;
+
+      // محاولة التحويل عبر خادم الأتمتة المكتبي (Word COM) في حال كان يعمل محلياً
+      const wordApiUrl = window.location.protocol.startsWith('http') 
+        ? '/api/convert-docx-to-pdf' 
+        : 'http://127.0.0.1:8088/api/convert-docx-to-pdf';
+
+      try {
+        const docxBlob = await generateRealDocxBlob(ver, selectedServices, totalEndpoints);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+        const response = await fetch(wordApiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          },
+          body: docxBlob,
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const pdfBlob = await response.blob();
+          if (pdfBlob && pdfBlob.size > 0) {
+            const url = URL.createObjectURL(pdfBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+            toast(`تم بنجاح تصدير ملف PDF رسمي فائق النقاء عبر محرك Word (${filename})`);
+            convertedViaWord = true;
+          }
+        }
       } catch (err) {
-        console.warn('Word Automated Engine fallback triggered:', err);
-        // في حال عدم توفر الخادم، يتم تقديم ملف Word الأصلي مباشرة
-        toast('تعذر التحويل المباشر، جاري تنزيل مستند Word الأصلي لحفظه كـ PDF...');
+        // في حال تعذر الوصول لخادم Word المكتبي، ننتقل فوراً وبسلاسة للمحرك المباشر
+        console.info('خادم Word المكتبي غير متصل، جاري التصدير عبر المحرك المباشر للمتصفح:', err);
+      }
+
+      // في حال عدم توفر خادم Word، يتم التصدير المباشر كملف PDF حصراً (يُمنع منعاً باتاً تنزيل Word عند طلب PDF)
+      if (!convertedViaWord) {
         try {
-          const docxBlob = await generateRealDocxBlob(ver, selectedServices, totalEndpoints);
-          const docxName = `fintech-specification-${ver}.docx`;
-          const url = URL.createObjectURL(docxBlob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = docxName;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          setTimeout(() => URL.revokeObjectURL(url), 1000);
-        } catch (fallbackErr) {
+          await exportClientSidePdf(ver, filename, btn);
+        } catch (pdfErr) {
+          console.error('Client-side PDF generation failed:', pdfErr);
+          toast('جاري فتح نافذة الطباعة لاختيار حفظ كـ PDF...');
           window.print();
         }
-      } finally {
-        if (btn) {
-          btn.disabled = false;
-          btn.innerHTML = origText;
-        }
+      }
+
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origText;
       }
     }
 
@@ -2963,7 +3028,7 @@ function saveNewEndpointFromDrawer() {
     ],
     examples: {
       json: JSON.stringify({ channelId: "CH-90112", amount: 2500.00, currency: "SAR" }, null, 2),
-      curl: `curl -X ${method} "https://api.gov.fintech/v1${path}" \\\n  -H "Authorization: Bearer <TOKEN>" \\\n  -H "Content-Type: application/json" \\\n  -d '{"amount": 2500.00, "currency": "SAR"}'`
+      curl: `curl -X ${method} "https://api.gov.fintech${path}" \\\n  -H "Authorization: Bearer <TOKEN>" \\\n  -H "Content-Type: application/json" \\\n  -d '{"amount": 2500.00, "currency": "SAR"}'`
     }
   };
 
@@ -3044,7 +3109,7 @@ function commitNewApi() {
           ],
           examples: {
             json: JSON.stringify({ requestId: "REQ-101", payload: {} }, null, 2),
-            curl: `curl -X POST "https://api.gov.fintech/v1${endpoint}" -H "Authorization: Bearer <TOKEN>"`
+            curl: `curl -X POST "https://api.gov.fintech${endpoint}" -H "Authorization: Bearer <TOKEN>"`
           }
         }
       ]
