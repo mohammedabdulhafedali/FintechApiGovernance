@@ -17,6 +17,7 @@ function goView(view) {
 
   if (view === 'dashboard') {
     document.getElementById('btn-nav-dashboard').classList.add('active');
+    updateDashboardCards();
   } else if (view === 'rbac') {
     document.getElementById('btn-nav-rbac').classList.add('active');
     renderRbac('admin');
@@ -33,6 +34,10 @@ function goView(view) {
   } else if (view === 'versions') {
     const verBtn = document.getElementById('btn-nav-versions');
     if (verBtn) verBtn.classList.add('active');
+  } else if (view === 'add-api') {
+    const addBtn = document.getElementById('btn-nav-add-api');
+    if (addBtn) addBtn.classList.add('active');
+    renderSavedCustomApisList();
   }
 }
 
@@ -2605,7 +2610,12 @@ function copyBaseUrl(e) {
         btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-left:0.4rem;"></i> جاري توليد ملف الـ PDF (4 صفحات)...`;
       }
 
-      // الحصول على الصفحات الأربع من المعاينة الحالية أو بناؤها إن لم تكن معروضة
+      // 1. انتظار اكتمال تحميل الخطوط المعتمدة
+      if (document.fonts && document.fonts.ready) {
+        try { await document.fonts.ready; } catch (e) { /* ignore */ }
+      }
+
+      // 2. جلب الصفحات الأربع
       let pages = document.querySelectorAll('#pdf-pages-stack-container .pdf-paper-page');
       if (!pages || pages.length === 0) {
         const { selectedServices } = getSelectedExportItems();
@@ -2620,123 +2630,103 @@ function copyBaseUrl(e) {
         throw new Error('لم يتم العثور على صفحات المستند لتوليد ملف الـ PDF');
       }
 
-      // بناء حاوية منفصلة ونظيفة للتصدير بدقة A4
-      const tempContainer = document.createElement('div');
-      tempContainer.style.background = '#ffffff';
-      tempContainer.style.width = '794px';
-      tempContainer.style.padding = '0';
-      tempContainer.style.margin = '0';
-      tempContainer.style.direction = 'rtl';
+      // 3. بناء مسرح تصدير نظيف بدقة A4 ومتاح للالتقاط
+      const exportStage = document.createElement('div');
+      exportStage.id = 'clean-pdf-export-stage';
+      exportStage.style.cssText = 'position: absolute; top: 0; left: 0; width: 794px; background: #ffffff; z-index: -1000; pointer-events: none; direction: rtl; margin: 0; padding: 0;';
 
       pages.forEach((p, idx) => {
         const clone = p.cloneNode(true);
-        clone.style.margin = '0';
-        clone.style.boxShadow = 'none';
-        clone.style.border = 'none';
-        clone.style.width = '100%';
-        clone.style.background = '#ffffff';
-        if (idx < pages.length - 1) {
-          clone.style.pageBreakAfter = 'always';
-          clone.style.breakAfter = 'page';
-        }
-        tempContainer.appendChild(clone);
+        clone.className = 'pdf-paper-page html2pdf__page-break';
+        clone.style.cssText = `
+          width: 794px !important;
+          height: 1120px !important;
+          min-height: 1120px !important;
+          max-height: 1120px !important;
+          box-sizing: border-box !important;
+          padding: 36px 40px !important;
+          margin: 0 !important;
+          box-shadow: none !important;
+          border: none !important;
+          border-radius: 0 !important;
+          background: #ffffff !important;
+          color: #0f172a !important;
+          direction: rtl !important;
+          font-family: 'Cairo', system-ui, -apple-system, sans-serif !important;
+          display: flex !important;
+          flex-direction: column !important;
+          justify-content: space-between !important;
+          overflow: hidden !important;
+        `;
+
+        // تصفير letter-spacing لضمان عدم تفكك وترابط الحروف العربية
+        clone.querySelectorAll('*').forEach(el => {
+          el.style.letterSpacing = 'normal';
+          el.style.fontKerning = 'normal';
+        });
+
+        exportStage.appendChild(clone);
       });
 
+      document.body.appendChild(exportStage);
+
       const opt = {
-        margin: [0, 0, 0, 0],
+        margin: 0,
         filename: filename,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 1.5, useCORS: true, logging: false },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          letterRendering: false,
+          scrollX: 0,
+          scrollY: 0,
+          windowWidth: 794
+        },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['css', 'legacy'] }
+        pagebreak: { mode: ['css', 'legacy'], after: '.html2pdf__page-break' }
       };
 
-      if (typeof html2pdf !== 'undefined') {
-        const pdfBlob = await html2pdf().set(opt).from(tempContainer).outputPdf('blob');
-        const url = URL.createObjectURL(pdfBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setTimeout(() => URL.revokeObjectURL(url), 1500);
-        toast(`تم بنجاح تصدير وتحميل ملف PDF معتمد (${filename})`);
-      } else {
-        window.print();
+      try {
+        if (typeof html2pdf !== 'undefined') {
+          const pdfBlob = await html2pdf().set(opt).from(exportStage).outputPdf('blob');
+          const url = URL.createObjectURL(pdfBlob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setTimeout(() => URL.revokeObjectURL(url), 1500);
+          toast(`تم بنجاح تصدير وتحميل ملف PDF معتمد (${filename})`);
+        } else {
+          throw new Error('محرك html2pdf غير متاح');
+        }
+      } finally {
+        if (exportStage.parentNode) {
+          exportStage.parentNode.removeChild(exportStage);
+        }
       }
     }
 
-    async function downloadRealPdfDocument(ver) {
-      const btn = document.getElementById('btn-execute-download');
-      const origText = btn ? btn.innerHTML : '';
-      if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-left:0.4rem;"></i> جاري تجهيز وتصدير ملف الـ PDF...`;
+    function downloadRealPdfDocument(ver) {
+      const { selectedServices } = getSelectedExportItems();
+      const stackContainer = document.getElementById('pdf-pages-stack-container');
+      if (stackContainer) {
+        stackContainer.innerHTML = generateFullPdfDocumentPagesHtml(selectedServices, ver);
       }
 
-      const filename = `fintech-specification-${ver}.pdf`;
-      const { selectedServices, totalEndpoints } = getSelectedExportItems();
+      toast(`جاري فتح شاشة حفظ المستند كـ PDF (معايير A4 الوطنية المعتمدة)...`);
 
-      let convertedViaWord = false;
-
-      // محاولة التحويل عبر خادم الأتمتة المكتبي (Word COM) في حال كان يعمل محلياً
-      const wordApiUrl = window.location.protocol.startsWith('http') 
-        ? '/api/convert-docx-to-pdf' 
-        : 'http://127.0.0.1:8088/api/convert-docx-to-pdf';
-
-      try {
-        const docxBlob = await generateRealDocxBlob(ver, selectedServices, totalEndpoints);
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
-
-        const response = await fetch(wordApiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-          },
-          body: docxBlob,
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-
-        if (response.ok) {
-          const pdfBlob = await response.blob();
-          if (pdfBlob && pdfBlob.size > 0) {
-            const url = URL.createObjectURL(pdfBlob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
-
-            toast(`تم بنجاح تصدير ملف PDF رسمي فائق النقاء عبر محرك Word (${filename})`);
-            convertedViaWord = true;
-          }
-        }
-      } catch (err) {
-        // في حال تعذر الوصول لخادم Word المكتبي، ننتقل فوراً وبسلاسة للمحرك المباشر
-        console.info('خادم Word المكتبي غير متصل، جاري التصدير عبر المحرك المباشر للمتصفح:', err);
+      // التأكد من أن شاشة التصدير هي النشطة
+      if (APP.activeView !== 'export') {
+        goView('export');
       }
 
-      // في حال عدم توفر خادم Word، يتم التصدير المباشر كملف PDF حصراً (يُمنع منعاً باتاً تنزيل Word عند طلب PDF)
-      if (!convertedViaWord) {
-        try {
-          await exportClientSidePdf(ver, filename, btn);
-        } catch (pdfErr) {
-          console.error('Client-side PDF generation failed:', pdfErr);
-          toast('جاري فتح نافذة الطباعة لاختيار حفظ كـ PDF...');
-          window.print();
-        }
-      }
-
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = origText;
-      }
+      // تشغيل محرك الطباعة المتجهي المعتمد عالمياً في كافة المتصفحات والأنظمة
+      setTimeout(() => {
+        window.print();
+      }, 300);
     }
 
 
@@ -3065,58 +3055,447 @@ function sealActiveEndpoint() {
   toast(`تم ختم واعتماد المسار [${ep.path}] رسمياً بتوقيع سيادي RSA-PSS-4096!`);
 }
 
+// =========================================================================
+// DYNAMIC API DOCUMENTATION ENGINE & LOCAL STORAGE PERSISTENCE
+// =========================================================================
+const STORAGE_CUSTOM_APIS_KEY = 'FINTECH_CUSTOM_APIS_V1';
+
+// Preset Templates for Rapid Meeting Demonstrations
+const PRESET_TEMPLATES = {
+  fx: {
+    sector: 'banking',
+    title: 'خدمة أسعار صرف العملات والتحويل اللحظي FX',
+    code: 'FX_RATES',
+    baseUrl: 'https://api.gov.fintech/v1/fx',
+    method: 'POST',
+    path: '/v1/fx/quotes/convert',
+    shortName: 'fx-convert',
+    ruleName: 'تثبيت وحجز سعر الصرف لمدة 60 ثانية للعمليات اللحظية',
+    desc: 'تنفيذ عمليات صرف العملات الفورية للتحويلات البنكية الدولية والمحلية متعددة العملات مع قفل سعر الصرف اللحظي.',
+    payload: `{\n  "sourceCurrency": "SAR",\n  "targetCurrency": "USD",\n  "amount": 50000.00,\n  "settlementSpeed": "INSTANT",\n  "idempotencyKey": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"\n}`,
+    res200: `{\n  "quoteId": "FX-QUOTE-88910",\n  "exchangeRate": 0.2666,\n  "convertedAmount": 13330.00,\n  "expiresInSeconds": 60,\n  "status": "LOCKED",\n  "timestamp": "${new Date().toISOString()}"\n}`,
+    res422: `{\n  "error": "MARKET_CLOSED_422",\n  "code": "BR_FX_003",\n  "message": "Currency market is currently closed or liquidity pair unavailable."\n}`
+  },
+  kyc: {
+    sector: 'merchants',
+    title: 'خدمة التحقق من أهلية التاجر والعميل KYC',
+    code: 'KYC_VERIFY',
+    baseUrl: 'https://api.gov.fintech/v1/kyc',
+    method: 'POST',
+    path: '/v1/merchants/kyc/verify',
+    shortName: 'kyc-verify',
+    ruleName: 'مطابقة السجل التجاري مع وزارة التجارة وضوابط مكافحة التستر',
+    desc: 'التحقق الفوري من صحة السجل التجاري والبيانات البنكية للتاجر قبل تفعيل خدمات نقاط البيع وبوابات الدفع.',
+    payload: `{\n  "commercialRegister": "1010884920",\n  "taxNumber": "300188920100003",\n  "merchantName": "شركة التقنية المتقدمة للمدفوعات",\n  "merchantType": "FINTECH_PSP"\n}`,
+    res200: `{\n  "status": "VERIFIED",\n  "kycReference": "KYC-SA-994201",\n  "complianceLevel": "TIER_1_APPROVED",\n  "verifiedAt": "${new Date().toISOString()}"\n}`,
+    res422: `{\n  "error": "CR_EXPIRED_422",\n  "code": "BR_KYC_001",\n  "message": "Commercial registration is expired or suspended."\n}`
+  },
+  payroll: {
+    sector: 'banking',
+    title: 'خدمة مسيرات الرواتب وحماية الأجور WPS',
+    code: 'WPS_PAYROLL',
+    baseUrl: 'https://api.gov.fintech/v1/wps',
+    method: 'POST',
+    path: '/v1/payroll/files/process',
+    shortName: 'wps-process',
+    ruleName: 'مطابقة إجمالي الرواتب مع الرصيد المحجوز مسبقاً وتفويض التأمينات',
+    desc: 'معالجة ملفات مسيرات الأجور الموحدة والتحقق من الهويات البنكية للموظفين والمقاصة اللحظية للحسابات.',
+    payload: `{\n  "employerId": "7001928374",\n  "batchId": "WPS-2026-10-A",\n  "totalAmount": 1285000.00,\n  "currency": "SAR",\n  "recordCount": 245\n}`,
+    res200: `{\n  "batchStatus": "ACCEPTED_FOR_SETTLEMENT",\n  "wpsFileRef": "MOL-WPS-88492",\n  "clearingTime": "IMMEDIATE",\n  "processedRecords": 245\n}`,
+    res422: `{\n  "error": "INSUFFICIENT_FUNDS_422",\n  "code": "BR_WPS_004",\n  "message": "Debit account balance is insufficient to cover total payroll batch."\n}`
+  }
+};
+
 function openAddApiWizard() {
-  document.getElementById('modal-add-api-wizard').classList.add('show');
+  goView('add-api');
 }
 
 function closeAddApiWizard() {
-  document.getElementById('modal-add-api-wizard').classList.remove('show');
+  const m = document.getElementById('modal-add-api-wizard');
+  if (m) m.classList.remove('show');
 }
 
-function commitNewApi() {
-  const sector = document.getElementById('wiz-api-sector').value;
-  const name = document.getElementById('wiz-api-name').value.trim();
-  let endpoint = document.getElementById('wiz-api-endpoint').value.trim();
+function switchAddApiMode(mode) {
+  const btnForm = document.getElementById('btn-tab-mode-form');
+  const btnJson = document.getElementById('btn-tab-mode-json');
+  const paneForm = document.getElementById('pane-mode-form');
+  const paneJson = document.getElementById('pane-mode-json');
 
-  if (!name) {
-    toast('يرجى إدخال اسم الـ API');
+  if (mode === 'form') {
+    if (btnForm) btnForm.classList.add('active');
+    if (btnJson) btnJson.classList.remove('active');
+    if (paneForm) paneForm.style.display = 'block';
+    if (paneJson) paneJson.style.display = 'none';
+  } else {
+    if (btnForm) btnForm.classList.remove('active');
+    if (btnJson) btnJson.classList.add('active');
+    if (paneForm) paneForm.style.display = 'none';
+    if (paneJson) paneJson.style.display = 'block';
+  }
+}
+
+function onSectorSelectChange(val) {
+  const wrapCustom = document.getElementById('wrap-custom-sector');
+  if (wrapCustom) {
+    wrapCustom.style.display = val === 'custom' ? 'block' : 'none';
+  }
+}
+
+function applyPresetToForm(presetKey) {
+  const p = PRESET_TEMPLATES[presetKey];
+  if (!p) return;
+
+  const secSelect = document.getElementById('add-api-sector');
+  if (secSelect) secSelect.value = p.sector;
+  onSectorSelectChange(p.sector);
+
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  setVal('add-api-title', p.title);
+  setVal('add-api-code', p.code);
+  setVal('add-api-base-url', p.baseUrl);
+  setVal('add-api-method', p.method);
+  setVal('add-api-path', p.path);
+  setVal('add-api-shortname', p.shortName);
+  setVal('add-api-rule-name', p.ruleName);
+  setVal('add-api-desc', p.desc);
+  setVal('add-api-payload', p.payload);
+  setVal('add-api-res200', p.res200);
+  setVal('add-api-res422', p.res422);
+
+  switchAddApiMode('form');
+  toast(`تم تعبئة نموذج: [${p.title}] بنجاح!`);
+}
+
+function parseAndApplyJsonImport() {
+  const raw = document.getElementById('add-api-json-import').value.trim();
+  if (!raw) {
+    toast('يرجى لصق كائن JSON صالح');
     return;
   }
-  if (!endpoint) endpoint = '/v1/service/action';
-  if (!endpoint.startsWith('/')) endpoint = '/' + endpoint;
 
-  const srvKey = 'srv_' + Date.now();
-  if (DATA[sector]) {
-    DATA[sector].services[srvKey] = {
-      name: name,
-      endpoints: [
-        {
-          method: 'POST',
-          path: endpoint,
-          shortName: endpoint.split('/').filter(Boolean).pop(),
-          isDraft: false,
-          desc: `المسار التأسيسي لخدمة ${name}`,
-          params: [
-            { name: 'requestId', type: 'string (UUID)', req: true, tag: 'SECURITY', tagClass: 'badge-iso', rule: 'معرف الطلب الموحد' },
-            { name: 'payload', type: 'object', req: true, tag: 'CORE', tagClass: 'badge-fin', rule: 'بيانات العملية المعتمدة' }
-          ],
-          responseFields: [
-            { name: 'status', type: 'string (Enum)', req: 'مؤكد بالرد', desc: 'حالة استجابة النظام' },
-            { name: 'code', type: 'string', req: 'مؤكد بالرد', desc: 'كود التنفيذ' }
-          ],
-          rules: [
-            { cond: 'صحة بيانات الطلب', err: 'ERR_VALIDATION_FAILED' }
-          ],
-          examples: {
-            json: JSON.stringify({ requestId: "REQ-101", payload: {} }, null, 2),
-            curl: `curl -X POST "https://api.gov.fintech${endpoint}" -H "Authorization: Bearer <TOKEN>"`
-          }
-        }
-      ]
-    };
+  try {
+    const obj = JSON.parse(raw);
+    const setVal = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined) el.value = v; };
+    
+    setVal('add-api-title', obj.title || obj.name);
+    setVal('add-api-code', obj.code);
+    setVal('add-api-base-url', obj.baseUrl);
+    setVal('add-api-method', (obj.method || 'POST').toUpperCase());
+    setVal('add-api-path', obj.path || obj.endpoint);
+    setVal('add-api-desc', obj.desc || obj.description);
+    setVal('add-api-shortname', obj.shortName);
+    
+    if (obj.sector) {
+      const secEl = document.getElementById('add-api-sector');
+      if (secEl) {
+        secEl.value = obj.sector;
+        onSectorSelectChange(obj.sector);
+      }
+    }
+
+    if (obj.payload) {
+      setVal('add-api-payload', typeof obj.payload === 'string' ? obj.payload : JSON.stringify(obj.payload, null, 2));
+    }
+    if (obj.res200) {
+      setVal('add-api-res200', typeof obj.res200 === 'string' ? obj.res200 : JSON.stringify(obj.res200, null, 2));
+    }
+    if (obj.res422) {
+      setVal('add-api-res422', typeof obj.res422 === 'string' ? obj.res422 : JSON.stringify(obj.res422, null, 2));
+    }
+
+    switchAddApiMode('form');
+    toast('تم تحليل وتطبيق كود الـ JSON بنجاح على الحقول!');
+  } catch (err) {
+    toast('خطأ في بناء الـ JSON: ' + err.message);
+  }
+}
+
+function resetAddApiForm() {
+  const ids = ['add-api-title', 'add-api-code', 'add-api-path', 'add-api-shortname', 'add-api-rule-name', 'add-api-desc', 'add-api-json-import'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  toast('تم تفريغ حقول النموذج');
+}
+
+function saveCustomApiFromForm() {
+  let sector = document.getElementById('add-api-sector').value;
+  let customSectorName = '';
+  
+  if (sector === 'custom') {
+    const customInp = document.getElementById('add-api-custom-sector-name');
+    customSectorName = customInp ? customInp.value.trim() : '';
+    if (!customSectorName) {
+      toast('يرجى كتابة اسم الجهة / القطاع الجديد');
+      if (customInp) customInp.focus();
+      return;
+    }
+    sector = 'sec_' + customSectorName.replace(/\s+/g, '_').toLowerCase();
   }
 
-  closeAddApiWizard();
-  selectSector(sector);
-  toast(`تم إنشاء وتفعيل API [${name}] بنجاح!`);
+  const title = (document.getElementById('add-api-title').value || '').trim();
+  const code = ((document.getElementById('add-api-code').value || '').trim() || 'API').toUpperCase();
+  const baseUrl = (document.getElementById('add-api-base-url').value || '').trim() || 'https://api.gov.fintech';
+  const method = (document.getElementById('add-api-method').value || 'POST').toUpperCase();
+  let path = (document.getElementById('add-api-path').value || '').trim();
+  const shortName = (document.getElementById('add-api-shortname').value || '').trim() || (path ? path.split('/').filter(Boolean).pop() : 'action');
+  const ruleName = (document.getElementById('add-api-rule-name').value || '').trim() || 'التحقق من صحة تفويض الحساب والعملية';
+  const desc = (document.getElementById('add-api-desc').value || '').trim() || `المواصفة التوثيقية المعتمدة لخدمة ${title}`;
+
+  const payloadText = (document.getElementById('add-api-payload').value || '').trim();
+  const res200Text = (document.getElementById('add-api-res200').value || '').trim();
+  const res422Text = (document.getElementById('add-api-res422').value || '').trim();
+
+  if (!title) {
+    toast('يرجى إدخال اسم الخدمة أو الـ API');
+    document.getElementById('add-api-title').focus();
+    return;
+  }
+  if (!path) {
+    path = '/v1/' + (code.toLowerCase()) + '/action';
+  }
+  if (!path.startsWith('/')) path = '/' + path;
+
+  // Extract parameters safely from JSON body
+  let paramsList = [];
+  try {
+    const parsedPayload = JSON.parse(payloadText);
+    if (parsedPayload && typeof parsedPayload === 'object') {
+      Object.entries(parsedPayload).forEach(([k, v]) => {
+        let valType = typeof v;
+        if (valType === 'number') valType = 'decimal';
+        paramsList.push({
+          name: k,
+          type: valType,
+          req: true,
+          rule: `حقل إلزامي وفق مواصفة ${code}`,
+          tag: 'CORE',
+          tagClass: 'badge-fin'
+        });
+      });
+    }
+  } catch (e) {
+    paramsList = [
+      { name: 'requestId', type: 'string (UUID)', req: true, rule: 'معرف فريد للعملية', tag: 'SECURITY', tagClass: 'badge-iso' },
+      { name: 'payload', type: 'object', req: true, rule: 'بيانات العملية المعتمدة', tag: 'CORE', tagClass: 'badge-fin' }
+    ];
+  }
+
+  if (paramsList.length === 0) {
+    paramsList.push(
+      { name: 'id', type: 'string', req: true, rule: 'معرف الطلب المعتمد', tag: 'KEY', tagClass: 'badge-iso' }
+    );
+  }
+
+  const srvKey = 'custom_' + Date.now();
+  const newEndpoint = {
+    method: method,
+    path: path,
+    shortName: shortName,
+    desc: desc,
+    isDraft: false,
+    isCustom: true,
+    params: paramsList,
+    rules: [
+      { id: 'BR_' + code + '_001', name: ruleName, err: 'ERR_VALIDATION_422' }
+    ],
+    payload: payloadText || '{\n  "status": "PENDING"\n}',
+    res200: res200Text || '{\n  "status": "SUCCESS"\n}',
+    res422: res422Text || '{\n  "error": "UNPROCESSABLE_ENTITY"\n}',
+    curl: `curl -X ${method} "${baseUrl}${path}" \\\n  -H "Authorization: Bearer <TOKEN>" \\\n  -H "Content-Type: application/json"`
+  };
+
+  const newService = {
+    title: title,
+    code: code,
+    baseUrl: baseUrl,
+    versions: ['v1.0.0 (رسمي)'],
+    isCustom: true,
+    endpoints: [ newEndpoint ]
+  };
+
+  // Inject into DATA dictionary
+  if (!DATA[sector]) {
+    DATA[sector] = {
+      name: customSectorName || 'شريك مالي مخصص',
+      code: 'SECTOR_' + sector.toUpperCase(),
+      services: {}
+    };
+    if (typeof EXPORT_CONFIG !== 'undefined' && EXPORT_CONFIG.sectors) {
+      EXPORT_CONFIG.sectors[sector] = true;
+    }
+  }
+  DATA[sector].services[srvKey] = newService;
+
+  // Persist to localStorage
+  try {
+    let stored = [];
+    const raw = localStorage.getItem(STORAGE_CUSTOM_APIS_KEY);
+    if (raw) stored = JSON.parse(raw);
+    if (!Array.isArray(stored)) stored = [];
+    
+    stored.push({
+      id: srvKey,
+      sectorKey: sector,
+      sectorName: DATA[sector].name,
+      serviceKey: srvKey,
+      serviceData: newService,
+      createdAt: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
+    });
+    localStorage.setItem(STORAGE_CUSTOM_APIS_KEY, JSON.stringify(stored));
+  } catch (err) {
+    console.error('Failed to save custom API to localStorage:', err);
+  }
+
+  toast(`تم حفظ ونشر توثيق [${title}] بنجاح في قطاع ${DATA[sector].name}!`);
+  renderSavedCustomApisList();
+  updateDashboardCards();
+
+  // Seamless navigation: immediately open Spec Explorer for the sector!
+  setTimeout(() => {
+    selectSector(sector);
+    const lastIdx = APP.sectorEndpoints.length - 1;
+    if (lastIdx >= 0) selectEndpoint(lastIdx);
+  }, 450);
 }
+
+function renderSavedCustomApisList() {
+  const container = document.getElementById('saved-apis-container');
+  const countBadge = document.getElementById('saved-apis-count');
+  if (!container) return;
+
+  let stored = [];
+  try {
+    const raw = localStorage.getItem(STORAGE_CUSTOM_APIS_KEY);
+    if (raw) stored = JSON.parse(raw);
+  } catch (e) {}
+
+  if (!Array.isArray(stored) || stored.length === 0) {
+    if (countBadge) countBadge.textContent = '0 توثيقات مضافة';
+    container.innerHTML = `
+      <div style="text-align:center; padding:2rem 1rem; color:var(--text-dim); font-size:0.8rem; background:rgba(0,0,0,0.15); border-radius:var(--radius-sm); border:1px dashed var(--border);">
+        <i class="fa-solid fa-folder-open" style="font-size:1.5rem; margin-bottom:0.5rem; display:block; opacity:0.5;"></i>
+        لم يتم إضافة أي توثيق مخصص حتى الآن. استخدم النماذج الجاهزة أعلاه أو أدخل بيانات API جديد لتجربته في اجتماع الغد!
+      </div>
+    `;
+    return;
+  }
+
+  if (countBadge) countBadge.textContent = `${stored.length} توثيق مضاف`;
+
+  let rows = '';
+  stored.forEach((item) => {
+    const srv = item.serviceData;
+    const ep = srv.endpoints && srv.endpoints[0] ? srv.endpoints[0] : { method: 'POST', path: '/' };
+    const methodColor = ep.method === 'POST' ? 'var(--emerald)' : (ep.method === 'GET' ? '#38bdf8' : '#f59e0b');
+
+    rows += `
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+        <td style="padding:0.6rem; font-weight:700; color:#cbd5e1;">${item.sectorName || item.sectorKey}</td>
+        <td style="padding:0.6rem;"><strong>${srv.title}</strong></td>
+        <td style="padding:0.6rem;"><strong class="mono" style="color:${methodColor};">${ep.method}</strong> <code class="mono" style="font-size:0.75rem; color:#38bdf8;">${ep.path}</code></td>
+        <td style="padding:0.6rem;" class="mono" style="font-size:0.75rem; color:var(--text-dim);">${item.createdAt || 'اليوم'}</td>
+        <td style="padding:0.6rem; text-align:left; display:flex; gap:0.35rem; justify-content:flex-end;">
+          <button class="btn btn-ghost" style="padding:0.25rem 0.6rem; font-size:0.75rem;" onclick="selectSector('${item.sectorKey}')" title="استعراض في المواصفة">
+            <i class="fa-solid fa-eye"></i> استعراض
+          </button>
+          <button class="btn btn-ghost" style="padding:0.25rem 0.6rem; font-size:0.75rem; color:var(--emerald);" onclick="goView('export')" title="تصدير">
+            <i class="fa-solid fa-file-export"></i> تصدير
+          </button>
+          <button class="btn btn-ghost" style="padding:0.25rem 0.5rem; font-size:0.75rem; color:var(--rose);" onclick="deleteCustomApi('${item.id}', '${item.sectorKey}', '${item.serviceKey}')" title="حذف">
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+
+  container.innerHTML = `
+    <table class="table-compact" style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border); color:var(--text-dim); text-align:right;">
+          <th style="padding:0.5rem;">الجهة</th>
+          <th style="padding:0.5rem;">اسم الخدمة</th>
+          <th style="padding:0.5rem;">المسار</th>
+          <th style="padding:0.5rem;">التوقيت</th>
+          <th style="padding:0.5rem; text-align:left;">الإجراءات</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows}
+      </tbody>
+    </table>
+  `;
+}
+
+function deleteCustomApi(id, sectorKey, serviceKey) {
+  if (!confirm('هل أنت متأكد من حذف هذا التوثيق؟')) return;
+
+  if (DATA[sectorKey] && DATA[sectorKey].services && DATA[sectorKey].services[serviceKey]) {
+    delete DATA[sectorKey].services[serviceKey];
+  }
+
+  try {
+    const raw = localStorage.getItem(STORAGE_CUSTOM_APIS_KEY);
+    if (raw) {
+      let stored = JSON.parse(raw);
+      if (Array.isArray(stored)) {
+        stored = stored.filter(item => item.id !== id && item.serviceKey !== serviceKey);
+        localStorage.setItem(STORAGE_CUSTOM_APIS_KEY, JSON.stringify(stored));
+      }
+    }
+  } catch (e) {}
+
+  toast('تم حذف التوثيق بنجاح');
+  renderSavedCustomApisList();
+  updateDashboardCards();
+}
+
+function updateDashboardCards() {
+  if (typeof DATA === 'undefined') return;
+  const sectors = ['banking', 'merchants', 'aml'];
+  sectors.forEach(secKey => {
+    if (!DATA[secKey] || !DATA[secKey].services) return;
+    const totalEps = Object.values(DATA[secKey].services).reduce((acc, s) => acc + (s.endpoints ? s.endpoints.length : 0), 0);
+    const btn = document.querySelector(`.sector-card button[onclick*="${secKey}"]`);
+    if (btn && btn.parentElement) {
+      const monoEl = btn.parentElement.querySelector('.mono');
+      if (monoEl) {
+        monoEl.textContent = `${totalEps} APIs`;
+      }
+    }
+  });
+}
+
+function initDynamicApiStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_CUSTOM_APIS_KEY);
+    if (!raw) return;
+    const stored = JSON.parse(raw);
+    if (Array.isArray(stored)) {
+      stored.forEach(item => {
+        if (!item || !item.sectorKey || !item.serviceData) return;
+        
+        if (!DATA[item.sectorKey]) {
+          DATA[item.sectorKey] = {
+            name: item.sectorName || 'شريك مالي مخصص',
+            code: 'SECTOR_' + item.sectorKey.toUpperCase(),
+            services: {}
+          };
+          if (typeof EXPORT_CONFIG !== 'undefined' && EXPORT_CONFIG.sectors) {
+            EXPORT_CONFIG.sectors[item.sectorKey] = true;
+          }
+        }
+        
+        DATA[item.sectorKey].services[item.serviceKey] = item.serviceData;
+      });
+    }
+  } catch (err) {
+    console.error('Failed to load custom APIs from localStorage:', err);
+  }
+  updateDashboardCards();
+}
+
+// Auto-initialize storage on script evaluation
+initDynamicApiStorage();
