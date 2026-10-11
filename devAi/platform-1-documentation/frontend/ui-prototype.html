@@ -6,6 +6,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>منصة حوكمة وتوثيق المعايير المالية — API Governance Hub</title>
 
+  <!-- Favicon -->
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%236366f1'/><path d='M50 20 L80 35 L80 65 L50 80 L20 65 L20 35 Z' fill='none' stroke='white' stroke-width='6'/><path d='M50 20 L50 80 M20 35 L50 50 L80 35' fill='none' stroke='white' stroke-width='5'/></svg>">
+
+  <!-- Suppress External Extension Injected Errors -->
+  <script>
+    window.addEventListener('unhandledrejection', function (e) {
+      if (e.reason && ((e.reason.name === 'SyntaxError' && (e.reason.message || '').includes('JSON')) || (e.reason.message || '').includes('Unexpected end of JSON'))) {
+        e.preventDefault();
+      }
+    });
+  </script>
+
   <!-- Google Fonts: Tajawal, Readex Pro, Cairo, Outfit & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -45,21 +58,23 @@
       <!-- Soft Divider -->
       <hr class="nav-divider">
 
-      <!-- Entities Only -->
-      <a class="nav-btn" id="btn-sec-banking" onclick="selectSector('banking')">
-        <i class="fa-solid fa-building-columns"></i>
-        <span>المؤسسات المالية والبنوك</span>
-      </a>
+      <!-- Entities Only (Dynamically Populated & Synced) -->
+      <div id="sidebar-entities-container">
+        <a class="nav-btn" id="btn-sec-banking" onclick="selectSector('banking')">
+          <i class="fa-solid fa-building-columns"></i>
+          <span>المؤسسات المالية والبنوك</span>
+        </a>
 
-      <a class="nav-btn" id="btn-sec-merchants" onclick="selectSector('merchants')">
-        <i class="fa-solid fa-cart-shopping"></i>
-        <span>أنظمة التجار والمدفوعات</span>
-      </a>
+        <a class="nav-btn" id="btn-sec-merchants" onclick="selectSector('merchants')">
+          <i class="fa-solid fa-cart-shopping"></i>
+          <span>أنظمة التجار والمدفوعات</span>
+        </a>
 
-      <a class="nav-btn" id="btn-sec-aml" onclick="selectSector('aml')">
-        <i class="fa-solid fa-shield-halved"></i>
-        <span>مكافحة غسل الأموال (AML)</span>
-      </a>
+        <a class="nav-btn" id="btn-sec-aml" onclick="selectSector('aml')">
+          <i class="fa-solid fa-shield-halved"></i>
+          <span>مكافحة غسل الأموال (AML)</span>
+        </a>
+      </div>
 
       <!-- Soft Divider -->
       <hr class="nav-divider">
@@ -140,7 +155,7 @@
            VIEW 1: DASHBOARD (CARDS ONLY, ZERO ADMINISTRATIVE TABLES)
            ===================================================================== -->
       <section id="pane-dashboard" class="view-pane active">
-        <div class="sectors-grid">
+        <div class="sectors-grid" id="dashboard-sectors-grid">
           <!-- Sector 1 -->
           <div class="sector-card">
             <div class="sector-card-top">
@@ -175,6 +190,15 @@
               <span class="mono" style="font-size:0.8rem; font-weight:700; color:var(--emerald);">1 API</span>
               <button class="btn btn-ghost" style="font-size:0.75rem; padding:0.25rem 0.65rem;" onclick="selectSector('aml')">استعراض &larr;</button>
             </div>
+          </div>
+
+          <!-- Add Entity Card (Opens Add Sector Modal) -->
+          <div class="sector-card" style="border:2px dashed var(--emerald); background:rgba(16, 185, 129, 0.05); display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; cursor:pointer; min-height:130px; transition:all 0.2s;" onclick="openAddSectorModal()">
+            <div style="width:38px; height:38px; border-radius:50%; background:rgba(16, 185, 129, 0.15); display:flex; align-items:center; justify-content:center; color:var(--emerald); margin-bottom:0.4rem; font-size:1.1rem;">
+              <i class="fa-solid fa-plus"></i>
+            </div>
+            <strong style="font-size:0.92rem; color:var(--emerald);">+ إضافة جهة / شريك مالي جديد</strong>
+            <span style="font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem;">تسجيل هيئة أو مصرف أو قطاع مالي جديد</span>
           </div>
         </div>
       </section>
@@ -487,6 +511,10 @@
                 <div class="format-pill" data-fmt="word" onclick="selectExportFormat('word')">
                   <i class="fa-solid fa-file-word" style="color:#2563eb; margin-left:0.25rem;"></i>
                   <span>Word (.docx)</span>
+                </div>
+                <div class="format-pill" data-fmt="markdown" onclick="selectExportFormat('markdown')">
+                  <i class="fa-brands fa-markdown" style="color:#a855f7; margin-left:0.25rem;"></i>
+                  <span>Ultimate Pay (.md)</span>
                 </div>
                 <div class="format-pill" data-fmt="openapi" onclick="selectExportFormat('openapi')">
                   <i class="fa-solid fa-code" style="color:#10b981; margin-left:0.25rem;"></i>
@@ -802,6 +830,81 @@
             </div>
           </div>
 
+          <!-- Section 2.5: Modular Export Profile Customization Card (Ultimate Pay Spec) -->
+          <div class="add-api-card" style="margin-top:0.75rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.85rem; padding-bottom:0.65rem; border-bottom:1px solid var(--border-subtle); flex-wrap:wrap; gap:0.5rem;">
+              <div style="display:flex; align-items:center; gap:0.55rem;">
+                <i class="fa-solid fa-file-signature" style="color:var(--purple); font-size:1.1rem;"></i>
+                <div>
+                  <strong style="font-size:0.92rem; display:block;">3. تخصيص أجزاء وثيقة التصدير (معيار Ultimate Pay المصرفي)</strong>
+                  <span style="font-size:0.72rem; color:var(--text-muted);">تحكم في ظهور أو حجب أجزاء التوثيق في ملفات التصدير (Markdown / Word / PDF) لهذا الـ API</span>
+                </div>
+              </div>
+              <div style="display:flex; gap:0.75rem; align-items:center; background:var(--bg-input); padding:0.35rem 0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border);">
+                <label style="font-size:0.78rem; cursor:pointer; display:flex; align-items:center; gap:0.35rem; color:var(--text-dim); margin:0;">
+                  <input type="radio" name="export-profile-mode" value="default" checked onchange="toggleCustomExportSections(false)">
+                  <span>الافتراضي العام للمنصة</span>
+                </label>
+                <label style="font-size:0.78rem; cursor:pointer; display:flex; align-items:center; gap:0.35rem; color:var(--purple); font-weight:700; margin:0;">
+                  <input type="radio" name="export-profile-mode" value="custom" onchange="toggleCustomExportSections(true)">
+                  <span>تخصيص استثنائي خاص بهذا الـ API</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Customization Checklist (Collapsible) -->
+            <div id="wrap-export-sections-checklist" style="display:none; padding-top:0.35rem;">
+              <div style="margin-bottom:0.75rem; font-size:0.76rem; color:var(--text-dim);">
+                <i class="fa-solid fa-circle-info" style="color:var(--cyan); margin-left:0.3rem;"></i>
+                حدد الأقسام التي ترغب بتضمينها في الوثيقة عند تصدير هذا الـ API تحديداً:
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:0.65rem;">
+                <label class="export-section-check-card">
+                  <input type="checkbox" id="chk-sec-overview" checked>
+                  <div class="check-card-body">
+                    <strong>1. الترويسة و Base URL</strong>
+                    <span>الاسم الرسمي وتاريخ التحديث والرابط الأساسي</span>
+                  </div>
+                </label>
+                <label class="export-section-check-card">
+                  <input type="checkbox" id="chk-sec-security" checked>
+                  <div class="check-card-body">
+                    <strong>2. بروتوكول الأمان و RSA-SHA256</strong>
+                    <span>خطوات Onboarding ومواصفة التوقيع الكانوني</span>
+                  </div>
+                </label>
+                <label class="export-section-check-card">
+                  <input type="checkbox" id="chk-sec-headers" checked>
+                  <div class="check-card-body">
+                    <strong>3. جدول ترويسات الطلب الإلزامية</strong>
+                    <span>X-Client-ID, X-Signature, X-Nonce</span>
+                  </div>
+                </label>
+                <label class="export-section-check-card">
+                  <input type="checkbox" id="chk-sec-sdk" checked>
+                  <div class="check-card-body">
+                    <strong>4. كود مكتبة Python SDK</strong>
+                    <span>كلاس RS256ApiClient الجاهز للإنتاج</span>
+                  </div>
+                </label>
+                <label class="export-section-check-card">
+                  <input type="checkbox" id="chk-sec-errors" checked>
+                  <div class="check-card-body">
+                    <strong>5. سجل وأكواد الأخطاء المصرفية</strong>
+                    <span>جدول الأخطاء المصرفية وحلول المعالجة RFC 7807</span>
+                  </div>
+                </label>
+                <label class="export-section-check-card">
+                  <input type="checkbox" id="chk-sec-endpoints" checked>
+                  <div class="check-card-body">
+                    <strong>6. جداول المسارات والاستجابات</strong>
+                    <span>Request/Response Parameters & Examples</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
           <!-- Section 3: Saved APIs Registry (Local Storage Table) -->
           <div class="add-api-card" style="margin-top:0.5rem;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.85rem;">
@@ -1034,6 +1137,55 @@
   </aside>
 
   <!-- =========================================================================
+       MODAL: ADD NEW SECTOR / ENTITY (إضافة جهة / شريك مالي جديد)
+       ========================================================================= -->
+  <div id="modal-add-sector" class="modal">
+    <div class="modal-box" style="max-width:520px;">
+      <div class="modal-header">
+        <strong style="font-size:0.95rem; display:flex; align-items:center; gap:0.5rem;">
+          <i class="fa-solid fa-building-circle-check" style="color:var(--emerald);"></i>
+          <span>إضافة جهة / شريك مالي جديد</span>
+        </strong>
+        <span onclick="closeAddSectorModal()" style="cursor:pointer; color:var(--text-dim); font-size:1.2rem;">&times;</span>
+      </div>
+      <div class="modal-body" style="padding:1.25rem;">
+        <div class="form-group" style="margin-bottom:0.85rem;">
+          <label style="font-size:0.78rem; font-weight:700; color:var(--text-dim); display:block; margin-bottom:0.35rem;">اسم الجهة / القطاع المالي:</label>
+          <input type="text" id="new-sector-name" class="form-control" style="width:100%; background:var(--bg-input); color:var(--text); border:1px solid var(--border); border-radius:var(--radius-sm); padding:0.5rem 0.75rem;" placeholder="مثال: الهيئة العامة للزكاة والضريبة أو شركات التمويل">
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-bottom:0.85rem;">
+          <div>
+            <label style="font-size:0.78rem; font-weight:700; color:var(--text-dim); display:block; margin-bottom:0.35rem;">رمز القطاع (Code):</label>
+            <input type="text" id="new-sector-code" class="mono form-control" style="width:100%; background:var(--bg-input); color:var(--emerald); border:1px solid var(--border); border-radius:var(--radius-sm); padding:0.5rem 0.75rem;" placeholder="ZATCA">
+          </div>
+          <div>
+            <label style="font-size:0.78rem; font-weight:700; color:var(--text-dim); display:block; margin-bottom:0.35rem;">أيقونة الجهة:</label>
+            <select id="new-sector-icon" class="form-control" style="width:100%; background:var(--bg-input); color:var(--text); border:1px solid var(--border); border-radius:var(--radius-sm); padding:0.5rem 0.75rem;">
+              <option value="fa-building-columns">🏛️ بنك / مؤسسة مالية</option>
+              <option value="fa-landmark">🏛️ هيئة حكومية / تنظيمية</option>
+              <option value="fa-cart-shopping">🛒 نظام تجار ومدفوعات</option>
+              <option value="fa-shield-halved">🛡️ حماية وامتثال AML</option>
+              <option value="fa-wallet">💼 محافظ رقمية</option>
+              <option value="fa-money-bill-transfer">💸 تحويلات وصرافة</option>
+              <option value="fa-cube">🧊 جهة رقمية مبتكرة</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:0.85rem;">
+          <label style="font-size:0.78rem; font-weight:700; color:var(--text-dim); display:block; margin-bottom:0.35rem;">الوصف والتصنيف التنظيمي:</label>
+          <textarea id="new-sector-desc" class="form-control" style="width:100%; height:65px; background:var(--bg-input); color:var(--text); border:1px solid var(--border); border-radius:var(--radius-sm); padding:0.45rem 0.75rem; font-family:inherit; font-size:0.8rem;" placeholder="وصف مقتضب للجهة ونطاق تكاملاتها المالية..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer" style="display:flex; justify-content:space-between; padding:0.85rem 1.25rem; border-top:1px solid var(--border); background:rgba(0,0,0,0.15);">
+        <button type="button" class="btn btn-ghost" onclick="closeAddSectorModal()">إلغاء</button>
+        <button type="button" class="btn btn-emerald" onclick="saveNewSectorFromModal()">
+          <i class="fa-solid fa-plus-circle"></i> حفظ واعتماد الجهة
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
        MODAL: ADD NEW API WIZARD (معالج إضافة API جديد للمنصة الأولى)
        ========================================================================= -->
   <div id="modal-add-api-wizard" class="modal">
@@ -1087,10 +1239,10 @@
   <!-- =========================================================================
        DYNAMIC SCRIPT ENGINE (STATE + DECLARATIVE RENDERING)
        ========================================================================= -->
-  <script src="js/html2pdf.bundle.min.js"></script>
-  <script src="js/jszip.min.js"></script>
+  <script defer src="js/html2pdf.bundle.min.js"></script>
+  <script defer src="js/jszip.min.js"></script>
   <script src="js/data.js"></script>
-  <script src="js/app.js?v=pdf-vector-a4-final"></script>
+  <script src="js/app.js?v=pdf-direct-download-final"></script>
 </body>
 
 </html>

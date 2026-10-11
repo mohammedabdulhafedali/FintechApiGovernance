@@ -3153,6 +3153,177 @@ select option {
 }
 
 /* ==========================================================================
+   9.5. MODULAR EXPORT CHECKLIST & MARKDOWN STYLES
+   ========================================================================== */
+.export-section-check-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.65rem 0.85rem;
+  background: var(--bg-card-subtle);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.export-section-check-card:hover {
+  border-color: var(--purple);
+  background: rgba(168, 85, 247, 0.05);
+}
+
+.export-section-check-card input[type="checkbox"] {
+  margin-top: 0.25rem;
+  accent-color: var(--purple);
+  cursor: pointer;
+}
+
+.export-section-check-card .check-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.export-section-check-card .check-card-body strong {
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.export-section-check-card .check-card-body span {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+/* Markdown Export Preview Card */
+.markdown-doc-container {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  direction: ltr;
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  color: #e2e8f0;
+}
+
+.markdown-doc-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1.25rem;
+  background: #0f172a;
+  border-bottom: 1px solid var(--border);
+  direction: rtl;
+}
+
+.markdown-doc-content {
+  padding: 2rem 2.5rem;
+  line-height: 1.7;
+}
+
+.markdown-doc-content h1 {
+  font-size: 1.85rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+  color: #f8fafc;
+  border-bottom: 1px solid #334155;
+  padding-bottom: 0.5rem;
+}
+
+.markdown-doc-content h2 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin-top: 1.75rem;
+  margin-bottom: 0.75rem;
+  color: #38bdf8;
+  border-bottom: 1px solid #1e293b;
+  padding-bottom: 0.35rem;
+}
+
+.markdown-doc-content h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: #a855f7;
+}
+
+.markdown-doc-content h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.4rem;
+  color: #cbd5e1;
+}
+
+.markdown-doc-content p {
+  margin-bottom: 0.85rem;
+  font-size: 0.9rem;
+  color: #94a3b8;
+}
+
+.markdown-doc-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.84rem;
+}
+
+.markdown-doc-content th {
+  background: #1e293b;
+  color: #f1f5f9;
+  text-align: left;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid #334155;
+  font-weight: 700;
+}
+
+.markdown-doc-content td {
+  padding: 0.5rem 0.85rem;
+  border: 1px solid #334155;
+  color: #cbd5e1;
+}
+
+.markdown-doc-content code {
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  background: rgba(15, 23, 42, 0.8);
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  color: #38bdf8;
+  font-size: 0.85em;
+}
+
+.markdown-doc-content pre {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 1rem;
+  overflow-x: auto;
+  margin: 0.85rem 0;
+}
+
+.markdown-doc-content pre code {
+  background: transparent;
+  padding: 0;
+  color: #f1f5f9;
+  font-size: 0.82rem;
+}
+
+.markdown-doc-content blockquote {
+  border-left: 4px solid #f59e0b;
+  padding-left: 1rem;
+  margin: 1rem 0;
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.08);
+  padding: 0.65rem 1rem;
+  border-radius: 0 6px 6px 0;
+}
+
+/* ==========================================================================
    10. HIGH-FIDELITY VECTOR PRINT-TO-PDF RULES (@media print)
    ========================================================================== */
 @media print {
@@ -3171,9 +3342,10 @@ select option {
     font-size: 11pt !important;
   }
 
-  /* Hide entire application shell and non-document elements */
+  /* Hide entire application shell, non-document elements, and all other view panes */
   .sidebar,
   .top-header,
+  .topbar,
   .export-config-panel,
   .export-splitter,
   .btn-pdf-floating-expand,
@@ -3184,13 +3356,21 @@ select option {
   .modal,
   .toast,
   button,
-  .nav-btn {
+  .nav-btn,
+  .view-pane:not(#pane-export),
+  #pane-dashboard,
+  #pane-detail,
+  #pane-add-api,
+  #pane-rbac,
+  #pane-approvals,
+  #pane-security {
     display: none !important;
   }
 
+  .main,
   .main-content,
   .content-area,
-  .view-pane,
+  #pane-export,
   .export-clean-wrap,
   .export-summary-card,
   .pdf-viewer-stage,

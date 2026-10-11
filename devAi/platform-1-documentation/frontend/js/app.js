@@ -57,15 +57,69 @@ function selectSector(sectorKey) {
 
   // Flatten all endpoints for this sector
   APP.sectorEndpoints = [];
-  for (const srv of Object.values(sector.services)) {
-    srv.endpoints.forEach(ep => {
-      APP.sectorEndpoints.push(ep);
-    });
+  if (sector.services) {
+    for (const srv of Object.values(sector.services)) {
+      (srv.endpoints || []).forEach(ep => {
+        APP.sectorEndpoints.push(ep);
+      });
+    }
   }
+
+  const workbench = document.querySelector('.spec-workbench-container');
+  let emptyWrap = document.getElementById('sector-empty-state-wrap');
+
+  if (APP.sectorEndpoints.length === 0) {
+    if (workbench) workbench.style.display = 'none';
+    if (!emptyWrap) {
+      emptyWrap = document.createElement('div');
+      emptyWrap.id = 'sector-empty-state-wrap';
+      document.getElementById('pane-spec').appendChild(emptyWrap);
+    }
+    emptyWrap.style.display = 'block';
+    emptyWrap.innerHTML = `
+      <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:3.5rem 2rem; text-align:center; max-width:680px; margin:2.5rem auto; box-shadow:0 15px 35px rgba(0,0,0,0.3);">
+        <div style="width:68px; height:68px; border-radius:50%; background:rgba(16, 185, 129, 0.12); display:flex; align-items:center; justify-content:center; color:var(--emerald); margin:0 auto 1.25rem; font-size:1.85rem;">
+          <i class="fa-solid fa-folder-open"></i>
+        </div>
+        <h3 style="font-size:1.3rem; font-weight:800; color:var(--text); margin-bottom:0.5rem;">لا توجد أي APIs موثقة لـ [${sector.name}] بعد</h3>
+        <p style="font-size:0.86rem; color:var(--text-muted); max-width:480px; margin:0 auto 1.75rem; line-height:1.65;">
+          تم تسجيل هذه الجهة في الكتالوج بنجاح. يمكنك الآن إضافة أول API أو خدمة مصرفية تابعة لهذه الجهة وتوثيق مساراتها مباشرة.
+        </p>
+        <button class="btn btn-emerald" style="padding:0.65rem 1.75rem; font-size:0.92rem;" onclick="openAddApiForCurrentSector('${sectorKey}')">
+          <i class="fa-solid fa-circle-plus"></i> + إضافة أول API لهذه الجهة
+        </button>
+      </div>
+    `;
+    renderEndpointsRibbon();
+    toast(`تم استعراض: ${sector.name} (بانتظار إضافة أول API)`);
+    return;
+  }
+
+  if (emptyWrap) emptyWrap.style.display = 'none';
+  if (workbench) workbench.style.display = 'block';
 
   APP.activeEndpointIdx = 0;
   renderEndpointsRibbon();
+  renderEndpointDetails();
   toast(`تم استعراض: ${sector.name}`);
+}
+
+function openAddApiForCurrentSector(sectorKey) {
+  goView('add-api');
+  const secSelect = document.getElementById('add-api-sector');
+  if (secSelect) {
+    let exists = Array.from(secSelect.options).some(o => o.value === sectorKey);
+    if (!exists && DATA[sectorKey]) {
+      const opt = document.createElement('option');
+      opt.value = sectorKey;
+      opt.textContent = DATA[sectorKey].name;
+      secSelect.insertBefore(opt, secSelect.lastElementChild);
+    }
+    secSelect.value = sectorKey;
+    onSectorSelectChange(sectorKey);
+  }
+  const titleInp = document.getElementById('add-api-title');
+  if (titleInp) titleInp.focus();
 }
 
 // Render Endpoints Ribbon (Concise name only: transfers, recall, balance, etc.)
@@ -74,12 +128,13 @@ function renderEndpointsRibbon() {
   ribbon.innerHTML = '';
 
   if (!APP.sectorEndpoints || APP.sectorEndpoints.length === 0) {
-    // Show add button even if empty
-    const addBtn = document.createElement('button');
-    addBtn.className = 'btn-ribbon-add';
-    addBtn.innerHTML = '<i class="fa-solid fa-plus-circle"></i> إضافة مسار من الشاشة';
-    addBtn.onclick = openAddEndpointDrawer;
-    ribbon.appendChild(addBtn);
+    // Show add API button directly in ribbon for empty sector
+    const addApiBtn = document.createElement('button');
+    addApiBtn.className = 'btn-ribbon-add';
+    addApiBtn.style.cssText = 'background:rgba(16, 185, 129, 0.12); color:var(--emerald); border-color:var(--emerald); font-weight:700;';
+    addApiBtn.innerHTML = '<i class="fa-solid fa-circle-plus"></i> + إضافة API لهذه الجهة';
+    addApiBtn.onclick = () => openAddApiForCurrentSector(APP.currentSector);
+    ribbon.appendChild(addApiBtn);
     return;
   }
 
@@ -103,12 +158,20 @@ function renderEndpointsRibbon() {
     ribbon.appendChild(pill);
   });
 
-  // Dynamic Add Button directly in ribbon (من نفس الشاشة)
-  const addBtn = document.createElement('button');
-  addBtn.className = 'btn-ribbon-add';
-  addBtn.innerHTML = '<i class="fa-solid fa-plus-circle"></i> إضافة مسار من الشاشة';
-  addBtn.onclick = openAddEndpointDrawer;
-  ribbon.appendChild(addBtn);
+  // Dynamic Add Endpoint Button directly in ribbon
+  const addEpBtn = document.createElement('button');
+  addEpBtn.className = 'btn-ribbon-add';
+  addEpBtn.innerHTML = '<i class="fa-solid fa-plus-circle"></i> إضافة مسار من الشاشة';
+  addEpBtn.onclick = openAddEndpointDrawer;
+  ribbon.appendChild(addEpBtn);
+
+  // Dynamic Add API to this entity Button
+  const addApiBtn = document.createElement('button');
+  addApiBtn.className = 'btn-ribbon-add';
+  addApiBtn.style.cssText = 'background:rgba(16, 185, 129, 0.12); color:var(--emerald); border-color:var(--emerald); font-weight:700;';
+  addApiBtn.innerHTML = '<i class="fa-solid fa-folder-plus"></i> + إضافة API جديدة لهذه الجهة';
+  addApiBtn.onclick = () => openAddApiForCurrentSector(APP.currentSector);
+  ribbon.appendChild(addApiBtn);
 
   renderEndpointDetails();
 }
@@ -1033,6 +1096,7 @@ function copyBaseUrl(e) {
       const fmtLabels = {
         pdf: 'مستند (PDF)',
         word: 'Word (.docx)',
+        markdown: 'Ultimate Pay (.md)',
         openapi: 'OpenAPI 3.1',
         postman: 'Postman Collection',
         iso: 'ISO 20022 XML'
@@ -2349,6 +2413,324 @@ function copyBaseUrl(e) {
       return renderDirectCodeViewer(`fintech-iso20022-pacs008-${ver}.xml`, highlighted, 'copyIsoXmlDirect');
     }
 
+    function getEffectiveSectionsForService(service) {
+      if (service && service.exportSections) {
+        return service.exportSections;
+      }
+      return {
+        overview: true,
+        security: true,
+        headers: true,
+        sdk: true,
+        errors: true,
+        endpoints: true
+      };
+    }
+
+    function generateUltimatePayStyleMarkdown(selectedServices, ver) {
+      const dateStr = '30-9-2026';
+      let md = '';
+
+      // 1. Title Block
+      md += `# Financial Institutions (FI) API Documentation\n\n`;
+      md += `**Ultimate Pay Platform**\n\n`;
+      md += `latest update  ${dateStr}  \n\n`;
+      md += `---\n\n`;
+
+      // 2. Overview Section
+      const showOverview = selectedServices.some(s => getEffectiveSectionsForService(s).overview);
+      if (showOverview) {
+        md += `## Overview\n\n`;
+        md += `The **Ultimate Pay Financial Institutions (FI) API** enables financial institutions to seamlessly integrate payment, inquiry, biller discovery, and transaction management services. All API requests are authenticated using RSA-SHA256 digital signatures to ensure end-to-end message integrity and non-repudiation.\n\n`;
+        md += `### Base URL\n\n`;
+        md += `\`\`\`http\nhttps://tahseeltest.ultimate-pay.net/webserve\n\`\`\`\n\n`;
+        md += `---\n\n`;
+      }
+
+      // 3. Authentication & Security
+      const showSecurity = selectedServices.some(s => getEffectiveSectionsForService(s).security);
+      if (showSecurity) {
+        md += `## 1. Authentication & Security\n\n`;
+        md += `### 1.1 Digital Signature Overview\n\n`;
+        md += `The digital signature serves as a secure, stateless alternative to traditional username/password authentication. Every HTTP request sent to the platform must include custom security headers generated using an RSA-256 private key.\n\n`;
+        md += `### 1.2 FI Onboarding Steps\n\n`;
+        md += `1.  **Navigate to Platform Settings**: Log into the **Ultimate Pay Platform** and go to the **Users** screen.\n`;
+        md += `2.  **Create FI User**:\n`;
+        md += `- Create a new user with type **Financial Institution**.\n`;
+        md += `- Assign appropriate permissions.\n`;
+        md += `- Set the user role/type as **Terminal User**.\n`;
+        md += `3.  **Key Exchange**:\n`;
+        md += `- Generate an RSA key pair locally (minimum 2048-bit recommended).\n`;
+        md += `- Upload the \`public_key.pem\` file or paste its content into the designated text box in the admin portal.\n`;
+        md += `- **Important Security Notice**: Store \`private_key.pem\` in a secure location (e.g., HSM, AWS Secrets Manager, Key Vault). *Never share or expose the private key.*\n\n`;
+        md += `---\n\n`;
+        md += `### 1.3 Signature Generation Specification\n\n`;
+        md += `To sign a request, construct a canonical string formatted as follows:\n\n`;
+        md += `\`\`\`text\n<HTTP_METHOD>\\n<PATH>\\n<TIMESTAMP>\\n<NONCE>\\n<SHA256_HASH_OF_BODY>\n\`\`\`\n\n`;
+        md += `Where:\n`;
+        md += `-  \`<HTTP_METHOD>\`: Uppercase HTTP method (\`GET\`, \`POST\`, \`PUT\`, \`DELETE\`).\n`;
+        md += `-  \`<PATH>\`: Request endpoint path starting with \`/\` (e.g., \`/api/v1/financial_corp/sub_sector\`).\n`;
+        md += `-  \`<TIMESTAMP>\`: Current Unix timestamp in seconds (string).\n`;
+        md += `-  \`<NONCE>\`: Unique UUID v4 string for replay protection.\n`;
+        md += `-  \`<SHA256_HASH_OF_BODY>\`: Lowercase hex digest of the SHA-256 hash of the raw JSON request body (for empty body, use \`""\`).\n\n`;
+        md += `Sign the UTF-8 encoded canonical string using **RSA PKCS#1 v1.5 with SHA-256**, then Base64 encode the resulting signature.\n\n`;
+        md += `---\n\n`;
+      }
+
+      // 4. Required Request Headers
+      const showHeaders = selectedServices.some(s => getEffectiveSectionsForService(s).headers);
+      if (showHeaders) {
+        md += `### 1.4 Required Request Headers\n\n`;
+        md += `Every request sent to the Ultimate Pay platform must include the following headers:\n\n`;
+        md += `| Header Name | Description | Example |\n`;
+        md += `| :--- | :--- | :--- |\n`;
+        md += `| \`X-Client-ID\` | Unique identifier assigned to the user | \`client_corp_17\` |\n`;
+        md += `| \`X-Timestamp\` | Unix timestamp (seconds) when request was sent | \`1786981200\` |\n`;
+        md += `| \`X-Nonce\` | UUID v4 generated per request | \`c9bf9e57-1685-4c89-bafb-ff5af830be8a\` |\n`;
+        md += `| \`X-Signature\` | Base64-encoded RSA-256 signature | \`dGhpcyBpcyBhIHNpZ25hdHVyZQ...\` |\n`;
+        md += `| \`Content-Type\` | Payload content type | \`application/json\` |\n\n`;
+        md += `> ⚠️ **Verification Note**: The exact raw request body sent in the payload must be used to generate the SHA-256 hash. Any mismatch (e.g., key reordering, spacing differences) will cause signature verification failure on the server.\n\n`;
+        md += `---\n\n`;
+      }
+
+      // 5. Python SDK Implementation
+      const showSdk = selectedServices.some(s => getEffectiveSectionsForService(s).sdk);
+      if (showSdk) {
+        md += `### 1.5 Python Client SDK Implementation\n\n`;
+        md += `Below is a complete, production-ready Python client class implementing RSA-256 request signing and request execution:\n\n`;
+        md += `\`\`\`python\nimport hashlib\nimport json\nimport time\nimport uuid\nfrom base64 import b64encode\nfrom typing import Optional\nimport requests\nfrom cryptography.hazmat.primitives import hashes, serialization\nfrom cryptography.hazmat.primitives.asymmetric import padding\n\nclass RS256ApiClient:\n    def __init__(self, base_url: str, client_id: str, private_key_pem: str):\n        self.base_url = base_url.rstrip("/")\n        self.client_id = client_id\n        self.private_key = serialization.load_pem_private_key(\n            private_key_pem.encode("utf-8"), password=None\n        )\n\n    def _sha256(self, data: str) -> str:\n        return hashlib.sha256(data.encode("utf-8")).hexdigest()\n\n    def _sign(self, canonical: str) -> str:\n        sig = self.private_key.sign(\n            canonical.encode("utf-8"),\n            padding.PKCS1v15(),\n            hashes.SHA256()\n        )\n        return b64encode(sig).decode("utf-8")\n\n    def _headers(self, method: str, path: str, body: str,\n                 timestamp: Optional[str] = None, nonce: Optional[str] = None) -> dict:\n        ts = timestamp or str(int(time.time()))\n        n = nonce or str(uuid.uuid4())\n        canonical = f"{method}\\n{path}\\n{ts}\\n{n}\\n{self._sha256(body)}"\n        return {\n            "X-Client-ID": self.client_id,\n            "X-Timestamp": ts,\n            "X-Nonce": n,\n            "X-Signature": self._sign(canonical),\n            "Content-Type": "application/json",\n        }\n\n    def request(self, method: str, path: str, body: str = "",\n                timestamp: Optional[str] = None, nonce: Optional[str] = None) -> requests.Response:\n        headers = self._headers(method, path, body, timestamp, nonce)\n        url = f"{self.base_url}{path}"\n        return requests.request(method, url, data=body, headers=headers)\n\n    def post(self, path: str, body: str = "{}", **kw) -> requests.Response:\n        return self.request("POST", path, body, **kw)\n\`\`\`\n\n---\n\n`;
+      }
+
+      // 6. Error Handling
+      const showErrors = selectedServices.some(s => getEffectiveSectionsForService(s).errors);
+      if (showErrors) {
+        md += `### 1.6 General Error Handling\n\n`;
+        md += `The platform standardizes on RFC 7807 problem details across all integrations:\n\n`;
+        md += `| HTTP Status | Category | Description |\n`;
+        md += `| :--- | :--- | :--- |\n`;
+        md += `| \`200 OK\` | Success | Request processed successfully |\n`;
+        md += `| \`400 Bad Request\` | Malformed Request | Syntax error, missing headers, or invalid JSON |\n`;
+        md += `| \`401 Unauthorized\` | Authentication Failure | Invalid signature, expired timestamp, or bad key |\n`;
+        md += `| \`422 Unprocessable\` | Business Rule Validation | Validation error or business rule breach |\n`;
+        md += `| \`500 Server Error\` | System Exception | Unexpected internal core switch failure |\n\n`;
+        md += `### System Error Matrix\n\n`;
+        md += `| Code | Description | Suggested Action |\n`;
+        md += `| :--- | :--- | :--- |\n`;
+        md += `| \`ERR_AUTH_001\` | Invalid Signature | Verify private key and canonical string format |\n`;
+        md += `| \`ERR_NONCE_002\` | Replay Attack / Nonce Reused | Ensure UUID v4 is regenerated per request |\n`;
+        md += `| \`ERR_EXPIRED_003\` | Timestamp Expired | Synchronize system clock with NTP |\n`;
+        md += `| \`ERR_VALIDATION_422\` | Schema Constraint Error | Verify payload fields against data type rules |\n`;
+        md += `| \`ERR_LIMIT_EXCEEDED\` | Transaction Ceiling Exceeded | Ensure amount is within permitted limits |\n\n`;
+        md += `---\n\n`;
+      }
+
+      // 7. Operations & Endpoints Catalogue
+      let sectionIndex = 2;
+      selectedServices.forEach(s => {
+        const sEff = getEffectiveSectionsForService(s);
+        if (!sEff.endpoints) return;
+
+        md += `## ${sectionIndex}. ${s.title || s.name || 'Financial Service'} Endpoints\n\n`;
+
+        (s.endpoints || []).forEach((ep, epIdx) => {
+          const epNum = `${sectionIndex}.${epIdx + 1}`;
+          md += `### ${epNum} ${ep.shortName || ep.desc || 'Endpoint Operation'}\n\n`;
+          md += `${ep.desc || 'Official banking API specification endpoint.'}\n\n`;
+          md += `- **Endpoint**: \`${ep.method} ${ep.path}\`\n`;
+          md += `- **Headers**: Required RSA Security Headers\n\n`;
+
+          // Request Parameters Table
+          md += `#### Request Parameters\n`;
+          md += `| Field Name | Type | Length / Constraint | Required | Description |\n`;
+          md += `| :--- | :--- | :--- | :--- | :--- |\n`;
+          if (ep.params && ep.params.length > 0) {
+            ep.params.forEach(p => {
+              const typeStr = (p.type || 'STR').toUpperCase().includes('INT') ? 'INT' : (p.type || 'STR').toUpperCase().includes('DEC') ? 'DECIMAL' : 'STR';
+              const constraintStr = p.length || (typeStr === 'INT' ? 'Max (15)' : 'Max (250)');
+              const reqStr = p.req ? '**Must**' : 'Optional';
+              md += `| \`${p.name}\` | \`${typeStr}\` | ${constraintStr} | ${reqStr} | ${p.rule || p.desc || 'Standard parameter'} |\n`;
+            });
+          } else {
+            md += `| \`requestId\` | \`STR\` | Max (64) | **Must** | Unique request identifier |\n`;
+          }
+          md += `\n`;
+
+          // Code Example
+          md += `#### Code Example\n`;
+          md += `\`\`\`python\n`;
+          let payloadObj = {};
+          try {
+            payloadObj = typeof ep.payload === 'string' ? JSON.parse(ep.payload) : (ep.payload || {});
+          } catch (e) {
+            payloadObj = { status: "TEST" };
+          }
+          md += `payload = json.dumps(${JSON.stringify(payloadObj, null, 4)})\n`;
+          md += `response = client.post("${ep.path}", body=payload)\n`;
+          md += `\`\`\`\n\n`;
+
+          // Response Example 200 OK
+          md += `#### Response Example (\`200 OK\`)\n`;
+          md += `\`\`\`json\n`;
+          let res200Str = '';
+          try {
+            const parsedRes = typeof ep.res200 === 'string' ? JSON.parse(ep.res200) : (ep.res200 || { status: "success" });
+            res200Str = JSON.stringify(parsedRes, null, 2);
+          } catch (e) {
+            res200Str = typeof ep.res200 === 'string' ? ep.res200 : '{\n  "status": "success"\n}';
+          }
+          md += `${res200Str}\n`;
+          md += `\`\`\`\n\n`;
+
+          // Response Parameters Table
+          md += `#### Response Parameters\n`;
+          md += `| Field Name | Type | Description |\n`;
+          md += `| :--- | :--- | :--- |\n`;
+          try {
+            const parsedRes = typeof ep.res200 === 'string' ? JSON.parse(ep.res200) : (ep.res200 || {});
+            const keys = Object.keys(parsedRes);
+            if (keys.length > 0) {
+              keys.forEach(k => {
+                const v = parsedRes[k];
+                const t = typeof v === 'number' ? 'INT' : typeof v === 'boolean' ? 'BOOL' : typeof v === 'object' ? 'OBJECT' : 'STR';
+                md += `| \`${k}\` | \`${t}\` | Operation response attribute |\n`;
+              });
+            } else {
+              md += `| \`status\` | \`STR\` | Execution result status |\n`;
+            }
+          } catch (e) {
+            md += `| \`status\` | \`STR\` | Execution result status |\n`;
+          }
+          md += `\n---\n\n`;
+        });
+
+        sectionIndex++;
+      });
+
+      return md;
+    }
+
+    function renderMarkdownToHtmlPreview(md) {
+      if (!md) return '';
+      const lines = md.split('\n');
+      let html = '';
+      let inCode = false;
+      let codeBuffer = [];
+      let inTable = false;
+      let tableRows = [];
+
+      const flushTable = () => {
+        if (!inTable) return;
+        html += '<table style="width:100%; border-collapse:collapse; margin:1rem 0;">';
+        tableRows.forEach((r, idx) => {
+          const cells = r.split('|').filter((_, cIdx, arr) => cIdx > 0 && cIdx < arr.length - 1).map(c => c.trim());
+          if (cells.length > 0 && !cells.every(c => /^:?-+:?$/.test(c))) {
+            html += '<tr>';
+            cells.forEach(cell => {
+              const tag = (idx === 0) ? 'th' : 'td';
+              let formatted = escapeXmlHtml(cell).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/`(.*?)`/g, '<code>$1</code>');
+              html += `<${tag} style="border:1px solid #334155; padding:0.5rem 0.75rem;">${formatted}</${tag}>`;
+            });
+            html += '</tr>';
+          }
+        });
+        html += '</table>';
+        tableRows = [];
+        inTable = false;
+      };
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        if (line.trim().startsWith('```')) {
+          if (inTable) flushTable();
+          if (!inCode) {
+            inCode = true;
+            codeBuffer = [];
+          } else {
+            inCode = false;
+            html += `<pre><code>${escapeXmlHtml(codeBuffer.join('\n'))}</code></pre>`;
+            codeBuffer = [];
+          }
+          continue;
+        }
+
+        if (inCode) {
+          codeBuffer.push(line);
+          continue;
+        }
+
+        if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+          inTable = true;
+          tableRows.push(line.trim());
+          continue;
+        } else {
+          if (inTable) flushTable();
+        }
+
+        if (!line.trim()) continue;
+
+        if (line.startsWith('# ')) {
+          html += `<h1>${escapeXmlHtml(line.slice(2))}</h1>`;
+        } else if (line.startsWith('## ')) {
+          html += `<h2>${escapeXmlHtml(line.slice(3))}</h2>`;
+        } else if (line.startsWith('### ')) {
+          html += `<h3>${escapeXmlHtml(line.slice(4))}</h3>`;
+        } else if (line.startsWith('#### ')) {
+          html += `<h4>${escapeXmlHtml(line.slice(5))}</h4>`;
+        } else if (line.startsWith('> ⚠️') || line.startsWith('> ')) {
+          html += `<blockquote>${escapeXmlHtml(line.replace(/^>\s*/, '')).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</blockquote>`;
+        } else if (line.trim() === '---') {
+          html += `<hr style="border:none; border-top:1px solid #334155; margin:1.5rem 0;">`;
+        } else if (line.startsWith('- ') || line.startsWith('* ')) {
+          html += `<p style="margin-inline-start:1rem; margin-bottom:0.35rem;">• ${escapeXmlHtml(line.slice(2)).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/`(.*?)`/g, '<code>$1</code>')}</p>`;
+        } else if (/^\d+\.\s/.test(line)) {
+          html += `<p style="margin-inline-start:1rem; margin-bottom:0.35rem;">${escapeXmlHtml(line).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/`(.*?)`/g, '<code>$1</code>')}</p>`;
+        } else {
+          html += `<p>${escapeXmlHtml(line).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/`(.*?)`/g, '<code>$1</code>')}</p>`;
+        }
+      }
+
+      if (inTable) flushTable();
+      return html;
+    }
+
+    function generateMarkdownVisualHtml(selectedServices, ver, totalEndpoints) {
+      const mdRaw = generateUltimatePayStyleMarkdown(selectedServices, ver);
+      const filename = `Ultimate_Pay_FI_API_Documentation_${ver}.md`;
+
+      return `
+        <div class="markdown-doc-container">
+          <div class="markdown-doc-header-bar">
+            <div style="display:flex; align-items:center; gap:0.6rem;">
+              <i class="fa-brands fa-markdown" style="color:#a855f7; font-size:1.2rem;"></i>
+              <span style="font-weight:700; color:#f8fafc; font-size:0.85rem;">معاينة وثيقة Markdown الرسمية (معيار Ultimate Pay)</span>
+              <span class="mono" style="font-size:0.75rem; color:#94a3b8; background:rgba(255,255,255,0.06); padding:0.15rem 0.5rem; border-radius:4px;">${filename}</span>
+            </div>
+            <div style="display:flex; gap:0.5rem;">
+              <button type="button" class="btn btn-ghost" style="font-size:0.75rem; padding:0.25rem 0.65rem;" onclick="copyMarkdownDocDirect()">
+                <i class="fa-solid fa-copy"></i> نسخ Markdown
+              </button>
+              <button type="button" class="btn btn-emerald" style="font-size:0.75rem; padding:0.25rem 0.75rem;" onclick="executeExportDownload()">
+                <i class="fa-solid fa-download"></i> تنزيل .md
+              </button>
+            </div>
+          </div>
+          <div class="markdown-doc-content">
+            ${renderMarkdownToHtmlPreview(mdRaw)}
+          </div>
+        </div>
+      `;
+    }
+
+    function copyMarkdownDocDirect() {
+      const { selectedServices } = getSelectedExportItems();
+      const ver = document.getElementById('global-release-select')?.value || 'v2026.2';
+      const md = generateUltimatePayStyleMarkdown(selectedServices, ver);
+      navigator.clipboard.writeText(md).then(() => {
+        toast('تم بنجاح نسخ وثيقة Markdown (معيار Ultimate Pay) إلى الحافظة');
+      });
+    }
+
     function renderExportDocPreview(selectedServices, totalEndpoints) {
       const ver = document.getElementById('global-release-select')?.value || 'v2026.2';
       const stackContainer = document.getElementById('pdf-pages-stack-container');
@@ -2360,6 +2742,9 @@ function copyBaseUrl(e) {
       if (fmt === 'word') {
         visualHtml = generateWordDocumentPagesHtml(selectedServices, ver, totalEndpoints);
         if (btn) btn.innerHTML = `<i class="fa-solid fa-file-word"></i> <span>تصدير مستند Word (.docx)</span>`;
+      } else if (fmt === 'markdown') {
+        visualHtml = generateMarkdownVisualHtml(selectedServices, ver, totalEndpoints);
+        if (btn) btn.innerHTML = `<i class="fa-brands fa-markdown"></i> <span>تنزيل ملف Markdown (.md)</span>`;
       } else if (fmt === 'openapi') {
         visualHtml = generateOpenApiVisualHtml(selectedServices, ver, totalEndpoints);
         if (btn) btn.innerHTML = `<i class="fa-solid fa-code"></i> <span>تصدير OpenAPI (.json)</span>`;
@@ -2575,10 +2960,7 @@ function copyBaseUrl(e) {
       if (EXPORT_CONFIG.format !== 'pdf') {
         selectExportFormat('pdf');
       }
-      toast('جاري فتح نافذة الطباعة لاختيار حفظ كـ PDF...');
-      setTimeout(() => {
-        window.print();
-      }, 250);
+      executeExportDownload();
     }
 
     /**
@@ -2606,43 +2988,89 @@ function copyBaseUrl(e) {
      * =========================================================================
      */
     async function exportClientSidePdf(ver, filename, btn) {
+      const origText = btn ? btn.innerHTML : '';
       if (btn) {
-        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-left:0.4rem;"></i> جاري توليد ملف الـ PDF (4 صفحات)...`;
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-left:0.4rem;"></i> جاري توليد وتحميل ملف الـ PDF...`;
       }
 
-      // 1. انتظار اكتمال تحميل الخطوط المعتمدة
+      // 1. عرض نافذة انتظار تفاعلية شفافة احترافية
+      let loadingOverlay = document.getElementById('pdf-export-loading-backdrop');
+      if (!loadingOverlay) {
+        loadingOverlay = document.createElement('div');
+        loadingOverlay.id = 'pdf-export-loading-backdrop';
+        loadingOverlay.style.cssText = `
+          position: fixed;
+          inset: 0;
+          background: rgba(10, 15, 29, 0.88);
+          backdrop-filter: blur(8px);
+          z-index: 999998;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 1.2rem;
+          color: #f8fafc;
+          font-family: 'Cairo', system-ui, sans-serif;
+        `;
+        loadingOverlay.innerHTML = `
+          <div style="background:rgba(56,189,248,0.12); border:1px solid rgba(56,189,248,0.35); border-radius:50%; width:76px; height:76px; display:flex; align-items:center; justify-content:center; box-shadow:0 0 25px rgba(56,189,248,0.25);">
+            <i class="fa-solid fa-circle-notch fa-spin" style="font-size:2.5rem; color:#38bdf8;"></i>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:1.15rem; font-weight:800; margin-bottom:0.4rem;">جاري تصدير وثيقة المواصفة بصيغة PDF مباشرة...</div>
+            <div style="font-size:0.84rem; color:#94a3b8;">يتم الآن تجهيز الصفحات الـ 4 المعتمدة وحفظ الملف تلقائياً إلى جهازك</div>
+          </div>
+        `;
+        document.body.appendChild(loadingOverlay);
+      }
+
+      // 2. انتظار اكتمال تحميل الخطوط المعتمدة
       if (document.fonts && document.fonts.ready) {
         try { await document.fonts.ready; } catch (e) { /* ignore */ }
       }
 
-      // 2. جلب الصفحات الأربع
+      // 3. تحديث وجلب صفحات المستند المعتمد
+      const { selectedServices } = getSelectedExportItems();
+      const stackContainer = document.getElementById('pdf-pages-stack-container');
+      if (stackContainer) {
+        stackContainer.innerHTML = generateFullPdfDocumentPagesHtml(selectedServices, ver);
+      }
       let pages = document.querySelectorAll('#pdf-pages-stack-container .pdf-paper-page');
-      if (!pages || pages.length === 0) {
-        const { selectedServices } = getSelectedExportItems();
-        const stackContainer = document.getElementById('pdf-pages-stack-container');
-        if (stackContainer) {
-          stackContainer.innerHTML = generateFullPdfDocumentPagesHtml(selectedServices, ver);
-          pages = stackContainer.querySelectorAll('.pdf-paper-page');
-        }
-      }
 
       if (!pages || pages.length === 0) {
-        throw new Error('لم يتم العثور على صفحات المستند لتوليد ملف الـ PDF');
+        if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.parentNode.removeChild(loadingOverlay);
+        if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+        toast('لم يتم العثور على صفحات المستند لتوليد ملف الـ PDF');
+        return;
       }
 
-      // 3. بناء مسرح تصدير نظيف بدقة A4 ومتاح للالتقاط
+      // 4. بناء مسرح تصدير نقي معزول بدقة A4 ومطابق للأبعاد المتجهية
       const exportStage = document.createElement('div');
       exportStage.id = 'clean-pdf-export-stage';
-      exportStage.style.cssText = 'position: absolute; top: 0; left: 0; width: 794px; background: #ffffff; z-index: -1000; pointer-events: none; direction: rtl; margin: 0; padding: 0;';
+      exportStage.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 794px;
+        background: #ffffff;
+        direction: rtl;
+        margin: 0;
+        padding: 0;
+        z-index: 999997;
+        box-shadow: none;
+        border: none;
+        pointer-events: none;
+      `;
 
       pages.forEach((p, idx) => {
         const clone = p.cloneNode(true);
-        clone.className = 'pdf-paper-page html2pdf__page-break';
+        clone.className = 'pdf-paper-page' + (idx < pages.length - 1 ? ' html2pdf__page-break' : '');
         clone.style.cssText = `
           width: 794px !important;
-          height: 1120px !important;
-          min-height: 1120px !important;
-          max-height: 1120px !important;
+          min-height: 1122px !important;
+          max-height: 1122px !important;
+          height: 1122px !important;
           box-sizing: border-box !important;
           padding: 36px 40px !important;
           margin: 0 !important;
@@ -2657,6 +3085,7 @@ function copyBaseUrl(e) {
           flex-direction: column !important;
           justify-content: space-between !important;
           overflow: hidden !important;
+          ${idx < pages.length - 1 ? 'page-break-after: always !important; break-after: page !important;' : 'page-break-after: avoid !important; break-after: avoid !important;'}
         `;
 
         // تصفير letter-spacing لضمان عدم تفكك وترابط الحروف العربية
@@ -2671,7 +3100,7 @@ function copyBaseUrl(e) {
       document.body.appendChild(exportStage);
 
       const opt = {
-        margin: 0,
+        margin: [0, 0, 0, 0],
         filename: filename,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: {
@@ -2679,8 +3108,8 @@ function copyBaseUrl(e) {
           useCORS: true,
           logging: false,
           letterRendering: false,
-          scrollX: 0,
           scrollY: 0,
+          scrollX: 0,
           windowWidth: 794
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
@@ -2689,6 +3118,7 @@ function copyBaseUrl(e) {
 
       try {
         if (typeof html2pdf !== 'undefined') {
+          // التصدير المباشر كملف PDF وتنزيله فوراً للمستخدم بدون فتح نافذة الطباعة
           const pdfBlob = await html2pdf().set(opt).from(exportStage).outputPdf('blob');
           const url = URL.createObjectURL(pdfBlob);
           const link = document.createElement('a');
@@ -2697,47 +3127,43 @@ function copyBaseUrl(e) {
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
-          setTimeout(() => URL.revokeObjectURL(url), 1500);
-          toast(`تم بنجاح تصدير وتحميل ملف PDF معتمد (${filename})`);
+          setTimeout(() => URL.revokeObjectURL(url), 2000);
+          toast(`تم بنجاح تصدير وتنزيل ملف PDF المعتمد (${filename}) مباشرة`);
         } else {
           throw new Error('محرك html2pdf غير متاح');
         }
+      } catch (err) {
+        console.error('Direct client-side PDF export error:', err);
+        toast('حدث خطأ أثناء تصدير ملف الـ PDF');
       } finally {
-        if (exportStage.parentNode) {
+        if (loadingOverlay && loadingOverlay.parentNode) {
+          loadingOverlay.parentNode.removeChild(loadingOverlay);
+        }
+        if (exportStage && exportStage.parentNode) {
           exportStage.parentNode.removeChild(exportStage);
+        }
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = origText;
         }
       }
     }
 
-    function downloadRealPdfDocument(ver) {
-      const { selectedServices } = getSelectedExportItems();
-      const stackContainer = document.getElementById('pdf-pages-stack-container');
-      if (stackContainer) {
-        stackContainer.innerHTML = generateFullPdfDocumentPagesHtml(selectedServices, ver);
-      }
-
-      toast(`جاري فتح شاشة حفظ المستند كـ PDF (معايير A4 الوطنية المعتمدة)...`);
-
-      // التأكد من أن شاشة التصدير هي النشطة
-      if (APP.activeView !== 'export') {
-        goView('export');
-      }
-
-      // تشغيل محرك الطباعة المتجهي المعتمد عالمياً في كافة المتصفحات والأنظمة
-      setTimeout(() => {
-        window.print();
-      }, 300);
+    async function downloadRealPdfDocument(ver) {
+      const btn = document.getElementById('btn-execute-download');
+      const filename = `fintech-specification-${ver}.pdf`;
+      await exportClientSidePdf(ver, filename, btn);
     }
-
-
 
     async function executeExportDownload() {
       const { selectedServices, totalEndpoints } = getSelectedExportItems();
       const ver = document.getElementById('global-release-select')?.value || 'v2026.2';
 
-      // 1. Real PDF Export
+      // 1. التصدير المباشر كملف PDF حقيقي دون إظهار نافذة الطباعة
       if (EXPORT_CONFIG.format === 'pdf') {
-        downloadRealPdfDocument(ver);
+        const btn = document.getElementById('btn-execute-download');
+        const filename = `fintech-specification-${ver}.pdf`;
+        await exportClientSidePdf(ver, filename, btn);
         return;
       }
 
@@ -2765,6 +3191,40 @@ function copyBaseUrl(e) {
         } catch (err) {
           console.error('Word docx generation failed:', err);
           toast('حدث خطأ أثناء توليد مستند Word');
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origText;
+          }
+        }
+        return;
+      }
+
+      // 2.5 Markdown (.md) Ultimate Pay Export
+      if (EXPORT_CONFIG.format === 'markdown') {
+        const btn = document.getElementById('btn-execute-download');
+        const origText = btn ? btn.innerHTML : '';
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-left:0.5rem;"></i> جاري توليد وثيقة Markdown...`;
+        }
+
+        try {
+          const mdText = generateUltimatePayStyleMarkdown(selectedServices, ver);
+          const filename = `Ultimate_Pay_FI_API_Documentation_${ver}.md`;
+          const blob = new Blob([mdText], { type: 'text/markdown;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          toast(`تم بنجاح تنزيل وثيقة Markdown الرسمية (${filename})`);
+        } catch (err) {
+          console.error('Markdown export failed:', err);
+          toast('حدث خطأ أثناء تصدير ملف Markdown');
         } finally {
           if (btn) {
             btn.disabled = false;
@@ -3219,6 +3679,13 @@ function resetAddApiForm() {
   toast('تم تفريغ حقول النموذج');
 }
 
+function toggleCustomExportSections(isCustom) {
+  const wrap = document.getElementById('wrap-export-sections-checklist');
+  if (wrap) {
+    wrap.style.display = isCustom ? 'block' : 'none';
+  }
+}
+
 function saveCustomApiFromForm() {
   let sector = document.getElementById('add-api-sector').value;
   let customSectorName = '';
@@ -3288,6 +3755,20 @@ function saveCustomApiFromForm() {
     );
   }
 
+  // Modular Export Sections Profile (Ultimate Pay Spec)
+  const isCustomExport = document.querySelector('input[name="export-profile-mode"]:checked')?.value === 'custom';
+  let exportSections = null;
+  if (isCustomExport) {
+    exportSections = {
+      overview: document.getElementById('chk-sec-overview')?.checked ?? true,
+      security: document.getElementById('chk-sec-security')?.checked ?? true,
+      headers: document.getElementById('chk-sec-headers')?.checked ?? true,
+      sdk: document.getElementById('chk-sec-sdk')?.checked ?? true,
+      errors: document.getElementById('chk-sec-errors')?.checked ?? true,
+      endpoints: document.getElementById('chk-sec-endpoints')?.checked ?? true
+    };
+  }
+
   const srvKey = 'custom_' + Date.now();
   const newEndpoint = {
     method: method,
@@ -3312,6 +3793,7 @@ function saveCustomApiFromForm() {
     baseUrl: baseUrl,
     versions: ['v1.0.0 (رسمي)'],
     isCustom: true,
+    exportSections: exportSections,
     endpoints: [ newEndpoint ]
   };
 
@@ -3452,49 +3934,207 @@ function deleteCustomApi(id, sectorKey, serviceKey) {
   updateDashboardCards();
 }
 
-function updateDashboardCards() {
-  if (typeof DATA === 'undefined') return;
-  const sectors = ['banking', 'merchants', 'aml'];
-  sectors.forEach(secKey => {
-    if (!DATA[secKey] || !DATA[secKey].services) return;
-    const totalEps = Object.values(DATA[secKey].services).reduce((acc, s) => acc + (s.endpoints ? s.endpoints.length : 0), 0);
-    const btn = document.querySelector(`.sector-card button[onclick*="${secKey}"]`);
-    if (btn && btn.parentElement) {
-      const monoEl = btn.parentElement.querySelector('.mono');
-      if (monoEl) {
-        monoEl.textContent = `${totalEps} APIs`;
+const STORAGE_CUSTOM_SECTORS_KEY = 'FINTECH_CUSTOM_SECTORS_STORE';
+
+function openAddSectorModal() {
+  const m = document.getElementById('modal-add-sector');
+  if (m) m.classList.add('show');
+  const nameInput = document.getElementById('new-sector-name');
+  if (nameInput) {
+    nameInput.value = '';
+    nameInput.focus();
+  }
+}
+
+function closeAddSectorModal() {
+  const m = document.getElementById('modal-add-sector');
+  if (m) m.classList.remove('show');
+}
+
+function saveCustomSectorsToStorage() {
+  try {
+    const customSectors = {};
+    Object.entries(DATA).forEach(([k, v]) => {
+      if (k !== 'banking' && k !== 'merchants' && k !== 'aml') {
+        customSectors[k] = v;
       }
+    });
+    localStorage.setItem(STORAGE_CUSTOM_SECTORS_KEY, JSON.stringify(customSectors));
+  } catch (e) {
+    console.error('Failed to save custom sectors:', e);
+  }
+}
+
+function loadCustomSectorsFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_CUSTOM_SECTORS_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      Object.entries(parsed).forEach(([k, sec]) => {
+        DATA[k] = sec;
+        if (typeof EXPORT_CONFIG !== 'undefined' && EXPORT_CONFIG.sectors) {
+          EXPORT_CONFIG.sectors[k] = true;
+        }
+      });
     }
+  } catch (e) {
+    console.error('Failed to load custom sectors:', e);
+  }
+}
+
+function saveNewSectorFromModal() {
+  const name = (document.getElementById('new-sector-name')?.value || '').trim();
+  const code = ((document.getElementById('new-sector-code')?.value || '').trim() || 'ENT').toUpperCase();
+  const icon = document.getElementById('new-sector-icon')?.value || 'fa-landmark';
+  const desc = (document.getElementById('new-sector-desc')?.value || '').trim();
+
+  if (!name) {
+    toast('يرجى إدخال اسم الجهة أو القطاع المالي الجديد');
+    document.getElementById('new-sector-name')?.focus();
+    return;
+  }
+
+  const secKey = 'sec_' + Date.now();
+  const newSector = {
+    name: name,
+    code: 'SECTOR_' + code,
+    icon: icon,
+    color: '#a855f7',
+    desc: desc || `الجهة والقطاع المالي: ${name}`,
+    services: {}
+  };
+
+  DATA[secKey] = newSector;
+
+  if (typeof EXPORT_CONFIG !== 'undefined' && EXPORT_CONFIG.sectors) {
+    EXPORT_CONFIG.sectors[secKey] = true;
+  }
+
+  saveCustomSectorsToStorage();
+
+  renderDashboardSectors();
+  renderSidebarEntities();
+
+  closeAddSectorModal();
+  toast(`تم بنجاح اعتماد جهة: [${name}] وإضافتها إلى الداش بورد والشريط الجانبي!`);
+
+  // Direct user to this newly created entity
+  selectSector(secKey);
+}
+
+function renderDashboardSectors() {
+  const grid = document.getElementById('dashboard-sectors-grid');
+  if (!grid || typeof DATA === 'undefined') return;
+
+  grid.innerHTML = '';
+
+  const defaultIcons = {
+    banking: { icon: 'fa-building-columns', color: '#38bdf8' },
+    merchants: { icon: 'fa-cart-shopping', color: '#34d399' },
+    aml: { icon: 'fa-shield-halved', color: '#f59e0b' }
+  };
+
+  Object.entries(DATA).forEach(([key, sec]) => {
+    const apiCount = sec.services ? Object.keys(sec.services).length : 0;
+    const iconInfo = defaultIcons[key] || { icon: sec.icon || 'fa-landmark', color: sec.color || '#a855f7' };
+
+    const card = document.createElement('div');
+    card.className = 'sector-card';
+    card.innerHTML = `
+      <div class="sector-card-top">
+        <div class="sector-icon-box" style="color:${iconInfo.color};"><i class="fa-solid ${iconInfo.icon}"></i></div>
+        <strong style="font-size:0.95rem;">${sec.name}</strong>
+      </div>
+      <div style="margin-top:0.75rem; display:flex; justify-content:space-between; align-items:center;">
+        <span class="mono" style="font-size:0.8rem; font-weight:700; color:var(--emerald);">${apiCount} APIs</span>
+        <button class="btn btn-ghost" style="font-size:0.75rem; padding:0.25rem 0.65rem;" onclick="selectSector('${key}')">استعراض &larr;</button>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+
+  // Append "+ إضافة جهة / شريك مالي جديد" card
+  const addCard = document.createElement('div');
+  addCard.className = 'sector-card';
+  addCard.style.cssText = 'border:2px dashed var(--emerald); background:rgba(16, 185, 129, 0.05); display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; cursor:pointer; min-height:130px; transition:all 0.2s;';
+  addCard.onclick = openAddSectorModal;
+  addCard.innerHTML = `
+    <div style="width:38px; height:38px; border-radius:50%; background:rgba(16, 185, 129, 0.15); display:flex; align-items:center; justify-content:center; color:var(--emerald); margin-bottom:0.4rem; font-size:1.1rem;">
+      <i class="fa-solid fa-plus"></i>
+    </div>
+    <strong style="font-size:0.92rem; color:var(--emerald);">+ إضافة جهة / شريك مالي جديد</strong>
+    <span style="font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem;">تسجيل هيئة أو مصرف أو قطاع مالي جديد</span>
+  `;
+  grid.appendChild(addCard);
+}
+
+function renderSidebarEntities() {
+  const container = document.getElementById('sidebar-entities-container');
+  if (!container || typeof DATA === 'undefined') return;
+
+  container.innerHTML = '';
+
+  const defaultIcons = {
+    banking: 'fa-building-columns',
+    merchants: 'fa-cart-shopping',
+    aml: 'fa-shield-halved'
+  };
+
+  Object.entries(DATA).forEach(([key, sec]) => {
+    const iconClass = defaultIcons[key] || sec.icon || 'fa-landmark';
+    const a = document.createElement('a');
+    a.className = 'nav-btn' + (APP.currentSector === key ? ' active' : '');
+    a.id = 'btn-sec-' + key;
+    a.onclick = () => selectSector(key);
+    a.innerHTML = `
+      <i class="fa-solid ${iconClass}"></i>
+      <span>${sec.name}</span>
+    `;
+    container.appendChild(a);
   });
 }
 
+function updateDashboardCards() {
+  renderDashboardSectors();
+  renderSidebarEntities();
+}
+
 function initDynamicApiStorage() {
+  // 1. Load Custom Sectors first
+  loadCustomSectorsFromStorage();
+
+  // 2. Load Custom APIs
   try {
     const raw = localStorage.getItem(STORAGE_CUSTOM_APIS_KEY);
-    if (!raw) return;
-    const stored = JSON.parse(raw);
-    if (Array.isArray(stored)) {
-      stored.forEach(item => {
-        if (!item || !item.sectorKey || !item.serviceData) return;
-        
-        if (!DATA[item.sectorKey]) {
-          DATA[item.sectorKey] = {
-            name: item.sectorName || 'شريك مالي مخصص',
-            code: 'SECTOR_' + item.sectorKey.toUpperCase(),
-            services: {}
-          };
-          if (typeof EXPORT_CONFIG !== 'undefined' && EXPORT_CONFIG.sectors) {
-            EXPORT_CONFIG.sectors[item.sectorKey] = true;
+    if (raw) {
+      const stored = JSON.parse(raw);
+      if (Array.isArray(stored)) {
+        stored.forEach(item => {
+          if (!item || !item.sectorKey || !item.serviceData) return;
+          
+          if (!DATA[item.sectorKey]) {
+            DATA[item.sectorKey] = {
+              name: item.sectorName || 'شريك مالي مخصص',
+              code: 'SECTOR_' + item.sectorKey.toUpperCase(),
+              services: {}
+            };
+            if (typeof EXPORT_CONFIG !== 'undefined' && EXPORT_CONFIG.sectors) {
+              EXPORT_CONFIG.sectors[item.sectorKey] = true;
+            }
           }
-        }
-        
-        DATA[item.sectorKey].services[item.serviceKey] = item.serviceData;
-      });
+          
+          DATA[item.sectorKey].services[item.serviceKey] = item.serviceData;
+        });
+      }
     }
   } catch (err) {
     console.error('Failed to load custom APIs from localStorage:', err);
   }
-  updateDashboardCards();
+
+  // 3. Render Dashboard and Sidebar with all loaded entities
+  renderDashboardSectors();
+  renderSidebarEntities();
 }
 
 // Auto-initialize storage on script evaluation
