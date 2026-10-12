@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import { Header } from './components/layout/Header';
-import { Sidebar } from './components/layout/Sidebar';
+import { Sidebar, AppViewMode } from './components/layout/Sidebar';
+import { DashboardView } from './components/catalog/DashboardView';
+import { DocumentationHub } from './components/catalog/DocumentationHub';
 import { EndpointsRibbon } from './components/catalog/EndpointsRibbon';
 import { SpecViewer } from './components/catalog/SpecViewer';
-import { SemanticDiffModal } from './components/catalog/SemanticDiffModal';
-import { ChangeRequestsModal } from './components/governance/ChangeRequestsModal';
-import { ExportStudioModal } from './components/export/ExportStudioModal';
-import { RBACModal } from './components/rbac/RBACModal';
-import { MockServerModal } from './components/mock/MockServerModal';
-import { AddApiModal } from './components/catalog/AddApiModal';
+import { ChangeRequestsView } from './components/governance/ChangeRequestsView';
+import { SemanticDiffView } from './components/catalog/SemanticDiffView';
+import { RBACView } from './components/rbac/RBACView';
+import { MockServerView } from './components/mock/MockServerView';
+import { ExportStudioView } from './components/export/ExportStudioView';
+import { FloatingAlertCard, FloatingAlertState } from './components/common/FloatingAlertCard';
+import { DeleteSectorModal } from './components/common/DeleteSectorModal';
+import { AddSectorModal } from './components/common/AddSectorModal';
 
 import { 
   INITIAL_SECTORS, 
@@ -17,36 +21,52 @@ import {
   INITIAL_SNAPSHOTS 
 } from './data/mockData';
 import { Endpoint, Sector, ChangeRequest, RBACRole } from './types/schema';
+import { useLanguage } from './i18n';
 
 export const App: React.FC = () => {
-  // State
-  const [sectors, setSectors] = useState<Record<string, Sector>>(INITIAL_SECTORS);
+  const { direction, isRtl, t } = useLanguage();
+  // Navigation State: 'dashboard' is the default landing view
+  const [activeView, setActiveView] = useState<AppViewMode>('dashboard');
   const [activeSectorKey, setActiveSectorKey] = useState<string>('banking');
   const [activeEndpointIndex, setActiveEndpointIndex] = useState<number>(0);
   const [currentVersion, setCurrentVersion] = useState<string>('v2026.2');
-  
+
+  // Business Data
+  const [sectors, setSectors] = useState<Record<string, Sector>>(INITIAL_SECTORS);
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>(INITIAL_CHANGE_REQUESTS);
   const [roles, setRoles] = useState<RBACRole[]>(INITIAL_ROLES);
-  const [snapshots, setSnapshots] = useState(INITIAL_SNAPSHOTS);
+  const [snapshots] = useState(INITIAL_SNAPSHOTS);
 
-  // Modals state
-  const [isDiffOpen, setIsDiffOpen] = useState(false);
-  const [isCrOpen, setIsCrOpen] = useState(false);
-  const [isExportOpen, setIsExportOpen] = useState(false);
-  const [isRbacOpen, setIsRbacOpen] = useState(false);
-  const [isMockOpen, setIsMockOpen] = useState(false);
-  const [isAddApiOpen, setIsAddApiOpen] = useState(false);
+  // Sector Management State (حذف وإضافة الجهات)
+  const [sectorKeyToDelete, setSectorKeyToDelete] = useState<string | null>(null);
+  const [isAddSectorModalOpen, setIsAddSectorModalOpen] = useState<boolean>(false);
 
-  // Toast
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  // Global Unified Floating Alert Card (كارد طافية موحدة لكافة رسائل المنظومة)
+  const [floatingAlert, setFloatingAlert] = useState<FloatingAlertState | null>(null);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+  const showFloatingAlert = (
+    title: string, 
+    message: string, 
+    type: 'success' | 'info' | 'warning' | 'error' = 'success',
+    codeSnippet?: string,
+    confirmText?: string
+  ) => {
+    setFloatingAlert({
+      isOpen: true,
+      title,
+      message,
+      type,
+      codeSnippet,
+      confirmText
+    });
   };
 
-  // Derived current sector and its endpoints
-  const activeSector = sectors[activeSectorKey] || sectors.banking;
+  const closeFloatingAlert = () => {
+    setFloatingAlert(null);
+  };
+
+  // Active sector and endpoints for sector-spec view
+  const activeSector = sectors[activeSectorKey] || Object.values(sectors)[0];
   const currentEndpoints: Endpoint[] = [];
   if (activeSector && activeSector.services) {
     for (const service of Object.values(activeSector.services)) {
@@ -58,16 +78,77 @@ export const App: React.FC = () => {
 
   const activeEndpoint = currentEndpoints[activeEndpointIndex] || currentEndpoints[0];
 
-  // Actions
+  // Sector Management Handlers (إدارة وحذف الجهات)
+  const handleOpenDeleteSector = (sectorKey: string) => {
+    if (Object.keys(sectors).length <= 1) {
+      showFloatingAlert(
+        t('modals.cannotDeleteLastSectorTitle'),
+        t('modals.cannotDeleteLastSectorMsg'),
+        'warning'
+      );
+      return;
+    }
+    setSectorKeyToDelete(sectorKey);
+  };
+
+  const handleConfirmDeleteSector = (sectorKey: string) => {
+    const targetSector = sectors[sectorKey];
+    const targetName = targetSector 
+      ? (targetSector.nameEn && !isRtl ? targetSector.nameEn : targetSector.name) 
+      : sectorKey;
+
+    setSectors(prev => {
+      const updated = { ...prev };
+      delete updated[sectorKey];
+      return updated;
+    });
+
+    setSectorKeyToDelete(null);
+
+    // If the currently viewed sector was deleted, switch to another sector or dashboard
+    const remainingKeys = Object.keys(sectors).filter(k => k !== sectorKey);
+    if (activeSectorKey === sectorKey) {
+      if (remainingKeys.length > 0) {
+        setActiveSectorKey(remainingKeys[0]);
+        setActiveEndpointIndex(0);
+      } else {
+        setActiveView('dashboard');
+      }
+    }
+
+    showFloatingAlert(
+      t('modals.sectorDeletedSuccess'),
+      t('modals.sectorDeletedSuccessMsg', { name: targetName }),
+      'info'
+    );
+  };
+
+  const handleAddSector = (newSector: Sector) => {
+    setSectors(prev => ({
+      ...prev,
+      [newSector.key]: newSector
+    }));
+
+    const displayName = newSector.nameEn && !isRtl ? newSector.nameEn : newSector.name;
+
+    showFloatingAlert(
+      t('modals.sectorAddedSuccess'),
+      t('modals.sectorAddedSuccessMsg', { name: displayName, code: newSector.code }),
+      'success'
+    );
+  };
+
+  // Handlers
   const handleSelectSector = (key: string) => {
     setActiveSectorKey(key);
     setActiveEndpointIndex(0);
+    setActiveView('sector-spec');
   };
 
-  const handleAddNewEndpoint = (newEp: Endpoint) => {
+  const handleAddEndpointFromHub = (sectorKey: string, newEp: Endpoint) => {
     setSectors(prev => {
       const updated = { ...prev };
-      const sector = updated[activeSectorKey];
+      const sector = updated[sectorKey] || Object.values(updated)[0];
       if (sector) {
         const firstServiceKey = Object.keys(sector.services)[0] || 'default';
         if (sector.services[firstServiceKey]) {
@@ -77,8 +158,18 @@ export const App: React.FC = () => {
       return updated;
     });
 
+    setActiveSectorKey(sectorKey);
     setActiveEndpointIndex(currentEndpoints.length);
-    showToast(`تمت إضافة المسار [${newEp.path}] كمسودة جديدة بنجاح`);
+    setActiveView('sector-spec');
+
+    // Trigger Floating Alert Card
+    showFloatingAlert(
+      t('docHub.successTitle'),
+      t('docHub.successMsg'),
+      'success',
+      newEp.path,
+      t('docHub.exploreInCatalog')
+    );
   };
 
   const handleApproveCr = (crId: string, roleName: string) => {
@@ -101,7 +192,13 @@ export const App: React.FC = () => {
       return cr;
     }));
 
-    showToast(`تم التوقيع الرقمي بنجاح بصفتك [${roleName}]`);
+    showFloatingAlert(
+      t('governance.signatureSuccessTitle'),
+      t('governance.signatureSuccessMsg'),
+      'success',
+      `Signer Role: ${roleName}`,
+      t('governance.closeAndContinue')
+    );
   };
 
   const handleUpdateRolePermissions = (roleId: string, action: string, granted: boolean) => {
@@ -121,136 +218,166 @@ export const App: React.FC = () => {
 
   const pendingCrCount = changeRequests.filter(cr => cr.approvals.some(a => !a.signed)).length;
 
-  return (
-    <div className="app-container">
-      {/* Ambient background glows */}
-      <div className="ambient-glow glow-top-right"></div>
-      <div className="ambient-glow glow-bottom-left"></div>
+  const totalSectorsCount = Object.keys(sectors).length;
+  const totalEndpointsCount = Object.values(sectors).reduce((acc, sec) => {
+    if (!sec.services) return acc;
+    return acc + Object.values(sec.services).reduce((sAcc, srv) => sAcc + (srv.endpoints ? srv.endpoints.length : 0), 0);
+  }, 0);
 
-      {/* Global Header */}
-      <Header
-        currentVersion={currentVersion}
-        onVersionChange={setCurrentVersion}
+  return (
+    <div className="app-container" style={{ display: 'flex', flexDirection: 'row', minHeight: '100vh', direction, width: '100vw', overflowX: 'hidden' }}>
+      {/* 1. Sidebar */}
+      <Sidebar
+        activeView={activeView}
+        onSelectView={setActiveView}
+        sectors={sectors}
+        activeSectorKey={activeSectorKey}
+        onSelectSector={handleSelectSector}
         pendingCrCount={pendingCrCount}
-        onOpenCrModal={() => setIsCrOpen(true)}
-        onOpenExportModal={() => setIsExportOpen(true)}
-        onOpenRbacModal={() => setIsRbacOpen(true)}
-        onOpenMockModal={() => setIsMockOpen(true)}
       />
 
-      {/* Main Layout: Sidebar + Catalog View */}
-      <div className="main-layout">
-        <Sidebar
-          sectors={sectors}
-          activeSectorKey={activeSectorKey}
-          onSelectSector={handleSelectSector}
-          onAddNewApi={() => setIsAddApiOpen(true)}
+      {/* 2. Main Area with Topbar and Views */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: '100vh' }}>
+        <Header
+          activeView={activeView}
+          activeSector={activeSector}
+          currentVersion={currentVersion}
+          onVersionChange={setCurrentVersion}
+          onOpenAddApi={() => setActiveView('add-api')}
+          onOpenAddSector={() => setIsAddSectorModalOpen(true)}
+          onBackToDashboard={() => setActiveView('dashboard')}
+          totalSectorsCount={totalSectorsCount}
+          totalEndpointsCount={totalEndpointsCount}
+          onNotify={(title, msg, type, snippet) => showFloatingAlert(title, msg, type, snippet)}
         />
 
-        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {currentEndpoints.length > 0 ? (
-            <>
-              {/* Endpoints Ribbon */}
-              <EndpointsRibbon
-                endpoints={currentEndpoints}
-                activeEndpointIndex={activeEndpointIndex}
-                onSelectEndpoint={setActiveEndpointIndex}
-                onOpenDiffModal={() => setIsDiffOpen(true)}
-                onAddNewEndpoint={() => setIsAddApiOpen(true)}
-              />
+        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+          {/* VIEW 1: CLEAN SOVEREIGN DASHBOARD (CARDS ONLY) */}
+          {activeView === 'dashboard' && (
+            <DashboardView
+              sectors={sectors}
+              onSelectSector={handleSelectSector}
+              onOpenAddSector={() => setIsAddSectorModalOpen(true)}
+              onOpenDeleteSector={handleOpenDeleteSector}
+            />
+          )}
 
-              {/* Specification Viewer */}
-              {activeEndpoint && <SpecViewer endpoint={activeEndpoint} />}
+          {/* VIEW 2: DOCUMENTATION HUB & SPEC MAKER (SPLIT FORM) */}
+          {activeView === 'add-api' && (
+            <DocumentationHub
+              sectors={sectors}
+              onAddEndpoint={handleAddEndpointFromHub}
+              onSuccess={(title, msg, snippet) => showFloatingAlert(title, msg, 'success', snippet)}
+            />
+          )}
+
+          {/* VIEW 3: SECTOR ENDPOINTS & SPEC VIEWER */}
+          {activeView === 'sector-spec' && (
+            <>
+              {currentEndpoints.length > 0 ? (
+                <>
+                  <EndpointsRibbon
+                    endpoints={currentEndpoints}
+                    activeEndpointIndex={activeEndpointIndex}
+                    onSelectEndpoint={setActiveEndpointIndex}
+                    onOpenDiffModal={() => setActiveView('versions-diff')}
+                    onAddNewEndpoint={() => setActiveView('add-api')}
+                    onDeleteSector={() => handleOpenDeleteSector(activeSectorKey)}
+                  />
+                  {activeEndpoint && <SpecViewer endpoint={activeEndpoint} />}
+                </>
+              ) : (
+                <div style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '3rem'
+                }}>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text)', marginBottom: '0.5rem' }}>
+                    {t('spec.noEndpoints')}
+                  </h3>
+                  <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                    {t('spec.noEndpointsSub')}
+                  </p>
+                  <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <button className="btn btn-emerald" onClick={() => setActiveView('add-api')}>
+                      {t('spec.addNewEndpointBtn')}
+                    </button>
+                    <button
+                      className="btn btn-rose"
+                      onClick={() => handleOpenDeleteSector(activeSectorKey)}
+                    >
+                      {t('spec.deleteSectorBtn')}
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
-          ) : (
-            <div style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '3rem'
-            }}>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text)', marginBottom: '0.5rem' }}>
-                لا توجد مسارات مسجلة لهذا القطاع بعد
-              </h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-                يمكنك إضافة أول مسار API الآن لبدء توثيق الخدمات
-              </p>
-              <button className="btn btn-emerald" onClick={() => setIsAddApiOpen(true)}>
-                + إضافة مسار جديد
-              </button>
-            </div>
+          )}
+
+          {/* VIEW 4: DEDICATED CHANGE REQUESTS & MULTI-SIG VAULT */}
+          {activeView === 'change-requests' && (
+            <ChangeRequestsView
+              changeRequests={changeRequests}
+              onApproveCr={handleApproveCr}
+            />
+          )}
+
+          {/* VIEW 5: DEDICATED SEMANTIC DIFF & SEMVER ENGINE */}
+          {activeView === 'versions-diff' && (
+            <SemanticDiffView />
+          )}
+
+          {/* VIEW 6: DEDICATED EMBEDDED MOCK SERVER */}
+          {activeView === 'security-tools' && (
+            <MockServerView
+              activeEndpoint={activeEndpoint}
+              onNotify={(title, msg, type) => showFloatingAlert(title, msg, type)}
+            />
+          )}
+
+          {/* VIEW 7: DEDICATED DYNAMIC RBAC STUDIO */}
+          {activeView === 'rbac' && (
+            <RBACView
+              roles={roles}
+              onUpdateRolePermissions={handleUpdateRolePermissions}
+              onNotify={(title, msg, type) => showFloatingAlert(title, msg, type)}
+            />
+          )}
+
+          {/* VIEW 8: DEDICATED EXPORT STUDIO & CRYPTOGRAPHIC SEALER */}
+          {activeView === 'export-studio' && (
+            <ExportStudioView
+              snapshots={snapshots}
+              onNotify={(title, msg, type, snippet) => showFloatingAlert(title, msg, type, snippet)}
+            />
           )}
         </main>
       </div>
 
-      {/* Modals */}
-      <SemanticDiffModal
-        isOpen={isDiffOpen}
-        onClose={() => setIsDiffOpen(false)}
+      {/* 3. Global Floating Alert Card (كارد طافية مركزية بدون أي تداخل مع محتوى الصفحة) */}
+      <FloatingAlertCard
+        alert={floatingAlert}
+        onClose={closeFloatingAlert}
       />
 
-      <ChangeRequestsModal
-        isOpen={isCrOpen}
-        onClose={() => setIsCrOpen(false)}
-        changeRequests={changeRequests}
-        onApproveCr={handleApproveCr}
+      {/* 4. Delete Sector Confirmation Modal (نافذة تأكيد الحذف المصرفي الحرج) */}
+      <DeleteSectorModal
+        isOpen={!!sectorKeyToDelete}
+        sectorKey={sectorKeyToDelete}
+        sector={sectorKeyToDelete ? sectors[sectorKeyToDelete] : null}
+        onClose={() => setSectorKeyToDelete(null)}
+        onConfirmDelete={handleConfirmDeleteSector}
       />
 
-      <ExportStudioModal
-        isOpen={isExportOpen}
-        onClose={() => setIsExportOpen(false)}
-        snapshots={snapshots}
+      {/* 5. Add Sector Modal (نافذة إضافة واعتماد جهة جديدة) */}
+      <AddSectorModal
+        isOpen={isAddSectorModalOpen}
+        onClose={() => setIsAddSectorModalOpen(false)}
+        onAddSector={handleAddSector}
       />
-
-      <RBACModal
-        isOpen={isRbacOpen}
-        onClose={() => setIsRbacOpen(false)}
-        roles={roles}
-        onUpdateRolePermissions={handleUpdateRolePermissions}
-      />
-
-      {activeEndpoint && (
-        <MockServerModal
-          isOpen={isMockOpen}
-          onClose={() => setIsMockOpen(false)}
-          activeEndpoint={activeEndpoint}
-        />
-      )}
-
-      <AddApiModal
-        isOpen={isAddApiOpen}
-        onClose={() => setIsAddApiOpen(false)}
-        sectorName={activeSector.name}
-        onAddEndpoint={handleAddNewEndpoint}
-      />
-
-      {/* Floating Toast Notification */}
-      {toastMessage && (
-        <div style={{
-          position: 'fixed',
-          bottom: '2rem',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          background: 'rgba(15, 23, 42, 0.95)',
-          backdropFilter: 'blur(12px)',
-          border: '1px solid var(--border-glow)',
-          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
-          padding: '0.65rem 1.5rem',
-          borderRadius: 'var(--radius-full)',
-          fontSize: '0.84rem',
-          fontWeight: 700,
-          color: '#ffffff',
-          zIndex: 9999,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          animation: 'fadeIn 0.2s ease'
-        }}>
-          <span>{toastMessage}</span>
-        </div>
-      )}
     </div>
   );
 };

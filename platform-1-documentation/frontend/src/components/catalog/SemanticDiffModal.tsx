@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, GitCompare, AlertOctagon, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { useLanguage } from '../../i18n';
 
 interface SemanticDiffModalProps {
   isOpen: boolean;
@@ -7,6 +8,9 @@ interface SemanticDiffModalProps {
 }
 
 export const SemanticDiffModal: React.FC<SemanticDiffModalProps> = ({ isOpen, onClose }) => {
+  const { t, language, isRtl } = useLanguage();
+  const isEn = language === 'en';
+
   if (!isOpen) return null;
 
   const diffItems = [
@@ -14,34 +18,43 @@ export const SemanticDiffModal: React.FC<SemanticDiffModalProps> = ({ isOpen, on
       type: 'BREAKING',
       severity: 'CRITICAL BREAKING',
       field: 'purposeCode',
-      action: 'إضافة حقل إلزامي جديد (required: true)',
+      action: isEn ? 'Added new mandatory field (required: true)' : 'إضافة حقل إلزامي جديد (required: true)',
       path: '/v1/transfers',
       bump: 'MAJOR BUMP (v1.0.0 → v2.0.0)',
-      desc: 'إلزام جميع البنوك بإرسال غرض التحويل وفق تصنيف ISO 20022 يؤدي إلى رفض كافة الطلبات القديمة التي لا تحتوي الحقل.'
+      desc: isEn 
+        ? 'Mandating purposeCode according to ISO 20022 breaks legacy requests omitting this field.'
+        : 'إلزام جميع البنوك بإرسال غرض التحويل وفق تصنيف ISO 20022 يؤدي إلى رفض كافة الطلبات القديمة التي لا تحتوي الحقل.'
     },
     {
       type: 'NON_BREAKING',
       severity: 'NON-BREAKING',
       field: 'narrative',
-      action: 'إضافة حقل اختياري جديد (required: false)',
+      action: isEn ? 'Added new optional field (required: false)' : 'إضافة حقل اختياري جديد (required: false)',
       path: '/v1/transfers/{id}/recall',
       bump: 'MINOR BUMP (v2.0.0 → v2.1.0)',
-      desc: 'إتاحة إضافة ملاحظات إضافية عند طلب الاسترجاع دون التأثير على البنوك التي لا تدعم الحقل بعد.'
+      desc: isEn 
+        ? 'Allows optional narrative notes on recall requests without breaking participant banks.'
+        : 'إتاحة إضافة ملاحظات إضافية عند طلب الاسترجاع دون التأثير على البنوك التي لا تدعم الحقل بعد.'
     },
     {
       type: 'PATCH',
       severity: 'DOCS / PATCH',
       field: 'clearingCode description',
-      action: 'توضيح قواعد المطابقة والتسوية',
+      action: isEn ? 'Clarified clearing and netting matching rules' : 'توضيح قواعد المطابقة والتسوية',
       path: '/v1/transfers',
       bump: 'PATCH BUMP (v2.1.0 → v2.1.1)',
-      desc: 'تحديث النصوص التفسيرية لرمز المقاصة الوطنية لتعزيز دقة التوثيق دون أي تعديل في صيغة البيانات.'
+      desc: isEn 
+        ? 'Updated regulatory descriptions for national clearing codes improving spec clarity.'
+        : 'تحديث النصوص التفسيرية لرمز المقاصة الوطنية لتعزيز دقة التوثيق دون أي تعديل في صيغة البيانات.'
     }
   ];
 
+  const alignStyle = { textAlign: isRtl ? 'right' : 'left' } as const;
+  const borderKey = isRtl ? 'borderRight' : 'borderLeft';
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '850px' }}>
+      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '850px', ...alignStyle }}>
         {/* Header */}
         <div style={{
           padding: '1.25rem 1.75rem',
@@ -53,8 +66,8 @@ export const SemanticDiffModal: React.FC<SemanticDiffModalProps> = ({ isOpen, on
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
             <GitCompare size={20} color="var(--blue)" />
-            <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text)' }}>
-              كاشف الفروقات الدلالي وقواعد كسر التوافق (Semantic Diff Engine)
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text)', margin: 0 }}>
+              {t('diff.pageTitle')}
             </h2>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>
@@ -65,62 +78,87 @@ export const SemanticDiffModal: React.FC<SemanticDiffModalProps> = ({ isOpen, on
         {/* Content */}
         <div style={{ padding: '1.5rem 1.75rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div style={{
-            background: 'rgba(239, 68, 68, 0.12)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
             borderRadius: 'var(--radius-md)',
             padding: '1rem',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.85rem'
+            justifyContent: 'space-between'
           }}>
-            <ShieldAlert size={24} color="var(--rose)" />
-            <div>
-              <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#fca5a5' }}>
-                تم رصد تغييرات حتمية تكسر التوافق (Breaking Changes Detected)
-              </h4>
-              <p style={{ fontSize: '0.78rem', color: '#fecaca', marginTop: '0.2rem' }}>
-                المقارنة بين النسخة المعتمدة v2026.2 والمسودة المقترحة v2027.0 تفرض ترقية رئيسية (Major Version Bump) لحماية تكاملات البنوك.
-              </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>
+                {isEn ? 'Current Architecture Baseline Comparison:' : 'المقارنة المعمارية الحالية:'}
+              </span>
+              <span className="mono badge-pill badge-emerald">v2026.2 (Current Baseline)</span>
+              <span style={{ color: 'var(--text-dim)' }}>{isRtl ? '←' : '→'}</span>
+              <span className="mono badge-pill badge-amber">v2027.0-draft (Proposed Release)</span>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <span className="badge-pill badge-rose">1 Breaking Change</span>
+              <span className="badge-pill badge-emerald">1 Non-Breaking</span>
+              <span className="badge-pill badge-blue">1 Patch</span>
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-            {diffItems.map((item, idx) => (
-              <div key={idx} className="glass-card" style={{ padding: '1.15rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    {item.type === 'BREAKING' ? (
-                      <AlertOctagon size={16} color="var(--rose)" />
-                    ) : (
-                      <CheckCircle2 size={16} color="var(--emerald)" />
-                    )}
-                    <span className="mono" style={{ fontWeight: 800, color: 'var(--text)', fontSize: '0.88rem' }}>
-                      {item.path} ➔ {item.field}
-                    </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {diffItems.map((item, idx) => {
+              const isBreaking = item.type === 'BREAKING';
+              const isPatch = item.type === 'PATCH';
+              const accentColor = isBreaking ? 'var(--rose)' : isPatch ? 'var(--blue)' : 'var(--emerald)';
+
+              return (
+                <div
+                  key={idx}
+                  style={{
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border)',
+                    [borderKey]: `4px solid ${accentColor}`,
+                    borderRadius: 'var(--radius-md)',
+                    padding: '1rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      {isBreaking ? (
+                        <AlertOctagon size={18} color="var(--rose)" />
+                      ) : isPatch ? (
+                        <ShieldAlert size={18} color="var(--blue)" />
+                      ) : (
+                        <CheckCircle2 size={18} color="var(--emerald)" />
+                      )}
+                      <strong style={{ fontSize: '0.9rem', color: isBreaking ? 'var(--rose)' : 'var(--text)' }}>
+                        {item.severity}
+                      </strong>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span className="mono" style={{ fontSize: '0.8rem', color: '#38bdf8' }}>{item.path}</span>
+                      <span className="badge-pill badge-purple" style={{ fontSize: '0.7rem' }}>{item.bump}</span>
+                    </div>
                   </div>
-                  <span className={`badge-pill ${item.type === 'BREAKING' ? 'badge-rose' : item.type === 'NON_BREAKING' ? 'badge-blue' : 'badge-emerald'}`}>
-                    {item.severity}
-                  </span>
-                </div>
 
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.65rem' }}>
-                  {item.desc}
-                </p>
-
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  background: 'var(--bg-input)',
-                  padding: '0.4rem 0.75rem',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.75rem'
-                }}>
-                  <span style={{ color: 'var(--text-dim)' }}>الإجراء التحليلي: {item.action}</span>
-                  <span className="mono" style={{ color: 'var(--amber)', fontWeight: 700 }}>{item.bump}</span>
+                  <div style={{
+                    background: 'var(--bg-input)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '0.75rem',
+                    fontSize: '0.78rem'
+                  }}>
+                    <div style={{ color: 'var(--text-dim)', marginBottom: '0.2rem' }}>
+                      {t('diff.fieldLabel')} <code className="mono" style={{ color: 'var(--emerald)' }}>{item.field}</code>
+                    </div>
+                    <div style={{ color: 'var(--text)', fontWeight: 700, marginBottom: '0.2rem' }}>
+                      {item.action}
+                    </div>
+                    <div style={{ color: 'var(--text-muted)' }}>
+                      {item.desc}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -132,8 +170,8 @@ export const SemanticDiffModal: React.FC<SemanticDiffModalProps> = ({ isOpen, on
           justifyContent: 'flex-end',
           background: 'rgba(11, 20, 38, 0.7)'
         }}>
-          <button className="btn btn-primary" onClick={onClose} style={{ fontSize: '0.82rem' }}>
-            إغلاق نافذة المقارنة
+          <button className="btn btn-glass" onClick={onClose} style={{ fontSize: '0.85rem' }}>
+            {t('common.close')}
           </button>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Endpoint, HttpMethod } from '../../types/schema';
 import { X, Plus, PlusCircle, Check } from 'lucide-react';
+import { useLanguage } from '../../i18n';
 
 interface AddApiModalProps {
   isOpen: boolean;
@@ -15,6 +16,9 @@ export const AddApiModal: React.FC<AddApiModalProps> = ({
   sectorName,
   onAddEndpoint
 }) => {
+  const { t, language, isRtl } = useLanguage();
+  const isEn = language === 'en';
+
   if (!isOpen) return null;
 
   const [method, setMethod] = useState<HttpMethod>('POST');
@@ -34,7 +38,7 @@ export const AddApiModal: React.FC<AddApiModalProps> = ({
         name: paramName,
         type: paramType,
         req: true,
-        rule: paramRule || 'تحقق قياسي',
+        rule: paramRule || (isEn ? 'Standard Validation' : 'تحقق قياسي'),
         tag: 'Financial',
         tagClass: 'badge-emerald'
       }
@@ -52,10 +56,11 @@ export const AddApiModal: React.FC<AddApiModalProps> = ({
       method,
       path,
       shortName,
-      desc: desc || 'مسار جديد مسجل في المنظومة',
+      desc: desc || (isEn ? 'Newly registered route' : 'مسار جديد مسجل في المنظومة'),
+      descEn: isEn ? desc : `${shortName} service`,
       params: paramsList,
       rules: [
-        { id: `BR_${shortName.toUpperCase()}_01`, name: 'التحقق الإلزامي من صحة البيانات', err: 'VALIDATION_FAILED_422' }
+        { id: `BR_${shortName.toUpperCase()}_01`, name: isEn ? 'Mandatory Field Validation' : 'التحقق الإلزامي من صحة البيانات', err: 'VALIDATION_FAILED_422' }
       ],
       payload: paramsList.length > 0 ? JSON.stringify(
         paramsList.reduce((acc, p) => ({ ...acc, [p.name]: p.type === 'number' ? 100 : 'example_value' }), {}),
@@ -70,9 +75,11 @@ export const AddApiModal: React.FC<AddApiModalProps> = ({
     onClose();
   };
 
+  const alignStyle = { textAlign: isRtl ? 'right' : 'left' } as const;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '780px' }}>
+      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '780px', ...alignStyle }}>
         {/* Header */}
         <div style={{
           padding: '1.25rem 1.75rem',
@@ -84,8 +91,8 @@ export const AddApiModal: React.FC<AddApiModalProps> = ({
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
             <PlusCircle size={20} color="var(--emerald)" />
-            <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text)' }}>
-              إضافة وتوثيق مسار API جديد لـ [{sectorName}]
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text)', margin: 0 }}>
+              {isEn ? `Document New API Route for [${sectorName}]` : `إضافة وتوثيق مسار API جديد لـ [${sectorName}]`}
             </h2>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>
@@ -98,7 +105,7 @@ export const AddApiModal: React.FC<AddApiModalProps> = ({
           <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 180px', gap: '0.75rem' }}>
             <div>
               <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', marginBottom: '0.35rem' }}>
-                نوع الطلب:
+                {t('docHub.methodLabel')}
               </label>
               <select
                 value={method}
@@ -125,7 +132,7 @@ export const AddApiModal: React.FC<AddApiModalProps> = ({
 
             <div>
               <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', marginBottom: '0.35rem' }}>
-                مسار الـ Endpoint:
+                {t('docHub.endpointPathLabel')}
               </label>
               <input
                 type="text"
@@ -150,7 +157,7 @@ export const AddApiModal: React.FC<AddApiModalProps> = ({
 
             <div>
               <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', marginBottom: '0.35rem' }}>
-                الاسم المختصر (Ribbon):
+                {t('docHub.shortNameLabel')}
               </label>
               <input
                 type="text"
@@ -176,13 +183,13 @@ export const AddApiModal: React.FC<AddApiModalProps> = ({
 
           <div>
             <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', marginBottom: '0.35rem' }}>
-              الوصف الوظيفي والمعماري للمسار:
+              {t('docHub.descLabel')}
             </label>
             <input
               type="text"
               value={desc}
               onChange={e => setDesc(e.target.value)}
-              placeholder="إصدار بطاقة ائتمانية رقمية فورية مع ربط الحساب البنكي..."
+              placeholder={isEn ? "Digital credit card issuance with linked core account..." : "إصدار بطاقة ائتمانية رقمية فورية مع ربط الحساب البنكي..."}
               style={{
                 width: '100%',
                 background: 'var(--bg-input)',
@@ -204,7 +211,7 @@ export const AddApiModal: React.FC<AddApiModalProps> = ({
             padding: '1rem'
           }}>
             <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text)', display: 'block', marginBottom: '0.5rem' }}>
-              إضافة حقول المخطط (Schema Fields):
+              {isEn ? 'Add Schema Fields (Parameters):' : 'إضافة حقول المخطط (Schema Fields):'}
             </span>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 1.5fr auto', gap: '0.5rem', marginBottom: '0.75rem' }}>
@@ -212,7 +219,7 @@ export const AddApiModal: React.FC<AddApiModalProps> = ({
                 type="text"
                 value={paramName}
                 onChange={e => setParamName(e.target.value)}
-                placeholder="اسم الحقل (cardType)"
+                placeholder={isEn ? "Field Name (cardType)" : "اسم الحقل (cardType)"}
                 style={{
                   background: 'var(--bg-input)',
                   border: '1px solid var(--border)',
@@ -245,7 +252,7 @@ export const AddApiModal: React.FC<AddApiModalProps> = ({
                 type="text"
                 value={paramRule}
                 onChange={e => setParamRule(e.target.value)}
-                placeholder="قاعدة التحقق (قيمة افتراضية: DEBIT أو CREDIT)"
+                placeholder={isEn ? "Validation Rule (DEBIT or CREDIT)" : "قاعدة التحقق (قيمة افتراضية: DEBIT أو CREDIT)"}
                 style={{
                   background: 'var(--bg-input)',
                   border: '1px solid var(--border)',
@@ -279,11 +286,11 @@ export const AddApiModal: React.FC<AddApiModalProps> = ({
           {/* Submit */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
             <button type="button" className="btn btn-glass" onClick={onClose} style={{ fontSize: '0.82rem' }}>
-              إلغاء
+              {t('common.cancel')}
             </button>
             <button type="submit" className="btn btn-emerald" style={{ fontSize: '0.82rem' }}>
               <Check size={14} />
-              <span>تسجيل المسار كمسودة جديدة</span>
+              <span>{isEn ? 'Register Route as Draft' : 'تسجيل المسار كمسودة جديدة'}</span>
             </button>
           </div>
         </form>

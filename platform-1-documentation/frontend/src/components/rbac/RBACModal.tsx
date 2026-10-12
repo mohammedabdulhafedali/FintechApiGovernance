@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { RBACRole } from '../../types/schema';
 import { X, Lock, ShieldCheck, Check, ShieldAlert, Plus, Save } from 'lucide-react';
+import { useLanguage } from '../../i18n';
 
 interface RBACModalProps {
   isOpen: boolean;
@@ -17,11 +18,12 @@ export const RBACModal: React.FC<RBACModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const { t, language } = useLanguage();
   const [selectedRoleId, setSelectedRoleId] = useState<string>(roles[0]?.id || 'role_admin');
 
   const activeRole = roles.find(r => r.id === selectedRoleId) || roles[0];
 
-  const permissionsList = [
+  const permissionsList = language === 'ar' ? [
     { key: 'view', label: 'استعراض المواصفات (View Spec)', desc: 'قراءة وثائق الـ API، المخططات، وقواعد العمل' },
     { key: 'create', label: 'إنشاء مواصفة جديدة (Create Spec)', desc: 'إضافة خدمات ومسارات جديدة في الكتالوج' },
     { key: 'edit', label: 'تعديل المسودة (Edit Draft)', desc: 'تعديل الحقول والأنواع والشروحات للمسودات غير المنشورة' },
@@ -29,6 +31,14 @@ export const RBACModal: React.FC<RBACModalProps> = ({
     { key: 'execute', label: 'تشغيل المحاكاة (Execute Mock)', desc: 'إرسال طلبات اختبارية لخادم المحاكاة وتوليد استجابات' },
     { key: 'approve', label: 'اعتماد طلب التغيير (Approve CR)', desc: 'المصادقة والتوقيع الرقمي كعضو في الخزينة متعددة التواقيع' },
     { key: 'export', label: 'تصدير وختم الإصدار (Export & Seal)', desc: 'إطلاق الختم الرقمي السيادي وتصدير العقود الرسمية' }
+  ] : [
+    { key: 'view', label: 'View Specifications', desc: 'Read API documentation, schemas, and banking business rules' },
+    { key: 'create', label: 'Create New Specification', desc: 'Register new banking services and routes in the catalog' },
+    { key: 'edit', label: 'Edit Draft Spec', desc: 'Modify fields, types, and descriptions for unapproved drafts' },
+    { key: 'delete', label: 'Delete Draft', desc: 'Discard or remove temporary drafts before submission' },
+    { key: 'execute', label: 'Execute Mock Server', desc: 'Send sandbox test requests and inspect mock server responses' },
+    { key: 'approve', label: 'Approve Change Request', desc: 'Sign and validate as a Multi-Sig Vault governing authority' },
+    { key: 'export', label: 'Export & Cryptographic Seal', desc: 'Trigger digital sealing and download official deliverables' }
   ];
 
   return (
@@ -47,10 +57,10 @@ export const RBACModal: React.FC<RBACModalProps> = ({
             <Lock size={20} color="var(--purple)" />
             <div>
               <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text)' }}>
-                مصفوفة الصلاحيات الديناميكية المعزولة (Decoupled Dynamic RBAC Studio)
+                {t('rbac.pageTitle')}
               </h2>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                تحكم فوري وديناميكي في مصفوفة أذونات الموارد لكل دور دون الحاجة لأي تعديل برمجي
+                {t('rbac.pageSubtitle')}
               </p>
             </div>
           </div>
@@ -64,7 +74,7 @@ export const RBACModal: React.FC<RBACModalProps> = ({
           {/* Roles Selector Column */}
           <div style={{ width: '280px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase' }}>
-              الأدوار المعرفة في النظام:
+              {t('rbac.rolesListTitle')}
             </span>
 
             {roles.map((role) => {
@@ -105,11 +115,13 @@ export const RBACModal: React.FC<RBACModalProps> = ({
               justifyContent: 'space-between'
             }}>
               <div>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block' }}>الدور النشط حالياً:</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block' }}>
+                  {language === 'ar' ? 'الدور النشط حالياً:' : 'Active Role:'}
+                </span>
                 <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--purple)' }}>{activeRole.name}</span>
               </div>
               <span className={`badge-pill ${activeRole.badge}`}>
-                مخصص للمنصة 1
+                {language === 'ar' ? 'مخصص للمنصة 1' : 'Platform 1 Clear'}
               </span>
             </div>
 
@@ -172,7 +184,7 @@ export const RBACModal: React.FC<RBACModalProps> = ({
         }}>
           <button className="btn btn-primary" onClick={onClose} style={{ fontSize: '0.82rem' }}>
             <Save size={14} />
-            <span>حفظ ومزامنة الصلاحيات فوراً</span>
+            <span>{t('rbac.savePermissions')}</span>
           </button>
         </div>
       </div>

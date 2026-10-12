@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { SealedSnapshot } from '../../types/schema';
-import { X, FileDown, ShieldCheck, Copy, Check, Download, FileText, Code2, Award } from 'lucide-react';
+import { X, ShieldCheck, Copy, Check, Download, FileText, Code2, Award } from 'lucide-react';
+import { useLanguage } from '../../i18n';
 
 interface ExportStudioModalProps {
   isOpen: boolean;
@@ -13,13 +14,25 @@ export const ExportStudioModal: React.FC<ExportStudioModalProps> = ({
   onClose,
   snapshots
 }) => {
+  const { t, language, isRtl } = useLanguage();
+  const isEn = language === 'en';
+
   if (!isOpen) return null;
 
   const [selectedFormat, setSelectedFormat] = useState<'snapshot' | 'openapi' | 'pdf'>('snapshot');
   const [copiedHash, setCopiedHash] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  const activeSnapshot = snapshots[0];
+  const activeSnapshot = snapshots[0] || {
+    releaseId: 'REL-2026-001',
+    apiCode: 'CORE_BANKING',
+    semver: 'v2026.2',
+    canonicalSha256: '71027c802f60a92b951ec663c11e74a87265a7f9d854e7d483b8e5c12001e847',
+    sealedAt: '2026-10-12 12:00 UTC',
+    signerKmsKey: 'kms:sa-central-1:fintech-vault-01',
+    endpointsCount: 4,
+    complianceLevel: 'ISO 20022 Certified'
+  };
 
   const handleCopyHash = () => {
     navigator.clipboard.writeText(activeSnapshot.canonicalSha256);
@@ -61,33 +74,41 @@ export const ExportStudioModal: React.FC<ExportStudioModalProps> = ({
       return JSON.stringify({
         openapi: "3.1.0",
         info: {
-          title: "National Fintech API Specification",
+          title: isEn ? "National Fintech API Specification" : "المواصفة الوطنية للتقنية المالية والربط المصرفي",
           version: activeSnapshot.semver,
-          description: "Official Immutable API Contract for Certified Financial Institutions",
+          description: isEn 
+            ? "Official Immutable API Contract for Certified Financial Institutions"
+            : "العقد الرقمي المعتمد غير القابل للتعديل للمؤسسات المالية المرخصة",
           "x-canonical-hash": activeSnapshot.canonicalSha256
         },
         servers: [{ url: "https://api.gov.fintech/v1" }],
         paths: {
           "/v1/transfers": {
             post: {
-              summary: "Execute Instant Transfer",
+              summary: isEn ? "Execute Instant Transfer" : "تنفيذ تحويل فوري",
               operationId: "executeInstantTransfer",
               responses: {
-                "200": { description: "Successful transfer settlement" },
-                "422": { description: "Unprocessable entity rule violation" }
+                "200": { description: isEn ? "Successful transfer settlement" : "تسوية ناجحة للحوالة" },
+                "422": { description: isEn ? "Unprocessable entity rule violation" : "خطأ رقابي في بيانات الطلب" }
               }
             }
           }
         }
       }, null, 2);
     } else {
-      return `# تقرير التوثيق السيادي المعتمد لمواصفة الـ API\n\n- معرف الإصدار: ${activeSnapshot.releaseId}\n- الإصدار المعماري: ${activeSnapshot.semver}\n- بصمة الهاش الرقمي: ${activeSnapshot.canonicalSha256}\n- معيار التشفير: Canonical JCS (RFC 8785) + RSA-PSS 4096-bit\n- حالة الوثيقة: مختومة وغير قابلة للتعديل قانونياً وفنياً.\n- متوافقة مع ضوابط البنك المركزي والمدفوعات الفورية.`;
+      if (isEn) {
+        return `# Certified Sovereign API Specification Report\n\n- Release ID: ${activeSnapshot.releaseId}\n- Architectural SemVer: ${activeSnapshot.semver}\n- Canonical Hash Fingerprint: ${activeSnapshot.canonicalSha256}\n- Cryptographic Standard: Canonical JCS (RFC 8785) + RSA-PSS 4096-bit\n- Document Status: Formally sealed and legally immutable.\n- Fully compliant with central clearing and instant payment regulations.`;
+      } else {
+        return `# تقرير التوثيق السيادي المعتمد لمواصفة الـ API\n\n- معرف الإصدار: ${activeSnapshot.releaseId}\n- الإصدار المعماري: ${activeSnapshot.semver}\n- بصمة الهاش الرقمي: ${activeSnapshot.canonicalSha256}\n- معيار التشفير: Canonical JCS (RFC 8785) + RSA-PSS 4096-bit\n- حالة الوثيقة: مختومة وغير قابلة للتعديل قانونياً وفنياً.\n- متوافقة مع ضوابط البنك المركزي والمدفوعات الفورية.`;
+      }
     }
   };
 
+  const alignStyle = { textAlign: isRtl ? 'right' : 'left' } as const;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '880px' }}>
+      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '880px', ...alignStyle }}>
         {/* Header */}
         <div style={{
           padding: '1.25rem 1.75rem',
@@ -100,11 +121,11 @@ export const ExportStudioModal: React.FC<ExportStudioModalProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
             <Award size={22} color="var(--emerald)" />
             <div>
-              <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text)' }}>
-                استوديو التصدير المخصص والختم السيادي (Canonical Sealing Studio)
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text)', margin: 0 }}>
+                {isEn ? 'Canonical Sealing & Export Studio' : 'استوديو التصدير المخصص والختم السيادي (Canonical Sealing Studio)'}
               </h2>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                اشتقاق الوثائق الرسمية والعقود المشفرة غير القابلة للإنكار أو التعديل
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
+                {isEn ? 'Derive certified immutable contracts and digitally signed specifications' : 'اشتقاق الوثائق الرسمية والعقود المشفرة غير القابلة للإنكار أو التعديل'}
               </p>
             </div>
           </div>
@@ -126,7 +147,7 @@ export const ExportStudioModal: React.FC<ExportStudioModalProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <ShieldCheck size={20} color="var(--emerald)" />
                 <span style={{ fontSize: '0.92rem', fontWeight: 800, color: '#6ee7b7' }}>
-                  وثيقة الإصدار المختومة رسمياً ({activeSnapshot.releaseId})
+                  {isEn ? `Certified Release Contract (${activeSnapshot.releaseId})` : `وثيقة الإصدار المختومة رسمياً (${activeSnapshot.releaseId})`}
                 </span>
               </div>
               <span className="badge-pill badge-emerald">
@@ -146,7 +167,7 @@ export const ExportStudioModal: React.FC<ExportStudioModalProps> = ({
             }}>
               <div>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)', display: 'block' }}>
-                  بصمة الهاش الرقمية (SHA-256 Canonical Fingerprint):
+                  SHA-256 Canonical Fingerprint:
                 </span>
                 <span className="mono" style={{ fontSize: '0.75rem', color: '#38bdf8' }}>
                   {activeSnapshot.canonicalSha256}
@@ -158,20 +179,20 @@ export const ExportStudioModal: React.FC<ExportStudioModalProps> = ({
                 style={{ fontSize: '0.72rem', padding: '0.35rem 0.65rem' }}
               >
                 {copiedHash ? <Check size={14} color="var(--emerald)" /> : <Copy size={14} />}
-                <span>{copiedHash ? 'تم النسخ' : 'نسخ الهاش'}</span>
+                <span>{copiedHash ? t('common.copied') : t('common.copy')}</span>
               </button>
             </div>
 
             <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              <span>تاريخ الختم: {activeSnapshot.sealedAt}</span>
-              <span>مفتاح الخزينة السيادية: {activeSnapshot.signerKmsKey}</span>
+              <span>{isEn ? 'Sealed Date:' : 'تاريخ الختم:'} {activeSnapshot.sealedAt}</span>
+              <span>{isEn ? 'KMS Key:' : 'مفتاح الخزينة:'} {activeSnapshot.signerKmsKey}</span>
             </div>
           </div>
 
           {/* Export Options Format Selector */}
           <div>
             <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text)', marginBottom: '0.65rem' }}>
-              اختر صيغة التصدير المطلوبة:
+              {isEn ? 'Select Export Deliverable Format:' : 'اختر صيغة التصدير المطلوبة:'}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
               <div
@@ -187,9 +208,13 @@ export const ExportStudioModal: React.FC<ExportStudioModalProps> = ({
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.35rem' }}>
                   <ShieldCheck size={16} color="var(--blue)" />
-                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text)' }}>عقد الـ Snapshot المختوم</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text)' }}>
+                    {isEn ? 'Sealed Snapshot' : 'عقد الـ Snapshot المختوم'}
+                  </span>
                 </div>
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>ملف JSON رسمي معتمد مشفر برقم البصمة والتوقيع لنقله للمنصة الثانية والبنوك.</p>
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>
+                  {isEn ? 'Official cryptographically sealed JSON manifest for interoperability.' : 'ملف JSON رسمي معتمد مشفر برقم البصمة والتوقيع لنقله للبنوك.'}
+                </p>
               </div>
 
               <div
@@ -205,9 +230,13 @@ export const ExportStudioModal: React.FC<ExportStudioModalProps> = ({
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.35rem' }}>
                   <Code2 size={16} color="var(--emerald)" />
-                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text)' }}>مواصفة OpenAPI 3.1</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text)' }}>
+                    OpenAPI 3.1
+                  </span>
                 </div>
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>مواصفة تفاعلية متوافقة مع Swagger و Postman لاختبارات الشركاء الفورية.</p>
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>
+                  {isEn ? 'Interactive OpenAPI spec compliant with Swagger, Postman and SDK tools.' : 'مواصفة تفاعلية متوافقة مع Swagger و Postman لاختبارات الشركاء.'}
+                </p>
               </div>
 
               <div
@@ -223,9 +252,13 @@ export const ExportStudioModal: React.FC<ExportStudioModalProps> = ({
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.35rem' }}>
                   <FileText size={16} color="var(--amber)" />
-                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text)' }}>مستند PDF التنفيذي</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text)' }}>
+                    {isEn ? 'Official PDF' : 'مستند PDF التنفيذي'}
+                  </span>
                 </div>
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>وثيقة تفصيلية رسمية جاهزة للطباعة والاعتماد من الإدارات والجهات التشريعية.</p>
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>
+                  {isEn ? 'Formally formatted print-ready specification for regulatory committees.' : 'وثيقة تفصيلية رسمية جاهزة للطباعة والاعتماد من الإدارات.'}
+                </p>
               </div>
             </div>
           </div>
@@ -233,7 +266,7 @@ export const ExportStudioModal: React.FC<ExportStudioModalProps> = ({
           {/* Preview Window */}
           <div style={{ position: 'relative' }}>
             <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-dim)', marginBottom: '0.35rem', display: 'block' }}>
-              معاينة محتوى المستند المصدر:
+              {isEn ? 'Deliverable Preview Output:' : 'معاينة محتوى المستند المصدر:'}
             </span>
             <pre style={{
               background: '#040812',
@@ -263,11 +296,11 @@ export const ExportStudioModal: React.FC<ExportStudioModalProps> = ({
           background: 'rgba(11, 20, 38, 0.7)'
         }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
-            مضمون بواسطة مفتاح التشفير السيادي المركزي KMS
+            {isEn ? 'Guaranteed by Sovereign Central KMS Cryptographic Signer' : 'مضمون بواسطة مفتاح التشفير السيادي المركزي KMS'}
           </span>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button className="btn btn-glass" onClick={onClose} style={{ fontSize: '0.82rem' }}>
-              إلغاء
+              {t('common.cancel')}
             </button>
             <button
               className="btn btn-emerald"
@@ -276,7 +309,7 @@ export const ExportStudioModal: React.FC<ExportStudioModalProps> = ({
               style={{ fontSize: '0.82rem' }}
             >
               <Download size={15} />
-              <span>{isExporting ? 'جاري التحميل وتجهيز الختم...' : 'تصدير وتحميل المستند الآن'}</span>
+              <span>{isExporting ? t('export.generating') : (isEn ? 'Download Deliverable Now' : 'تصدير وتحميل المستند الآن')}</span>
             </button>
           </div>
         </div>

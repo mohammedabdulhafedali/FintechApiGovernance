@@ -4,6 +4,7 @@ export const INITIAL_SECTORS: Record<string, Sector> = {
   banking: {
     key: 'banking',
     name: 'البنوك والمصارف',
+    nameEn: 'Banks & Financial Institutions',
     code: 'SECTOR_FIN_BANKING',
     icon: 'fa-building-columns',
     services: {
@@ -96,17 +97,45 @@ export const INITIAL_SECTORS: Record<string, Sector> = {
             curl: `curl -X GET "https://api.gov.fintech/v1/accounts/SA0380000000608010167519/balance" \\\n  -H "Authorization: Bearer <TOKEN>"`
           }
         ]
+      },
+      rtgs: {
+        title: 'نظام التسوية الإجمالية الفورية (RTGS)',
+        code: 'RTGS',
+        baseUrl: 'https://api.gov.fintech/v1/rtgs',
+        versions: ['v2026.2'],
+        endpoints: [
+          {
+            id: 'ep_rtgs_01',
+            method: 'POST',
+            path: '/v1/rtgs/settle',
+            shortName: 'settle',
+            desc: 'إرسال أمر تسوية مالية كبرى للمقاصة المركزية بين المصارف.',
+            params: [
+              { name: 'batchId', type: 'string', req: true, rule: 'معرف الدفعة المعتمد', tag: 'Batch', tagClass: 'badge-blue' },
+              { name: 'totalAmount', type: 'decimal', req: true, rule: 'الحد الأدنى 50,000 ر.س', tag: 'Financial', tagClass: 'badge-emerald' }
+            ],
+            rules: [
+              { id: 'BR_RTGS_001', name: 'العمل خلال نافذة المقاصة المركزية', err: 'WINDOW_CLOSED_422' }
+            ],
+            payload: `{\n  "batchId": "BATCH-9901",\n  "totalAmount": 250000.00\n}`,
+            res200: `{\n  "settlementRef": "RTGS-99482",\n  "status": "ACCEPTED"\n}`,
+            res422: `{\n  "error": "WINDOW_CLOSED",\n  "code": "WINDOW_CLOSED_422",\n  "message": "Settlement window is currently closed."\n}`,
+            curl: `curl -X POST "https://api.gov.fintech/v1/rtgs/settle" \\\n  -d '{"batchId":"BATCH-9901","totalAmount":250000.00}'`
+          }
+        ]
       }
     }
   },
   merchants: {
     key: 'merchants',
     name: 'التجار والمدفوعات الإلكترونية',
+    nameEn: 'Merchants & Payment Gateways',
     code: 'SECTOR_FIN_MERCHANTS',
     icon: 'fa-store',
     services: {
       pg: {
         title: 'بوابة الدفع الموحدة (PG)',
+        titleEn: 'Unified Payment Gateway (PG)',
         code: 'PG',
         baseUrl: 'https://api.gov.fintech/v1/pg',
         versions: ['v2026.2'],
@@ -117,6 +146,7 @@ export const INITIAL_SECTORS: Record<string, Sector> = {
             path: '/v1/checkout/session',
             shortName: 'checkout',
             desc: 'إنشاء جلسة دفع آمنة للتجارة الإلكترونية مع دعم Apple Pay و Mada.',
+            descEn: 'Create secure e-commerce checkout session supporting Apple Pay and Mada.',
             params: [
               { name: 'merchantId', type: 'string (UUID)', req: true, rule: 'معرف التاجر المعتمد في السجل', tag: 'Merchant', tagClass: 'badge-blue' },
               { name: 'amount', type: 'decimal', req: true, rule: 'المبلغ الإجمالي بالهللات أو الريال', tag: 'Financial', tagClass: 'badge-emerald' },
@@ -137,11 +167,13 @@ export const INITIAL_SECTORS: Record<string, Sector> = {
   aml: {
     key: 'aml',
     name: 'مكافحة غسل الأموال والامتثال (AML)',
+    nameEn: 'Anti-Money Laundering & Compliance (AML)',
     code: 'SECTOR_FIN_AML',
     icon: 'fa-shield-halved',
     services: {
       screening: {
         title: 'محرك الفحص والمطابقة الرقابية',
+        titleEn: 'Regulatory Screening & Matching Engine',
         code: 'AML_SCREEN',
         baseUrl: 'https://api.gov.fintech/v1/aml',
         versions: ['v2026.2'],
@@ -152,6 +184,7 @@ export const INITIAL_SECTORS: Record<string, Sector> = {
             path: '/v1/screening/instant-check',
             shortName: 'screening',
             desc: 'فحص فوري للأسماء والحسابات ضد القوائم الرقابية المحدثة وقوائم العقوبات الدولية.',
+            descEn: 'Instant screening of names and accounts against regulatory sanctions and PEP lists.',
             params: [
               { name: 'entityName', type: 'string', req: true, rule: 'الاسم الكامل باللغة العربية أو الإنجليزية', tag: 'Compliance', tagClass: 'badge-rose' },
               { name: 'nationalId', type: 'string', req: false, rule: 'رقم الهوية الوطنية أو الإقامة أو السجل التجاري', tag: 'PII', tagClass: 'badge-purple' }
@@ -171,6 +204,7 @@ export const INITIAL_SECTORS: Record<string, Sector> = {
   settlement: {
     key: 'settlement',
     name: 'المقاصة والتسوية والتقارير الرقابية',
+    nameEn: 'Clearing, Settlement & Regulatory Reporting',
     code: 'SECTOR_FIN_SETTLEMENT',
     icon: 'fa-scale-balanced',
     services: {

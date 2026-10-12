@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { ChangeRequest } from '../../types/schema';
-import { X, GitPullRequest, Check, ShieldCheck, Clock, UserCheck, AlertCircle } from 'lucide-react';
+import { X, GitPullRequest, Check, ShieldCheck, UserCheck } from 'lucide-react';
+import { useLanguage } from '../../i18n';
 
 interface ChangeRequestsModalProps {
   isOpen: boolean;
@@ -15,11 +16,15 @@ export const ChangeRequestsModal: React.FC<ChangeRequestsModalProps> = ({
   changeRequests,
   onApproveCr
 }) => {
+  const { t, language, isRtl } = useLanguage();
+  const isEn = language === 'en';
+
   if (!isOpen) return null;
+  const alignStyle = { textAlign: isRtl ? 'right' : 'left' } as const;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '920px' }}>
+      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '920px', ...alignStyle }}>
         {/* Header */}
         <div style={{
           padding: '1.25rem 1.75rem',
@@ -32,11 +37,11 @@ export const ChangeRequestsModal: React.FC<ChangeRequestsModalProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
             <GitPullRequest size={20} color="var(--amber)" />
             <div>
-              <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text)' }}>
-                محرك طلبات التغيير والاعتمادات المتعددة (Multi-Sig Vault & 4-Eyes)
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text)', margin: 0 }}>
+                {t('governance.pageTitle')}
               </h2>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                لا يتم إقرار أي تعديل على مواصفات الـ API إلا باكتمال تواقيع أصحاب القرار الثلاثة
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
+                {t('governance.pageSubtitle')}
               </p>
             </div>
           </div>
@@ -58,7 +63,7 @@ export const ChangeRequestsModal: React.FC<ChangeRequestsModalProps> = ({
                     <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text)' }}>{cr.title}</h3>
                   </div>
                   <span className={`badge-pill ${cr.changeType === 'BREAKING' ? 'badge-rose' : 'badge-emerald'}`}>
-                    {cr.changeType === 'BREAKING' ? 'كسر توافق إجباري (MAJOR)' : 'تحديث متوافق (MINOR)'}
+                    {cr.changeType === 'BREAKING' ? t('governance.breakingChange') : t('governance.nonBreakingChange')}
                   </span>
                 </div>
 
@@ -78,9 +83,9 @@ export const ChangeRequestsModal: React.FC<ChangeRequestsModalProps> = ({
                   padding: '0.5rem 0.85rem',
                   borderRadius: 'var(--radius-sm)'
                 }}>
-                  <span>المسار المتأثر: <code className="mono" style={{ color: 'var(--blue)' }}>{cr.endpointPath}</code></span>
-                  <span>مقدم الطلب: <strong style={{ color: 'var(--text)' }}>{cr.author}</strong> ({cr.authorRole})</span>
-                  <span>التاريخ: {cr.createdAt}</span>
+                  <span>{isEn ? 'Target Route:' : 'المسار المتأثر:'} <code className="mono" style={{ color: 'var(--blue)' }}>{cr.endpointPath}</code></span>
+                  <span>{isEn ? 'Author:' : 'مقدم الطلب:'} <strong style={{ color: 'var(--text)' }}>{cr.author}</strong> ({cr.authorRole})</span>
+                  <span>{isEn ? 'Date:' : 'التاريخ:'} {cr.createdAt}</span>
                 </div>
 
                 {/* Multi-Sig Signatures Matrix */}
@@ -89,7 +94,7 @@ export const ChangeRequestsModal: React.FC<ChangeRequestsModalProps> = ({
                   paddingTop: '0.85rem'
                 }}>
                   <div style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-muted)', marginBottom: '0.6rem' }}>
-                    سجل التواقيع الرقمية الثلاثية المطلوبة للاعتماد:
+                    {isEn ? 'Three-Way Digital Signature Vault Registry:' : 'سجل التواقيع الرقمية الثلاثية المطلوبة للاعتماد:'}
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.65rem' }}>
@@ -115,14 +120,14 @@ export const ChangeRequestsModal: React.FC<ChangeRequestsModalProps> = ({
                           </div>
                           {approval.approvedAt && (
                             <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', marginTop: '0.15rem' }}>
-                              تم التوقيع: {approval.approvedAt}
+                              {isEn ? 'Signed:' : 'تم التوقيع:'} {approval.approvedAt}
                             </div>
                           )}
                         </div>
 
                         {approval.signed ? (
                           <span className="badge-pill badge-emerald" style={{ fontSize: '0.65rem' }}>
-                            <Check size={12} /> معتمد
+                            <Check size={12} /> {t('governance.signedStatus')}
                           </span>
                         ) : (
                           <button
@@ -130,7 +135,7 @@ export const ChangeRequestsModal: React.FC<ChangeRequestsModalProps> = ({
                             onClick={() => onApproveCr(cr.id, approval.role)}
                             style={{ fontSize: '0.7rem', padding: '0.25rem 0.6rem' }}
                           >
-                            <UserCheck size={12} /> توقيع واعتماد
+                            <UserCheck size={12} /> {t('governance.signButton', { role: approval.role })}
                           </button>
                         )}
                       </div>
@@ -150,7 +155,9 @@ export const ChangeRequestsModal: React.FC<ChangeRequestsModalProps> = ({
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--emerald)', fontWeight: 700 }}>
                         <ShieldCheck size={18} />
-                        اكتملت شروط الاعتماد الثلاثي! الطلب جاهز للختم الرقمي السيادي في الإصدار القادم.
+                        {isEn 
+                          ? 'Multi-sig criteria satisfied! Request ready for sovereign digital seal in upcoming release.' 
+                          : 'اكتملت شروط الاعتماد الثلاثي! الطلب جاهز للختم الرقمي السيادي في الإصدار القادم.'}
                       </div>
                     </div>
                   )}
@@ -169,7 +176,7 @@ export const ChangeRequestsModal: React.FC<ChangeRequestsModalProps> = ({
           background: 'rgba(11, 20, 38, 0.7)'
         }}>
           <button className="btn btn-glass" onClick={onClose} style={{ fontSize: '0.82rem' }}>
-            إغلاق
+            {t('common.close')}
           </button>
         </div>
       </div>

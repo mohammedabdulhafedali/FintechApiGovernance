@@ -30,6 +30,7 @@ export interface Endpoint {
   path: string;
   shortName: string;
   desc: string;
+  descEn?: string;
   params: EndpointParam[];
   rules: BusinessRule[];
   payload?: string;
@@ -39,10 +40,12 @@ export interface Endpoint {
   isDraft?: boolean;
   statusBadge?: string;
   releaseId?: string;
+  responseFields?: Array<{ name: string; type: string; req: string; desc: string }>;
 }
 
 export interface ServiceDefinition {
   title: string;
+  titleEn?: string;
   code: string;
   baseUrl: string;
   versions: string[];
@@ -52,6 +55,7 @@ export interface ServiceDefinition {
 export interface Sector {
   key: string;
   name: string;
+  nameEn?: string;
   code: string;
   icon: string;
   services: Record<string, ServiceDefinition>;
@@ -61,6 +65,7 @@ export interface ChangeRequest {
   id: string;
   crNumber: string;
   title: string;
+  description?: string;
   author: string;
   authorRole: string;
   sectorKey: string;
@@ -88,6 +93,8 @@ export interface RBACRole {
   name: string;
   badge: string;
   description: string;
+  desc?: string;
+  level?: string;
   permissions: Record<string, boolean>;
 }
 

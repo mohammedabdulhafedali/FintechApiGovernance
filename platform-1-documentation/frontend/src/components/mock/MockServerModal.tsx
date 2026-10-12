@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Endpoint } from '../../types/schema';
 import { X, Server, Play, CheckCircle2, AlertTriangle, Send } from 'lucide-react';
+import { useLanguage } from '../../i18n';
 
 interface MockServerModalProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ export const MockServerModal: React.FC<MockServerModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const { t, language } = useLanguage();
   const [requestBody, setRequestBody] = useState(activeEndpoint.payload || '{}');
   const [testScenario, setTestScenario] = useState<'success' | 'limit_exceeded'>('success');
   const [responseOutput, setResponseOutput] = useState<string | null>(null);
@@ -53,10 +55,10 @@ export const MockServerModal: React.FC<MockServerModalProps> = ({
             <Server size={20} color="var(--cyan)" />
             <div>
               <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text)' }}>
-                خادم المحاكاة الفوري (Instant Mock Sandbox Engine)
+                {language === 'ar' ? 'خادم المحاكاة الفوري (Instant Mock Sandbox)' : 'Instant Mock Sandbox Engine'}
               </h2>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                محاكاة حية لاستجابات الـ API للتحقق من شروط الـ Schema وقواعد الأعمال المصرفية
+                {t('mock.pageSubtitle')}
               </p>
             </div>
           </div>
@@ -87,7 +89,7 @@ export const MockServerModal: React.FC<MockServerModalProps> = ({
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>سيناريو المحاكاة:</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{t('mock.scenarioLabel')}</span>
               <select
                 value={testScenario}
                 onChange={e => setTestScenario(e.target.value as any)}
@@ -102,8 +104,8 @@ export const MockServerModal: React.FC<MockServerModalProps> = ({
                   cursor: 'pointer'
                 }}
               >
-                <option value="success">200 OK (طلب مطابق وقبول العملية)</option>
-                <option value="limit_exceeded">422 Unprocessable (مخالفة الحد المصرفي)</option>
+                <option value="success">{t('mock.scenarioSuccess')}</option>
+                <option value="limit_exceeded">{t('mock.scenarioLimit')}</option>
               </select>
             </div>
           </div>
@@ -111,7 +113,7 @@ export const MockServerModal: React.FC<MockServerModalProps> = ({
           {/* Request Payload Editor */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-dim)' }}>محتوى الطلب (Request Payload):</span>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-dim)' }}>{t('mock.requestBodyLabel')}</span>
               <button
                 className="btn btn-emerald"
                 onClick={handleExecuteMock}
@@ -119,7 +121,7 @@ export const MockServerModal: React.FC<MockServerModalProps> = ({
                 style={{ fontSize: '0.75rem', padding: '0.3rem 0.85rem' }}
               >
                 <Send size={13} />
-                <span>{isLoading ? 'جاري الإرسال...' : 'إرسال واستدعاء المحاكي'}</span>
+                <span>{isLoading ? t('mock.executing') : t('mock.executeButton')}</span>
               </button>
             </div>
             <textarea
@@ -147,7 +149,7 @@ export const MockServerModal: React.FC<MockServerModalProps> = ({
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
                 <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-dim)' }}>
-                  استجابة خادم المحاكاة (Mock Response):
+                  {t('mock.responseOutputLabel')}
                 </span>
                 <span className={`badge-pill ${responseStatus === 200 ? 'badge-emerald' : 'badge-rose'}`}>
                   HTTP {responseStatus} {responseStatus === 200 ? 'OK' : 'Unprocessable Entity'}
@@ -179,7 +181,7 @@ export const MockServerModal: React.FC<MockServerModalProps> = ({
           background: 'rgba(11, 20, 38, 0.7)'
         }}>
           <button className="btn btn-glass" onClick={onClose} style={{ fontSize: '0.82rem' }}>
-            إغلاق
+            {t('common.close')}
           </button>
         </div>
       </div>

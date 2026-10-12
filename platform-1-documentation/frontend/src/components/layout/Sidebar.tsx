@@ -1,159 +1,234 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { 
+  Shield,
+  LayoutDashboard, 
+  PlusCircle, 
+  Building2, 
+  Store, 
+  ShieldAlert, 
+  Scale, 
+  Coins, 
+  Wallet, 
+  GitPullRequest, 
+  GitBranch, 
+  ShieldCheck, 
+  Users, 
+  FileDown 
+} from 'lucide-react';
 import { Sector } from '../../types/schema';
-import { Search, Building2, Store, ShieldAlert, Scale, ChevronLeft, Layers, Plus } from 'lucide-react';
+import { useLanguage } from '../../i18n';
+
+export type AppViewMode = 
+  | 'dashboard' 
+  | 'sector-spec' 
+  | 'add-api' 
+  | 'change-requests' 
+  | 'versions-diff' 
+  | 'security-tools' 
+  | 'rbac' 
+  | 'export-studio';
 
 interface SidebarProps {
+  activeView: AppViewMode;
+  onSelectView: (view: AppViewMode) => void;
   sectors: Record<string, Sector>;
   activeSectorKey: string;
   onSelectSector: (key: string) => void;
-  onAddNewApi: () => void;
+  pendingCrCount: number;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
+  activeView,
+  onSelectView,
   sectors,
   activeSectorKey,
   onSelectSector,
-  onAddNewApi
+  pendingCrCount
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
+  const { t, getLocalized, isRtl } = useLanguage();
 
-  const getSectorIcon = (key: string) => {
+  const getSidebarSectorIcon = (key: string) => {
     switch (key) {
-      case 'banking': return <Building2 size={18} />;
-      case 'merchants': return <Store size={18} />;
-      case 'aml': return <ShieldAlert size={18} />;
-      case 'settlement': return <Scale size={18} />;
-      default: return <Layers size={18} />;
+      case 'banking': return <Building2 size={17} style={{ color: '#38bdf8' }} />;
+      case 'merchants': return <Store size={17} style={{ color: '#34d399' }} />;
+      case 'aml': return <ShieldAlert size={17} style={{ color: '#f59e0b' }} />;
+      case 'settlement': return <Scale size={17} style={{ color: '#a855f7' }} />;
+      case 'coins': return <Coins size={17} style={{ color: '#facc15' }} />;
+      case 'wallet': return <Wallet size={17} style={{ color: '#ec4899' }} />;
+      default: return <Building2 size={17} style={{ color: '#38bdf8' }} />;
     }
   };
 
-  const filteredSectors = Object.values(sectors).filter(s =>
-    s.name.includes(searchQuery) || s.code.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const sectorEntries = Object.entries(sectors);
+  const alignStyle = { textAlign: isRtl ? 'right' : 'left' } as const;
 
   return (
-    <aside style={{
-      width: '280px',
-      borderLeft: '1px solid var(--border)',
-      background: 'rgba(8, 16, 32, 0.95)',
-      backdropFilter: 'var(--glass-blur)',
-      display: 'flex',
-      flexDirection: 'column',
-      height: 'calc(100vh - 65px)',
-      position: 'sticky',
-      top: '65px'
-    }}>
-      {/* Search Bar */}
-      <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          background: 'var(--bg-input)',
-          padding: '0.45rem 0.75rem',
-          borderRadius: 'var(--radius-md)',
-          border: '1px solid var(--border)'
-        }}>
-          <Search size={16} color="var(--text-dim)" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="بحث في القطاعات والجهات..."
-            style={{
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              color: 'var(--text)',
-              fontFamily: 'var(--font-arabic)',
-              fontSize: '0.82rem',
-              width: '100%'
-            }}
-          />
+    <aside className="sidebar">
+      {/* Sidebar Brand Header */}
+      <div className="sidebar-brand">
+        <div className="brand-icon">
+          <Shield size={19} />
+        </div>
+        <div>
+          <div className="brand-title">{t('common.appName')}</div>
+          <div style={{ fontSize: '0.68rem', color: 'var(--text-dim)', fontWeight: 600 }}>
+            {t('common.appSubtitle')}
+          </div>
         </div>
       </div>
 
-      {/* Sectors Header */}
+      <nav className="sidebar-menu">
+        {/* SECTION 1: General Navigation */}
+        <div className="sidebar-section-title">{t('sidebar.mainNav')}</div>
+
+        {/* Dashboard */}
+        <button
+          className={`nav-btn ${activeView === 'dashboard' ? 'active' : ''}`}
+          onClick={() => onSelectView('dashboard')}
+          title={t('sidebar.dashboard')}
+        >
+          <LayoutDashboard size={18} style={{ color: activeView === 'dashboard' ? '#ffffff' : 'var(--blue)' }} />
+          <span style={{ flex: 1, ...alignStyle }}>{t('sidebar.dashboard')}</span>
+          <span className="badge-pill" style={{
+            fontSize: '0.65rem',
+            padding: '0.1rem 0.4rem',
+            background: activeView === 'dashboard' ? 'rgba(255,255,255,0.2)' : 'rgba(56, 189, 248, 0.15)',
+            color: activeView === 'dashboard' ? '#ffffff' : 'var(--blue)'
+          }}>
+            {t('sidebar.homeBadge')}
+          </span>
+        </button>
+
+        {/* Add / Document API */}
+        <button
+          className={`nav-btn nav-btn-dashed ${activeView === 'add-api' ? 'active' : ''}`}
+          onClick={() => onSelectView('add-api')}
+          title={t('sidebar.addApiDoc')}
+        >
+          <PlusCircle size={18} />
+          <span style={{ flex: 1, ...alignStyle }}>{t('sidebar.addApiDoc')}</span>
+        </button>
+
+        <hr className="nav-divider" />
+
+        {/* SECTION 2: Dynamic Financial Sectors */}
+        <div className="sidebar-section-title">
+          <span>{t('sidebar.sectorsTitle', { count: sectorEntries.length })}</span>
+          <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)' }}>{t('sidebar.liveCatalog')}</span>
+        </div>
+
+        {sectorEntries.map(([key, sector]) => {
+          const isActive = activeView === 'sector-spec' && activeSectorKey === key;
+          const totalEp = sector.services
+            ? Object.values(sector.services).reduce((acc, s) => acc + (s.endpoints ? s.endpoints.length : 0), 0)
+            : 0;
+          const localizedName = getLocalized({ ar: sector.name, en: sector.nameEn }, sector.name);
+
+          return (
+            <button
+              key={key}
+              className={`nav-btn ${isActive ? 'active' : ''}`}
+              onClick={() => {
+                onSelectSector(key);
+                onSelectView('sector-spec');
+              }}
+              title={localizedName}
+            >
+              {getSidebarSectorIcon(key)}
+              <span style={{ flex: 1, ...alignStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {localizedName}
+              </span>
+              <span className="badge-pill" style={{
+                fontSize: '0.64rem',
+                padding: '0.1rem 0.4rem',
+                background: isActive ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.06)',
+                color: isActive ? '#ffffff' : 'var(--text-dim)'
+              }}>
+                {totalEp} {totalEp === 1 ? 'API' : 'APIs'}
+              </span>
+            </button>
+          );
+        })}
+
+        <hr className="nav-divider" />
+
+        {/* SECTION 3: Dedicated Governance Tools */}
+        <div className="sidebar-section-title">{t('sidebar.governanceTitle')}</div>
+
+        <button
+          className={`nav-btn ${activeView === 'change-requests' ? 'active' : ''}`}
+          onClick={() => onSelectView('change-requests')}
+          title={t('sidebar.changeRequests')}
+        >
+          <GitPullRequest size={18} style={{ color: activeView === 'change-requests' ? '#ffffff' : 'var(--amber)' }} />
+          <span style={{ flex: 1, ...alignStyle }}>{t('sidebar.changeRequests')}</span>
+          {pendingCrCount > 0 && (
+            <span className="badge-pill badge-amber" style={{ padding: '0.1rem 0.45rem', fontSize: '0.68rem', fontWeight: 800 }}>
+              {pendingCrCount}
+            </span>
+          )}
+        </button>
+
+        <button
+          className={`nav-btn ${activeView === 'versions-diff' ? 'active' : ''}`}
+          onClick={() => onSelectView('versions-diff')}
+          title={t('sidebar.diffEngine')}
+        >
+          <GitBranch size={18} style={{ color: activeView === 'versions-diff' ? '#ffffff' : 'var(--cyan)' }} />
+          <span style={{ flex: 1, ...alignStyle }}>{t('sidebar.diffEngine')}</span>
+        </button>
+
+        <button
+          className={`nav-btn ${activeView === 'security-tools' ? 'active' : ''}`}
+          onClick={() => onSelectView('security-tools')}
+          title={t('sidebar.mockServer')}
+        >
+          <ShieldCheck size={18} style={{ color: activeView === 'security-tools' ? '#ffffff' : 'var(--purple)' }} />
+          <span style={{ flex: 1, ...alignStyle }}>{t('sidebar.mockServer')}</span>
+        </button>
+
+        <button
+          className={`nav-btn ${activeView === 'rbac' ? 'active' : ''}`}
+          onClick={() => onSelectView('rbac')}
+          title={t('sidebar.rbacMatrix')}
+        >
+          <Users size={18} style={{ color: activeView === 'rbac' ? '#ffffff' : 'var(--blue)' }} />
+          <span style={{ flex: 1, ...alignStyle }}>{t('sidebar.rbacMatrix')}</span>
+        </button>
+
+        <button
+          className={`nav-btn ${activeView === 'export-studio' ? 'active' : ''}`}
+          onClick={() => onSelectView('export-studio')}
+          title={t('sidebar.exportStudio')}
+        >
+          <FileDown size={18} style={{ color: activeView === 'export-studio' ? '#ffffff' : 'var(--emerald)' }} />
+          <span style={{ flex: 1, ...alignStyle }}>{t('sidebar.exportStudio')}</span>
+        </button>
+      </nav>
+
+      {/* Sidebar Footer: System Status */}
       <div style={{
-        padding: '0.75rem 1rem 0.25rem',
+        padding: '0.75rem 1rem',
+        borderTop: '1px solid var(--border)',
+        background: 'rgba(0, 0, 0, 0.15)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between'
       }}>
-        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase' }}>
-          كتالوج القطاعات المؤسسية
-        </span>
-        <span className="badge-pill badge-blue" style={{ fontSize: '0.65rem' }}>
-          {filteredSectors.length} قطاعات
-        </span>
-      </div>
-
-      {/* Sectors List */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
-        {filteredSectors.map((sector) => {
-          const isActive = sector.key === activeSectorKey;
-          const totalEndpoints = Object.values(sector.services).reduce(
-            (acc, srv) => acc + srv.endpoints.length, 0
-          );
-
-          return (
-            <div
-              key={sector.key}
-              onClick={() => onSelectSector(sector.key)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0.75rem 0.85rem',
-                borderRadius: 'var(--radius-md)',
-                marginBottom: '0.35rem',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                background: isActive ? 'linear-gradient(90deg, rgba(59, 130, 246, 0.18), rgba(59, 130, 246, 0.08))' : 'transparent',
-                border: isActive ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{
-                  color: isActive ? 'var(--blue)' : 'var(--text-dim)',
-                  display: 'flex',
-                  alignItems: 'center'
-                }}>
-                  {getSectorIcon(sector.key)}
-                </div>
-                <div>
-                  <div style={{
-                    fontSize: '0.88rem',
-                    fontWeight: 700,
-                    color: isActive ? '#ffffff' : 'var(--text)'
-                  }}>
-                    {sector.name}
-                  </div>
-                  <div style={{
-                    fontSize: '0.7rem',
-                    color: 'var(--text-muted)',
-                    fontFamily: 'var(--font-latin)'
-                  }}>
-                    {totalEndpoints} APIs مسجلة
-                  </div>
-                </div>
-              </div>
-              <ChevronLeft size={16} color={isActive ? 'var(--blue)' : 'var(--text-dim)'} />
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Bottom Action: Add New Custom API */}
-      <div style={{ padding: '0.85rem', borderTop: '1px solid var(--border)' }}>
-        <button
-          className="btn btn-glass"
-          onClick={onAddNewApi}
-          style={{ width: '100%', fontSize: '0.82rem', justifyContent: 'center' }}
-        >
-          <Plus size={16} color="var(--emerald)" />
-          <span>+ إضافة مواصفة API جديدة</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+          <span style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            backgroundColor: 'var(--emerald)',
+            boxShadow: '0 0 8px var(--emerald)',
+            display: 'inline-block'
+          }}></span>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: 600 }}>
+            {t('sidebar.systemStatus')}
+          </span>
+        </div>
+        <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>v2026.2</span>
       </div>
     </aside>
   );
