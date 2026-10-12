@@ -145,31 +145,65 @@ export const App: React.FC = () => {
     setActiveView('sector-spec');
   };
 
-  const handleAddEndpointFromHub = (sectorKey: string, newEp: Endpoint) => {
+  const handleAddEndpointFromHub = (sectorKey: string, endpointsInput: Endpoint | Endpoint[], isBulk = false) => {
+    const epList = Array.isArray(endpointsInput) ? endpointsInput : [endpointsInput];
+    let addedCount = 0;
+    let updatedCount = 0;
+
     setSectors(prev => {
       const updated = { ...prev };
       const sector = updated[sectorKey] || Object.values(updated)[0];
       if (sector) {
         const firstServiceKey = Object.keys(sector.services)[0] || 'default';
         if (sector.services[firstServiceKey]) {
-          sector.services[firstServiceKey].endpoints.push(newEp);
+          const serviceEndpoints = [...sector.services[firstServiceKey].endpoints];
+
+          epList.forEach(newEp => {
+            const existingIndex = serviceEndpoints.findIndex(
+              e => e.path.toLowerCase() === newEp.path.toLowerCase() && e.method === newEp.method
+            );
+            if (existingIndex >= 0) {
+              // Update existing endpoint (Smart Upsert)
+              serviceEndpoints[existingIndex] = {
+                ...serviceEndpoints[existingIndex],
+                ...newEp,
+                id: serviceEndpoints[existingIndex].id // keep id
+              };
+              updatedCount++;
+            } else {
+              // Add new endpoint
+              serviceEndpoints.push(newEp);
+              addedCount++;
+            }
+          });
+
+          sector.services[firstServiceKey].endpoints = serviceEndpoints;
         }
       }
       return updated;
     });
 
     setActiveSectorKey(sectorKey);
-    setActiveEndpointIndex(currentEndpoints.length);
+    setActiveEndpointIndex(0);
     setActiveView('sector-spec');
 
-    // Trigger Floating Alert Card
-    showFloatingAlert(
-      t('docHub.successTitle'),
-      t('docHub.successMsg'),
-      'success',
-      newEp.path,
-      t('docHub.exploreInCatalog')
-    );
+    if (isBulk) {
+      showFloatingAlert(
+        t('docHub.importSuccessTitle'),
+        t('docHub.importSuccessMsg', { count: epList.length }),
+        'success',
+        epList[0]?.path,
+        t('docHub.exploreInCatalog')
+      );
+    } else {
+      showFloatingAlert(
+        t('docHub.successTitle'),
+        t('docHub.successMsg'),
+        'success',
+        epList[0]?.path,
+        t('docHub.exploreInCatalog')
+      );
+    }
   };
 
   const handleApproveCr = (crId: string, roleName: string) => {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Endpoint } from '../../types/schema';
-import { Copy, Check, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { Copy, Check, ShieldCheck, AlertTriangle, FileDown } from 'lucide-react';
 import { useLanguage } from '../../i18n';
 
 interface SpecViewerProps {
@@ -21,6 +21,34 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
 
   const { t, language } = useLanguage();
   const isEn = language === 'en';
+
+  const handleDownloadSpec = () => {
+    const specData = {
+      $schema: 'https://api.gov.fintech/schemas/v1/ultimate-pay-spec.json',
+      version: 'v2026.2',
+      exportedAt: new Date().toISOString(),
+      endpoint: {
+        method: endpoint.method,
+        path: endpoint.path,
+        shortName: endpoint.shortName,
+        desc: endpoint.desc,
+        descEn: endpoint.descEn,
+        headers: endpoint.params || [],
+        businessRules: endpoint.rules || [],
+        payload: endpoint.payload,
+        res200: endpoint.res200,
+        res422: endpoint.res422
+      }
+    };
+
+    const blob = new Blob([JSON.stringify(specData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${endpoint.shortName || 'endpoint'}-spec.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const handleCopy = (text: string, type: 'path' | 'curl' | 'req' | 'res') => {
     navigator.clipboard.writeText(text);
@@ -158,6 +186,15 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
             title={t('spec.copyCurl')}
           >
             {copiedCurl ? <Check size={13} style={{ color: 'var(--emerald)' }} /> : <Copy size={13} />}
+          </button>
+
+          <button 
+            className="btn btn-ghost btn-slim-action" 
+            onClick={handleDownloadSpec} 
+            title={t('docHub.exportEndpointJson')}
+            style={{ color: 'var(--blue)' }}
+          >
+            <FileDown size={13} />
           </button>
         </div>
       </div>
