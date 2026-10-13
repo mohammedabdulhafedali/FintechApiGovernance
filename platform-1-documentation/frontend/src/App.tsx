@@ -1,26 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header } from './components/layout/Header';
 import { Sidebar, AppViewMode } from './components/layout/Sidebar';
+import { catalogService } from './services/catalogService';
 import { DashboardView } from './components/catalog/DashboardView';
 import { DocumentationHub } from './components/catalog/DocumentationHub';
 import { EndpointsRibbon } from './components/catalog/EndpointsRibbon';
 import { SpecViewer } from './components/catalog/SpecViewer';
-import { ChangeRequestsView } from './components/governance/ChangeRequestsView';
-import { SemanticDiffView } from './components/catalog/SemanticDiffView';
-import { RBACView } from './components/rbac/RBACView';
-import { MockServerView } from './components/mock/MockServerView';
 import { ExportStudioView } from './components/export/ExportStudioView';
 import { FloatingAlertCard, FloatingAlertState } from './components/common/FloatingAlertCard';
 import { DeleteSectorModal } from './components/common/DeleteSectorModal';
-import { AddSectorModal } from './components/common/AddSectorModal';
 
 import { 
   INITIAL_SECTORS, 
-  INITIAL_CHANGE_REQUESTS, 
-  INITIAL_ROLES, 
   INITIAL_SNAPSHOTS 
 } from './data/mockData';
-import { Endpoint, Sector, ChangeRequest, RBACRole } from './types/schema';
+import { Endpoint, Sector } from './types/schema';
 import { useLanguage } from './i18n';
 
 export const App: React.FC = () => {
@@ -33,13 +27,19 @@ export const App: React.FC = () => {
 
   // Business Data
   const [sectors, setSectors] = useState<Record<string, Sector>>(INITIAL_SECTORS);
-  const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>(INITIAL_CHANGE_REQUESTS);
-  const [roles, setRoles] = useState<RBACRole[]>(INITIAL_ROLES);
   const [snapshots] = useState(INITIAL_SNAPSHOTS);
 
-  // Sector Management State (حذف وإضافة الجهات)
+  // Synchronize with Sovereign Backend via Clean Service Layer
+  useEffect(() => {
+    catalogService.fetchCatalog().then(remoteCatalog => {
+      if (remoteCatalog && Object.keys(remoteCatalog).length > 0) {
+        setSectors(remoteCatalog);
+      }
+    });
+  }, []);
+
+  // Sector Management State
   const [sectorKeyToDelete, setSectorKeyToDelete] = useState<string | null>(null);
-  const [isAddSectorModalOpen, setIsAddSectorModalOpen] = useState<boolean>(false);
 
   // Global Unified Floating Alert Card (كارد طافية موحدة لكافة رسائل المنظومة)
   const [floatingAlert, setFloatingAlert] = useState<FloatingAlertState | null>(null);
@@ -103,6 +103,9 @@ export const App: React.FC = () => {
       return updated;
     });
 
+    // Notify backend
+    catalogService.deleteSector(sectorKey);
+
     setSectorKeyToDelete(null);
 
     // If the currently viewed sector was deleted, switch to another sector or dashboard
@@ -129,6 +132,14 @@ export const App: React.FC = () => {
       [newSector.key]: newSector
     }));
 
+    // Persist to backend
+    catalogService.createSector({
+      key: newSector.key,
+      name: newSector.name,
+      nameEn: newSector.nameEn,
+      code: newSector.code
+    });
+
     const displayName = newSector.nameEn && !isRtl ? newSector.nameEn : newSector.name;
 
     showFloatingAlert(
@@ -142,6 +153,12 @@ export const App: React.FC = () => {
   const handleSelectSector = (key: string) => {
     setActiveSectorKey(key);
     setActiveEndpointIndex(0);
+    setActiveView('sector-spec');
+  };
+
+  const handleSelectEndpoint = (key: string, index: number) => {
+    setActiveSectorKey(key);
+    setActiveEndpointIndex(index);
     setActiveView('sector-spec');
   };
 
@@ -187,6 +204,20 @@ export const App: React.FC = () => {
     setActiveEndpointIndex(0);
     setActiveView('sector-spec');
 
+    // Persist endpoints to backend
+    epList.forEach(ep => {
+      catalogService.createEndpoint({
+        sectorKey,
+        path: ep.path,
+        method: ep.method,
+        summary: ep.desc || (ep as any).summary,
+        description: ep.desc || (ep as any).description,
+        parameters: ep.params || (ep as any).parameters,
+        requestPayload: ep.payload || (ep as any).requestPayload,
+        responsePayload: ep.res200 || (ep as any).responsePayload
+      });
+    });
+
     if (isBulk) {
       showFloatingAlert(
         t('docHub.importSuccessTitle'),
@@ -206,52 +237,6 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleApproveCr = (crId: string, roleName: string) => {
-    setChangeRequests(prev => prev.map(cr => {
-      if (cr.id === crId) {
-        return {
-          ...cr,
-          approvals: cr.approvals.map(app => {
-            if (app.role === roleName) {
-              return {
-                ...app,
-                signed: true,
-                approvedAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
-              };
-            }
-            return app;
-          })
-        };
-      }
-      return cr;
-    }));
-
-    showFloatingAlert(
-      t('governance.signatureSuccessTitle'),
-      t('governance.signatureSuccessMsg'),
-      'success',
-      `Signer Role: ${roleName}`,
-      t('governance.closeAndContinue')
-    );
-  };
-
-  const handleUpdateRolePermissions = (roleId: string, action: string, granted: boolean) => {
-    setRoles(prev => prev.map(r => {
-      if (r.id === roleId) {
-        return {
-          ...r,
-          permissions: {
-            ...r.permissions,
-            [action]: granted
-          }
-        };
-      }
-      return r;
-    }));
-  };
-
-  const pendingCrCount = changeRequests.filter(cr => cr.approvals.some(a => !a.signed)).length;
-
   const totalSectorsCount = Object.keys(sectors).length;
   const totalEndpointsCount = Object.values(sectors).reduce((acc, sec) => {
     if (!sec.services) return acc;
@@ -267,7 +252,8 @@ export const App: React.FC = () => {
         sectors={sectors}
         activeSectorKey={activeSectorKey}
         onSelectSector={handleSelectSector}
-        pendingCrCount={pendingCrCount}
+        activeEndpointIndex={activeEndpointIndex}
+        onSelectEndpoint={handleSelectEndpoint}
       />
 
       {/* 2. Main Area with Topbar and Views */}
@@ -278,7 +264,7 @@ export const App: React.FC = () => {
           currentVersion={currentVersion}
           onVersionChange={setCurrentVersion}
           onOpenAddApi={() => setActiveView('add-api')}
-          onOpenAddSector={() => setIsAddSectorModalOpen(true)}
+          onOpenAddSector={() => setActiveView('dashboard')}
           onBackToDashboard={() => setActiveView('dashboard')}
           totalSectorsCount={totalSectorsCount}
           totalEndpointsCount={totalEndpointsCount}
@@ -286,12 +272,12 @@ export const App: React.FC = () => {
         />
 
         <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-          {/* VIEW 1: CLEAN SOVEREIGN DASHBOARD (CARDS ONLY) */}
+          {/* VIEW 1: CLEAN SOVEREIGN DASHBOARD */}
           {activeView === 'dashboard' && (
             <DashboardView
               sectors={sectors}
               onSelectSector={handleSelectSector}
-              onOpenAddSector={() => setIsAddSectorModalOpen(true)}
+              onAddSector={handleAddSector}
               onOpenDeleteSector={handleOpenDeleteSector}
             />
           )}
@@ -314,7 +300,6 @@ export const App: React.FC = () => {
                     endpoints={currentEndpoints}
                     activeEndpointIndex={activeEndpointIndex}
                     onSelectEndpoint={setActiveEndpointIndex}
-                    onOpenDiffModal={() => setActiveView('versions-diff')}
                     onAddNewEndpoint={() => setActiveView('add-api')}
                     onDeleteSector={() => handleOpenDeleteSector(activeSectorKey)}
                   />
@@ -351,37 +336,7 @@ export const App: React.FC = () => {
             </>
           )}
 
-          {/* VIEW 4: DEDICATED CHANGE REQUESTS & MULTI-SIG VAULT */}
-          {activeView === 'change-requests' && (
-            <ChangeRequestsView
-              changeRequests={changeRequests}
-              onApproveCr={handleApproveCr}
-            />
-          )}
-
-          {/* VIEW 5: DEDICATED SEMANTIC DIFF & SEMVER ENGINE */}
-          {activeView === 'versions-diff' && (
-            <SemanticDiffView />
-          )}
-
-          {/* VIEW 6: DEDICATED EMBEDDED MOCK SERVER */}
-          {activeView === 'security-tools' && (
-            <MockServerView
-              activeEndpoint={activeEndpoint}
-              onNotify={(title, msg, type) => showFloatingAlert(title, msg, type)}
-            />
-          )}
-
-          {/* VIEW 7: DEDICATED DYNAMIC RBAC STUDIO */}
-          {activeView === 'rbac' && (
-            <RBACView
-              roles={roles}
-              onUpdateRolePermissions={handleUpdateRolePermissions}
-              onNotify={(title, msg, type) => showFloatingAlert(title, msg, type)}
-            />
-          )}
-
-          {/* VIEW 8: DEDICATED EXPORT STUDIO & CRYPTOGRAPHIC SEALER */}
+          {/* VIEW 4: DEDICATED EXPORT STUDIO */}
           {activeView === 'export-studio' && (
             <ExportStudioView
               snapshots={snapshots}
@@ -404,13 +359,6 @@ export const App: React.FC = () => {
         sector={sectorKeyToDelete ? sectors[sectorKeyToDelete] : null}
         onClose={() => setSectorKeyToDelete(null)}
         onConfirmDelete={handleConfirmDeleteSector}
-      />
-
-      {/* 5. Add Sector Modal (نافذة إضافة واعتماد جهة جديدة) */}
-      <AddSectorModal
-        isOpen={isAddSectorModalOpen}
-        onClose={() => setIsAddSectorModalOpen(false)}
-        onAddSector={handleAddSector}
       />
     </div>
   );

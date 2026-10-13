@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Endpoint } from '../../types/schema';
-import { Copy, Check, ShieldCheck, AlertTriangle, FileDown } from 'lucide-react';
+import { Copy, Check, ShieldCheck, AlertTriangle, FileDown, ArrowDownLeft, ArrowUpRight, Smartphone, Server } from 'lucide-react';
 import { useLanguage } from '../../i18n';
 
 interface SpecViewerProps {
@@ -116,11 +116,14 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
       {/* Ultra-Slim Consolidated Single-Row Header Bar (42px) */}
       <div className="spec-slim-toolbar">
         <div className="spec-slim-meta">
-          <div className="spec-slim-path-wrap">
+          <div className="spec-slim-path-wrap" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             <span className={`method-badge method-${endpoint.method.toLowerCase()}`}>
               {endpoint.method}
             </span>
-            <span className="mono spec-slim-path">{endpoint.path}</span>
+            <span className="mono spec-slim-path" dir="ltr" style={{ unicodeBidi: 'isolate' }}>
+              {endpoint.path}
+            </span>
+
             {endpoint.isDraft ? (
               <span className="badge-pill badge-opt" style={{ borderColor: 'var(--amber)', color: 'var(--amber)' }}>
                 <ShieldCheck size={12} /> {isEn ? 'Screen Draft v2026.2' : 'مسودة مضافة من الشاشة'}
@@ -130,6 +133,40 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
                 <ShieldCheck size={12} /> {isEn ? 'Official Certified v2026.2' : 'معتمد رسمي v2026.2'}
               </span>
             )}
+
+            {/* Direction Pill */}
+            {endpoint.direction && (
+              <span className="badge-pill" style={{
+                background: endpoint.direction === 'INBOUND' ? 'rgba(56, 189, 248, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+                color: endpoint.direction === 'INBOUND' ? 'var(--cyan)' : 'var(--amber)',
+                borderColor: endpoint.direction === 'INBOUND' ? 'rgba(56, 189, 248, 0.25)' : 'rgba(245, 158, 11, 0.25)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px'
+              }}>
+                {endpoint.direction === 'INBOUND' ? (
+                  <><ArrowDownLeft size={11} /> {isEn ? 'Inbound' : 'وارد'}</>
+                ) : (
+                  <><ArrowUpRight size={11} /> {isEn ? 'Outbound' : 'صادر'}</>
+                )}
+              </span>
+            )}
+
+            {/* Channels Pill */}
+            {endpoint.channels && endpoint.channels.length > 0 && (
+              <span className="badge-pill" style={{
+                background: 'rgba(16, 185, 129, 0.12)',
+                color: 'var(--emerald)',
+                borderColor: 'rgba(16, 185, 129, 0.25)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px'
+              }}>
+                {endpoint.channels.includes('MOBILE') ? <Smartphone size={11} /> : <Server size={11} />}
+                {endpoint.channels.includes('MOBILE') ? (isEn ? 'Mobile' : 'موبايل') : (isEn ? 'Server' : 'خوادم')}
+              </span>
+            )}
+
             <button 
               className="btn-slim-action" 
               onClick={() => handleCopy(endpoint.path, 'path')} 

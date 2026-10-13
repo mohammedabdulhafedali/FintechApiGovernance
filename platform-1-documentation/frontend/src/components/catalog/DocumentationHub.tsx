@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { Endpoint, HttpMethod, Sector } from '../../types/schema';
+import { Endpoint, HttpMethod, Sector, IntegrationDirection, ClientChannel } from '../../types/schema';
+import { INITIAL_SYSTEMS } from '../../data/mockData';
 import { 
   CloudUpload, 
   Building2, 
@@ -22,7 +23,11 @@ import {
   Check,
   AlertTriangle,
   Terminal,
-  X
+  X,
+  Smartphone,
+  Server,
+  ArrowDownLeft,
+  ArrowUpRight
 } from 'lucide-react';
 import { useLanguage } from '../../i18n';
 
@@ -52,6 +57,9 @@ export const DocumentationHub: React.FC<DocumentationHubProps> = ({
 
   // Manual Form States
   const [selectedSector, setSelectedSector] = useState('banking');
+  const [systemKey, setSystemKey] = useState<string>('collection');
+  const [direction, setDirection] = useState<IntegrationDirection>('INBOUND');
+  const [selectedChannels, setSelectedChannels] = useState<ClientChannel[]>(['CORE_SERVER', 'MOBILE']);
   const [serviceTitle, setServiceTitle] = useState('');
   const [serviceCode, setServiceCode] = useState('BAL_INQ');
   const [baseUrl, setBaseUrl] = useState('https://api.gov.fintech/v1/accounts');
@@ -175,6 +183,9 @@ export const DocumentationHub: React.FC<DocumentationHubProps> = ({
       desc: description || serviceTitle || 'مسار موثق ومضاف حديثاً',
       descEn: isEn ? description : (shortName ? `${shortName} API service` : 'Newly documented endpoint'),
       isDraft: true,
+      systemKey: systemKey,
+      direction: direction,
+      channels: selectedChannels,
       params: [
         {
           name: 'Authorization',
@@ -554,7 +565,7 @@ paths:
                   descEn: op.summary || op.description || `OpenAPI specification for ${pathKey}`,
                   isDraft: true,
                   params: [
-                    { name: 'Authorization', type: 'string (Bearer)', req: true, rule: 'OAuth 2.0 FAPI 1.0', tag: 'Security' }
+                    { name: 'Authorization', type: 'string (Bearer)', req: true, rule: 'OAuth 2.0 FAPI 1.0', tag: 'Security', tagClass: 'badge-iso' }
                   ],
                   rules: [
                     { id: `BR_OPENAPI_${idx}`, name: 'مطابقة معايير OpenAPI الوطنية', err: 'VALIDATION_FAILED_422' }
@@ -600,7 +611,7 @@ paths:
         descEn: 'Endpoint auto-extracted from raw cURL command',
         isDraft: true,
         params: [
-          { name: 'Authorization', type: 'string (Bearer)', req: true, rule: 'Extracted from cURL Authorization Header', tag: 'Security' }
+          { name: 'Authorization', type: 'string (Bearer)', req: true, rule: 'Extracted from cURL Authorization Header', tag: 'Security', tagClass: 'badge-iso' }
         ],
         rules: [{ id: 'BR_CURL_001', name: 'التحقق من صحة بروتوكول cURL', err: 'INVALID_REQUEST_422' }],
         payload: payload,
@@ -623,7 +634,7 @@ paths:
           desc: `مسار OpenAPI YAML مستورد: ${m[2]}`,
           descEn: `Imported OpenAPI YAML route: ${m[2]}`,
           isDraft: true,
-          params: [{ name: 'Authorization', type: 'string (Bearer)', req: true, rule: 'OAuth 2.0 FAPI 1.0', tag: 'Security' }],
+          params: [{ name: 'Authorization', type: 'string (Bearer)', req: true, rule: 'OAuth 2.0 FAPI 1.0', tag: 'Security', tagClass: 'badge-iso' }],
           rules: [{ id: `BR_YAML_${idx + 1}`, name: 'مطابقة مواصفة YAML', err: 'VALIDATION_FAILED_422' }],
           payload: '{\n  "sample": true\n}',
           res200: '{\n  "status": "SUCCESS"\n}',
@@ -843,6 +854,138 @@ paths:
                     className="form-control mono"
                     dir="ltr"
                   />
+                </div>
+              </div>
+
+              {/* Multi-Dimensional Governance Matrix Selection (SOLID Architecture) */}
+              <div style={{
+                background: 'rgba(99, 102, 241, 0.05)',
+                border: '1px solid rgba(99, 102, 241, 0.20)',
+                borderRadius: '8px',
+                padding: '0.75rem',
+                margin: '0.5rem 0',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.6rem'
+              }}>
+                <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <Layers size={14} />
+                  <span>{isEn ? 'Governance Multi-Dimensional Matrix' : 'مصفوفة الحوكمة وتصنيف الأنظمة والقنوات (SOLID)'}</span>
+                </div>
+
+                <div className="form-grid-2">
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '0.70rem' }}>
+                      {isEn ? 'Core Functional System' : 'النظام المركزي المسؤول:'}
+                    </label>
+                    <select
+                      value={systemKey}
+                      onChange={(e) => setSystemKey(e.target.value)}
+                      className="form-control"
+                      style={{ fontSize: '0.78rem' }}
+                    >
+                      {Object.entries(INITIAL_SYSTEMS).map(([k, sys]) => (
+                        <option key={k} value={k}>
+                          {getLocalized({ ar: sys.name, en: sys.nameEn }, sys.name)} ({sys.code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '0.70rem' }}>
+                      {isEn ? 'Integration Direction' : 'اتجاه التكامل والربط:'}
+                    </label>
+                    <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.1rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => setDirection('INBOUND')}
+                        style={{
+                          flex: 1,
+                          padding: '0.35rem 0.5rem',
+                          fontSize: '0.72rem',
+                          fontWeight: direction === 'INBOUND' ? 800 : 500,
+                          borderRadius: '4px',
+                          border: '1px solid',
+                          borderColor: direction === 'INBOUND' ? 'var(--cyan)' : 'var(--border)',
+                          background: direction === 'INBOUND' ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
+                          color: direction === 'INBOUND' ? 'var(--cyan)' : 'var(--text-dim)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <ArrowDownLeft size={12} />
+                        <span>{isEn ? 'Inbound (They consume us)' : 'وارد (تربط معنا)'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDirection('OUTBOUND')}
+                        style={{
+                          flex: 1,
+                          padding: '0.35rem 0.5rem',
+                          fontSize: '0.72rem',
+                          fontWeight: direction === 'OUTBOUND' ? 800 : 500,
+                          borderRadius: '4px',
+                          border: '1px solid',
+                          borderColor: direction === 'OUTBOUND' ? 'var(--amber)' : 'var(--border)',
+                          background: direction === 'OUTBOUND' ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
+                          color: direction === 'OUTBOUND' ? 'var(--amber)' : 'var(--text-dim)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <ArrowUpRight size={12} />
+                        <span>{isEn ? 'Outbound (We consume them)' : 'صادر (نربط معها)'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontSize: '0.70rem' }}>
+                    {isEn ? 'Target Client Channels' : 'قنوات الاستهلاك المستهدفة (ISP Segregation):'}
+                  </label>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {[
+                      { key: 'MOBILE' as ClientChannel, label: isEn ? 'Mobile App (SDK)' : 'تطبيقات الموبايل 📱' },
+                      { key: 'CORE_SERVER' as ClientChannel, label: isEn ? 'Banking Core Server' : 'الخوادم البنكية المركزية 🖥️' },
+                      { key: 'WEB' as ClientChannel, label: isEn ? 'Web Portal' : 'بوابة الويب 🌐' }
+                    ].map(ch => {
+                      const isChecked = selectedChannels.includes(ch.key);
+                      return (
+                        <button
+                          key={ch.key}
+                          type="button"
+                          onClick={() => {
+                            setSelectedChannels(prev => 
+                              prev.includes(ch.key) 
+                                ? (prev.length > 1 ? prev.filter(c => c !== ch.key) : prev)
+                                : [...prev, ch.key]
+                            );
+                          }}
+                          style={{
+                            padding: '0.25rem 0.6rem',
+                            fontSize: '0.70rem',
+                            fontWeight: isChecked ? 700 : 500,
+                            borderRadius: '4px',
+                            border: '1px solid',
+                            borderColor: isChecked ? 'var(--emerald)' : 'var(--border)',
+                            background: isChecked ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
+                            color: isChecked ? 'var(--emerald)' : 'var(--text-dim)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {isChecked ? '✓ ' : ''}{ch.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 

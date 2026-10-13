@@ -33,9 +33,56 @@ export const EndpointsRibbon: React.FC<EndpointsRibbonProps> = ({
             className={`ep-pill ${isActive ? 'active' : ''}`}
             onClick={() => onSelectEndpoint(idx)}
           >
+            {/* Method badge */}
+            <span style={{
+              fontSize: '0.60rem',
+              fontWeight: 800,
+              padding: '0.1rem 0.28rem',
+              borderRadius: '3px',
+              fontFamily: 'var(--font-mono)',
+              background: ep.method === 'POST' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(56, 189, 248, 0.2)',
+              color: ep.method === 'POST' ? 'var(--emerald)' : 'var(--blue)',
+              marginInlineEnd: '0.3rem'
+            }}>
+              {ep.method}
+            </span>
+
             <span className="ep-pill-path">
               {ep.shortName || ep.path.split('/').filter(Boolean).pop()}
             </span>
+
+            {/* Direction Indicator */}
+            {ep.direction && (
+              <span 
+                style={{
+                  fontSize: '0.62rem',
+                  color: ep.direction === 'INBOUND' ? 'var(--cyan)' : 'var(--amber)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  marginInlineStart: '0.3rem'
+                }} 
+                title={ep.direction === 'INBOUND' ? 'وارد (تربط معنا)' : 'صادر (نربط معها)'}
+              >
+                {ep.direction === 'INBOUND' ? '📥' : '📤'}
+              </span>
+            )}
+
+            {/* Mobile Channel Indicator */}
+            {ep.channels?.includes('MOBILE') && (
+              <span 
+                style={{ 
+                  color: 'var(--emerald)', 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  marginInlineStart: '0.2rem',
+                  fontSize: '0.65rem'
+                }} 
+                title="يدعم قنوات الموبايل"
+              >
+                📱
+              </span>
+            )}
+
             {ep.isDraft && (
               <span
                 style={{
@@ -56,22 +103,18 @@ export const EndpointsRibbon: React.FC<EndpointsRibbonProps> = ({
         );
       })}
 
-      <button className="btn-ribbon-add" onClick={onAddNewEndpoint}>
-        <PlusCircle size={13} />
-        <span>{t('ribbon.addFromScreen')}</span>
-      </button>
-
       <button
         className="btn-ribbon-add"
         style={{
           background: 'rgba(16, 185, 129, 0.12)',
           color: 'var(--emerald)',
-          borderColor: 'var(--emerald)',
+          borderColor: 'rgba(16, 185, 129, 0.35)',
           fontWeight: 700
         }}
         onClick={onAddApiForSector || onAddNewEndpoint}
+        title={t('ribbon.addNewApiToSector')}
       >
-        <FolderPlus size={13} />
+        <PlusCircle size={13} />
         <span>{t('ribbon.addNewApiToSector')}</span>
       </button>
 

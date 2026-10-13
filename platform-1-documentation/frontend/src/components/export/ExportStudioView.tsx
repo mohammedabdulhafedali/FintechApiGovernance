@@ -508,16 +508,93 @@ export const ExportStudioView: React.FC<ExportStudioViewProps> = ({
         const filename = `ultimate-pay-specification-${version}-${exportLanguage}.pdf`;
         
         if (typeof win.html2pdf !== 'undefined') {
-          const element = document.getElementById('pdf-pages-stack-container');
-          if (element) {
-            const opt = {
-              margin: [0, 0, 0, 0],
-              filename: filename,
-              image: { type: 'jpeg', quality: 0.98 },
-              html2canvas: { scale: 2, useCORS: true },
-              jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            };
-            await win.html2pdf().set(opt).from(element).save();
+          const stackContainer = document.getElementById('pdf-pages-stack-container');
+          if (!stackContainer) {
+            throw new Error(isExportEn ? 'Document pages not found for export' : 'لم يتم العثور على صفحات المستند للتصدير');
+          }
+
+          // Build clean off-screen export stage (794px A4 standard)
+          const exportStage = document.createElement('div');
+          exportStage.id = 'clean-pdf-export-stage';
+          exportStage.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 794px;
+            background: #ffffff;
+            direction: ${isExportEn ? 'ltr' : 'rtl'};
+            margin: 0;
+            padding: 0;
+            z-index: 999997;
+            box-shadow: none;
+            border: none;
+            pointer-events: none;
+          `;
+
+          const pages = stackContainer.querySelectorAll('.pdf-paper-page');
+          pages.forEach((p, idx) => {
+            const clone = p.cloneNode(true) as HTMLElement;
+            clone.className = 'pdf-paper-page' + (idx < pages.length - 1 ? ' html2pdf__page-break' : '');
+            clone.style.cssText = `
+              width: 794px !important;
+              min-height: 1122px !important;
+              max-height: 1122px !important;
+              height: 1122px !important;
+              box-sizing: border-box !important;
+              padding: 36px 40px !important;
+              margin: 0 !important;
+              box-shadow: none !important;
+              border: none !important;
+              border-radius: 0 !important;
+              background: #ffffff !important;
+              color: #0f172a !important;
+              direction: ${isExportEn ? 'ltr' : 'rtl'} !important;
+              font-family: ${isExportEn ? "'Outfit', system-ui, sans-serif" : "'Cairo', system-ui, sans-serif"} !important;
+              display: flex !important;
+              flex-direction: column !important;
+              justify-content: space-between !important;
+              overflow: hidden !important;
+              ${idx < pages.length - 1 ? 'page-break-after: always !important; break-after: page !important;' : 'page-break-after: avoid !important; break-after: avoid !important;'}
+            `;
+
+            clone.querySelectorAll('*').forEach(el => {
+              (el as HTMLElement).style.letterSpacing = 'normal';
+              (el as HTMLElement).style.fontKerning = 'normal';
+            });
+
+            exportStage.appendChild(clone);
+          });
+
+          document.body.appendChild(exportStage);
+
+          const opt = {
+            margin: [0, 0, 0, 0],
+            filename: filename,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: {
+              scale: 2,
+              useCORS: true,
+              logging: false,
+              letterRendering: false,
+              scrollY: 0,
+              scrollX: 0,
+              windowWidth: 794
+            },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak: { mode: ['css', 'legacy'], after: '.html2pdf__page-break' }
+          };
+
+          try {
+            const pdfBlob = await win.html2pdf().set(opt).from(exportStage).outputPdf('blob');
+            const url = URL.createObjectURL(pdfBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(url), 2000);
+
             onNotify(
               t('export.exportSuccessTitle'),
               `${t('export.exportSuccessMsg', { format: 'PDF' })} (${filename})`,
@@ -525,17 +602,14 @@ export const ExportStudioView: React.FC<ExportStudioViewProps> = ({
               filename
             );
             return;
+          } finally {
+            if (exportStage && exportStage.parentNode) {
+              exportStage.parentNode.removeChild(exportStage);
+            }
           }
+        } else {
+          throw new Error(isExportEn ? 'html2pdf library is not loaded' : 'محرك html2pdf غير متوفر حالياً');
         }
-        
-        // Fallback to window.print()
-        window.print();
-        onNotify(
-          t('export.exportSuccessTitle'),
-          `${t('export.exportSuccessMsg', { format: 'PDF' })} (${filename})`,
-          'success',
-          filename
-        );
 
       } else if (selectedFormat === 'word') {
         const filename = `ultimate-pay-specification-${version}-${exportLanguage}.docx`;

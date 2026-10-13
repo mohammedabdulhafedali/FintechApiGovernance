@@ -5,7 +5,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "npm --prefix platform-1-documentation/backend start",
+    "server:dev": "npm --prefix platform-1-documentation/backend run dev",
+    "server:build": "npm --prefix platform-1-documentation/backend run build"
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",

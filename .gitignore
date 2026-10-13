@@ -35,3 +35,4 @@ lerna-debug.log*
 
 # Scratch & Temporary Testing
 scratch/
+*_backup*

@@ -1,10 +1,53 @@
-import { Sector, ChangeRequest, RBACRole, SealedSnapshot } from '../types/schema';
+import { Sector, ChangeRequest, RBACRole, SealedSnapshot, SystemModule } from '../types/schema';
+
+export const INITIAL_SYSTEMS: Record<string, SystemModule> = {
+  collection: {
+    key: 'collection',
+    name: 'نظام التحصيل والدفع اللحظي',
+    nameEn: 'Instant Collection & Payment System',
+    code: 'SYS_COLLECTION',
+    icon: 'Layers',
+    description: 'معالجة المدفوعات والتحصيل الفوري المشترك بين المصارف والتجار',
+    descriptionEn: 'Instant collection processing across banks and merchant aggregators',
+    associatedSectorKeys: ['banking', 'merchants']
+  },
+  billing: {
+    key: 'billing',
+    name: 'نظام الفوترة والسداد المركزي',
+    nameEn: 'Central Billing & Invoicing System',
+    code: 'SYS_BILLING',
+    icon: 'Receipt',
+    description: 'إصدار الفواتير وتسويتها وربط قنوات الدفع والموبايل',
+    descriptionEn: 'Bill generation, inquiry, and multi-channel settlement',
+    associatedSectorKeys: ['merchants', 'banking', 'settlement']
+  },
+  notifications: {
+    key: 'notifications',
+    name: 'نظام الإشعارات والـ Webhooks',
+    nameEn: 'Financial Notifications & Webhooks',
+    code: 'SYS_NOTIFICATIONS',
+    icon: 'BellRing',
+    description: 'بث إشعارات العمليات المالية الفورية وتأكيدات التسوية',
+    descriptionEn: 'Push financial webhooks and settlement confirmations',
+    associatedSectorKeys: ['banking', 'merchants', 'settlement']
+  },
+  compliance: {
+    key: 'compliance',
+    name: 'نظام فحص الامتثال وغسل الأموال',
+    nameEn: 'AML & Regulatory Screening Engine',
+    code: 'SYS_AML',
+    icon: 'ShieldCheck',
+    description: 'الفحص المسبق والرقابي للتحويلات والقوائم المحظورة',
+    descriptionEn: 'Pre-transaction regulatory checks and sanctions verification',
+    associatedSectorKeys: ['aml', 'banking']
+  }
+};
 
 export const INITIAL_SECTORS: Record<string, Sector> = {
   banking: {
     key: 'banking',
-    name: 'البنوك والمصارف',
-    nameEn: 'Banks & Financial Institutions',
+    name: 'البنوك',
+    nameEn: 'Banks',
     code: 'SECTOR_FIN_BANKING',
     icon: 'fa-building-columns',
     services: {
@@ -20,6 +63,9 @@ export const INITIAL_SECTORS: Record<string, Sector> = {
             path: '/v1/transfers',
             shortName: 'transfers',
             desc: 'تنفيذ أمر تحويل بنكي فوري مطابق لسقف العمليات وضوابط المقاصة الوطنية.',
+            systemKey: 'collection',
+            direction: 'INBOUND',
+            channels: ['CORE_SERVER', 'MOBILE'],
             params: [
               { name: 'sourceAccount', type: 'string (IBAN)', req: true, rule: 'صيغة الآيبان الوطني SA-IBAN', tag: 'PII', tagClass: 'badge-purple' },
               { name: 'destinationAccount', type: 'string (IBAN)', req: true, rule: 'التحقق من صحة المستفيد عبر الدليل الموحد', tag: 'PII', tagClass: 'badge-purple' },
@@ -42,6 +88,9 @@ export const INITIAL_SECTORS: Record<string, Sector> = {
             path: '/v1/transfers/{id}',
             shortName: 'status',
             desc: 'الاستعلام الفوري عن حالة المعالجة والتسوية النهائية للحوالة.',
+            systemKey: 'collection',
+            direction: 'INBOUND',
+            channels: ['CORE_SERVER', 'MOBILE', 'WEB'],
             params: [
               { name: 'id', type: 'string (Path)', req: true, rule: 'معرف الحوالة الرقمي المقيد', tag: 'Audit Key', tagClass: 'badge-blue' }
             ],
@@ -59,6 +108,9 @@ export const INITIAL_SECTORS: Record<string, Sector> = {
             path: '/v1/transfers/{id}/recall',
             shortName: 'recall',
             desc: 'طلب استرجاع رسمي للحوالة الخاطئة وفق اللائحة المنظمة لنظام المقاصة.',
+            systemKey: 'collection',
+            direction: 'OUTBOUND',
+            channels: ['CORE_SERVER'],
             params: [
               { name: 'reasonCode', type: 'string', req: true, rule: 'رموز السبب: DUPL, TECH, FRUD', tag: 'Regulatory', tagClass: 'badge-amber' },
               { name: 'narrative', type: 'string', req: false, rule: 'شرح اختياري لسبب طلب الاسترجاع', tag: 'Audit', tagClass: 'badge-blue' }
@@ -85,6 +137,9 @@ export const INITIAL_SECTORS: Record<string, Sector> = {
             path: '/v1/accounts/{iban}/balance',
             shortName: 'balance',
             desc: 'استعلام الرصيد الدفتري والمتاح بموجب تفويض صريح من العميل.',
+            systemKey: 'collection',
+            direction: 'INBOUND',
+            channels: ['MOBILE', 'CORE_SERVER'],
             params: [
               { name: 'iban', type: 'string (Path)', req: true, rule: 'صيغة الآيبان الوطني SA-IBAN', tag: 'PII', tagClass: 'badge-purple' }
             ],
@@ -110,6 +165,9 @@ export const INITIAL_SECTORS: Record<string, Sector> = {
             path: '/v1/rtgs/settle',
             shortName: 'settle',
             desc: 'إرسال أمر تسوية مالية كبرى للمقاصة المركزية بين المصارف.',
+            systemKey: 'billing',
+            direction: 'OUTBOUND',
+            channels: ['CORE_SERVER'],
             params: [
               { name: 'batchId', type: 'string', req: true, rule: 'معرف الدفعة المعتمد', tag: 'Batch', tagClass: 'badge-blue' },
               { name: 'totalAmount', type: 'decimal', req: true, rule: 'الحد الأدنى 50,000 ر.س', tag: 'Financial', tagClass: 'badge-emerald' }
@@ -128,8 +186,8 @@ export const INITIAL_SECTORS: Record<string, Sector> = {
   },
   merchants: {
     key: 'merchants',
-    name: 'التجار والمدفوعات الإلكترونية',
-    nameEn: 'Merchants & Payment Gateways',
+    name: 'التجار',
+    nameEn: 'Merchants',
     code: 'SECTOR_FIN_MERCHANTS',
     icon: 'fa-store',
     services: {
@@ -147,6 +205,9 @@ export const INITIAL_SECTORS: Record<string, Sector> = {
             shortName: 'checkout',
             desc: 'إنشاء جلسة دفع آمنة للتجارة الإلكترونية مع دعم Apple Pay و Mada.',
             descEn: 'Create secure e-commerce checkout session supporting Apple Pay and Mada.',
+            systemKey: 'billing',
+            direction: 'INBOUND',
+            channels: ['MOBILE', 'WEB'],
             params: [
               { name: 'merchantId', type: 'string (UUID)', req: true, rule: 'معرف التاجر المعتمد في السجل', tag: 'Merchant', tagClass: 'badge-blue' },
               { name: 'amount', type: 'decimal', req: true, rule: 'المبلغ الإجمالي بالهللات أو الريال', tag: 'Financial', tagClass: 'badge-emerald' },
@@ -159,6 +220,27 @@ export const INITIAL_SECTORS: Record<string, Sector> = {
             res200: `{\n  "sessionId": "sess_99281729",\n  "paymentUrl": "https://pay.gov.fintech/checkout/sess_99281729"\n}`,
             res422: `{\n  "error": "FORBIDDEN",\n  "code": "DOMAIN_MISMATCH_403",\n  "message": "Origin not whitelisted."\n}`,
             curl: `curl -X POST "https://api.gov.fintech/v1/pg/checkout/session" \\\n  -H "Authorization: Bearer <TOKEN>" \\\n  -d '{"amount": 299.00}'`
+          },
+          {
+            id: 'ep_pg_02',
+            method: 'POST',
+            path: '/v1/webhooks/push-notification',
+            shortName: 'payment-webhook',
+            desc: 'بث إشعار فوري لتطبيق التاجر والموبايل بنجاح العملية المالية.',
+            descEn: 'Push real-time financial webhook notification to merchant mobile app/server.',
+            systemKey: 'notifications',
+            direction: 'OUTBOUND',
+            channels: ['MOBILE', 'CORE_SERVER'],
+            params: [
+              { name: 'event', type: 'string', req: true, rule: 'نوع الحدث: PAYMENT_CAPTURED', tag: 'Webhook', tagClass: 'badge-purple' },
+              { name: 'signature', type: 'string (HMAC-SHA256)', req: true, rule: 'توقيع مشفر للتحقق من المصدر', tag: 'Security', tagClass: 'badge-rose' }
+            ],
+            rules: [
+              { id: 'BR_WH_001', name: 'إعادة المحاولة حتى 5 مرات في حال تعثر استلام التاجر', err: 'RETRY_SCHEDULED_202' }
+            ],
+            payload: `{\n  "event": "PAYMENT_CAPTURED",\n  "amount": 299.00,\n  "currency": "SAR",\n  "timestamp": "2026-10-13T02:00:00Z"\n}`,
+            res200: `{\n  "acknowledged": true\n}`,
+            curl: `curl -X POST "https://api.gov.fintech/v1/webhooks/push-notification" \\\n  -H "X-Webhook-Signature: <HMAC>" \\\n  -d '{"event":"PAYMENT_CAPTURED"}'`
           }
         ]
       }
@@ -166,8 +248,8 @@ export const INITIAL_SECTORS: Record<string, Sector> = {
   },
   aml: {
     key: 'aml',
-    name: 'مكافحة غسل الأموال والامتثال (AML)',
-    nameEn: 'Anti-Money Laundering & Compliance (AML)',
+    name: 'مكافحة غسل الأموال',
+    nameEn: 'Anti-Money Laundering',
     code: 'SECTOR_FIN_AML',
     icon: 'fa-shield-halved',
     services: {
@@ -185,6 +267,9 @@ export const INITIAL_SECTORS: Record<string, Sector> = {
             shortName: 'screening',
             desc: 'فحص فوري للأسماء والحسابات ضد القوائم الرقابية المحدثة وقوائم العقوبات الدولية.',
             descEn: 'Instant screening of names and accounts against regulatory sanctions and PEP lists.',
+            systemKey: 'compliance',
+            direction: 'OUTBOUND',
+            channels: ['CORE_SERVER'],
             params: [
               { name: 'entityName', type: 'string', req: true, rule: 'الاسم الكامل باللغة العربية أو الإنجليزية', tag: 'Compliance', tagClass: 'badge-rose' },
               { name: 'nationalId', type: 'string', req: false, rule: 'رقم الهوية الوطنية أو الإقامة أو السجل التجاري', tag: 'PII', tagClass: 'badge-purple' }
@@ -203,8 +288,8 @@ export const INITIAL_SECTORS: Record<string, Sector> = {
   },
   settlement: {
     key: 'settlement',
-    name: 'المقاصة والتسوية والتقارير الرقابية',
-    nameEn: 'Clearing, Settlement & Regulatory Reporting',
+    name: 'المقاصة والتسوية',
+    nameEn: 'Clearing & Settlement',
     code: 'SECTOR_FIN_SETTLEMENT',
     icon: 'fa-scale-balanced',
     services: {
@@ -220,6 +305,9 @@ export const INITIAL_SECTORS: Record<string, Sector> = {
             path: '/v1/settlement/cycles/daily-net',
             shortName: 'netting-cycle',
             desc: 'استخراج أرصدة المقاصة الصافية اليومية بين البنوك المشاركة في الشبكة.',
+            systemKey: 'billing',
+            direction: 'INBOUND',
+            channels: ['CORE_SERVER'],
             params: [
               { name: 'cycleDate', type: 'date (YYYY-MM-DD)', req: true, rule: 'تاريخ دورة المقاصة المراد استعراضها', tag: 'Financial', tagClass: 'badge-emerald' }
             ],

@@ -41,6 +41,28 @@ export interface Endpoint {
   statusBadge?: string;
   releaseId?: string;
   responseFields?: Array<{ name: string; type: string; req: string; desc: string }>;
+  direction?: IntegrationDirection;
+  channels?: ClientChannel[];
+  systemKey?: string;
+  targetEntities?: string[];
+}
+
+export type IntegrationDirection = 'INBOUND' | 'OUTBOUND' | 'BIDIRECTIONAL';
+export type ClientChannel = 'MOBILE' | 'WEB' | 'CORE_SERVER' | 'POS';
+
+export type CatalogPerspective = 'systems' | 'sectors';
+export type FilterDirection = 'ALL' | 'INBOUND' | 'OUTBOUND';
+export type FilterChannel = 'ALL' | 'MOBILE' | 'CORE_SERVER' | 'WEB';
+
+export interface SystemModule {
+  key: string;
+  name: string;
+  nameEn?: string;
+  code: string;
+  icon: string;
+  description?: string;
+  descriptionEn?: string;
+  associatedSectorKeys?: string[];
 }
 
 export interface ServiceDefinition {
