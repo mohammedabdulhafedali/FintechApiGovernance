@@ -354,52 +354,5 @@
         ]
       }
     }
-  },
-  "settlement": {
-    "key": "settlement",
-    "name": "المقاصة والتسوية",
-    "nameEn": "Clearing & Settlement",
-    "code": "SECTOR_FIN_SETTLEMENT",
-    "icon": "fa-scale-balanced",
-    "services": {
-      "netting": {
-        "title": "محرك المقاصة الصافية المتعددة",
-        "code": "NETTING",
-        "baseUrl": "https://api.gov.fintech/v1/settlement",
-        "versions": [
-          "v2026.2"
-        ],
-        "endpoints": [
-          {
-            "id": "ep_set_01",
-            "method": "GET",
-            "path": "/v1/settlement/cycles/daily-net",
-            "shortName": "netting-cycle",
-            "desc": "استخراج أرصدة المقاصة الصافية اليومية بين البنوك المشاركة في الشبكة.",
-            "params": [
-              {
-                "name": "cycleDate",
-                "type": "date (YYYY-MM-DD)",
-                "req": true,
-                "rule": "تاريخ دورة المقاصة المراد استعراضها",
-                "tag": "Financial",
-                "tagClass": "badge-emerald"
-              }
-            ],
-            "rules": [
-              {
-                "id": "BR_SET_001",
-                "name": "إغلاق الدورة في تمام الساعة 16:00 بتوقيت الرياض",
-                "err": "CYCLE_OPEN_422"
-              }
-            ],
-            "payload": "// GET Request has no body",
-            "res200": "{\n  \"cycleDate\": \"2026-10-11\",\n  \"status\": \"FINAL_SETTLED\",\n  \"totalVolume\": 1450200,\n  \"netPositionsCount\": 24\n}",
-            "res422": "{\n  \"error\": \"CYCLE_STILL_OPEN\",\n  \"code\": \"CYCLE_OPEN_422\",\n  \"message\": \"Netting cycle is currently active and not finalized.\"\n}",
-            "curl": "curl -X GET \"https://api.gov.fintech/v1/settlement/cycles/daily-net?cycleDate=2026-10-11\" \\\n  -H \"Authorization: Bearer <TOKEN>\""
-          }
-        ]
-      }
-    }
   }
 }

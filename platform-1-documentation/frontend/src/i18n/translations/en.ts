@@ -86,7 +86,7 @@ export const en = {
     diffEngine: 'Semantic Diff & Versions',
     mockServer: 'Mock Server & Testing',
     rbacMatrix: 'RBAC Permission Matrix',
-    exportStudio: 'Custom Export Studio',
+    exportStudio: 'Export',
     systemStatus: 'Banking Production',
   },
 

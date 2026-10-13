@@ -613,59 +613,75 @@ export const ExportStudioView: React.FC<ExportStudioViewProps> = ({
               ${idx < pages.length - 1 ? 'page-break-after: always !important; break-after: page !important;' : 'page-break-after: avoid !important; break-after: avoid !important;'}
             `;
 
-            clone.querySelectorAll('*').forEach(el => {
-              (el as HTMLElement).style.letterSpacing = 'normal';
-              (el as HTMLElement).style.fontKerning = 'normal';
-            });
-
-            exportStage.appendChild(clone);
+          // Unconstrain table scroll views in export clone for complete rendering
+          const tableWraps = clone.querySelectorAll('.pdf-mini-table-wrap');
+          tableWraps.forEach(tw => {
+            (tw as HTMLElement).style.maxHeight = 'none';
+            (tw as HTMLElement).style.overflow = 'visible';
           });
 
-          document.body.appendChild(exportStage);
+          clone.querySelectorAll('*').forEach(el => {
+            (el as HTMLElement).style.letterSpacing = 'normal';
+            (el as HTMLElement).style.fontKerning = 'normal';
+          });
 
-          const opt = {
-            margin: [0, 0, 0, 0],
-            filename: filename,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: {
-              scale: 2,
-              useCORS: true,
-              logging: false,
-              letterRendering: false,
-              scrollY: 0,
-              scrollX: 0,
-              windowWidth: 794
-            },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-            pagebreak: { mode: ['css', 'legacy'], after: '.html2pdf__page-break' }
-          };
+          exportStage.appendChild(clone);
+        });
 
-          try {
-            const pdfBlob = await win.html2pdf().set(opt).from(exportStage).outputPdf('blob');
-            const url = URL.createObjectURL(pdfBlob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            setTimeout(() => URL.revokeObjectURL(url), 2000);
+        document.body.appendChild(exportStage);
 
-            onNotify(
-              t('export.exportSuccessTitle'),
-              `${t('export.exportSuccessMsg', { format: 'PDF' })} (${filename})`,
-              'success',
-              filename
-            );
-            return;
-          } finally {
-            if (exportStage && exportStage.parentNode) {
-              exportStage.parentNode.removeChild(exportStage);
-            }
+        const opt = {
+          margin: [0, 0, 0, 0],
+          filename: filename,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            letterRendering: false,
+            scrollY: 0,
+            scrollX: 0,
+            windowWidth: 794
+          },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          pagebreak: { mode: ['css', 'legacy'], after: '.html2pdf__page-break' }
+        };
+
+        try {
+          await win.html2pdf().set(opt).from(exportStage).save();
+
+          onNotify(
+            t('export.exportSuccessTitle'),
+            `${t('export.exportSuccessMsg', { format: 'PDF' })} (${filename})`,
+            'success',
+            filename
+          );
+          return;
+        } catch (pdfErr: any) {
+          console.warn('html2pdf.save fallback to output blob', pdfErr);
+          const pdfBlob = await win.html2pdf().set(opt).from(exportStage).outputPdf('blob');
+          downloadBlob(pdfBlob, filename);
+          onNotify(
+            t('export.exportSuccessTitle'),
+            `${t('export.exportSuccessMsg', { format: 'PDF' })} (${filename})`,
+            'success',
+            filename
+          );
+          return;
+        } finally {
+          if (exportStage && exportStage.parentNode) {
+            exportStage.parentNode.removeChild(exportStage);
           }
-        } else {
-          throw new Error(isExportEn ? 'html2pdf library is not loaded' : 'محرك html2pdf غير متوفر حالياً');
         }
+      } else {
+        // Direct browser print fallback if script is loading or unavailable
+        window.print();
+        onNotify(
+          t('export.exportSuccessTitle'),
+          'تم فتح نافذة الطباعة الرسمية',
+          'info'
+        );
+      }
 
       } else if (selectedFormat === 'word') {
         const filename = `ultimate-pay-specification-${version}-${exportLanguage}.docx`;
@@ -831,41 +847,21 @@ export const ExportStudioView: React.FC<ExportStudioViewProps> = ({
         {/* Top Action Button */}
         <div className="export-top-action-bar">
           <button
+            id="btn-execute-download"
             className="btn-export-direct"
             onClick={handleExecuteExport}
             disabled={isExporting}
             title={getButtonLabel()}
           >
-            <i className={isExporting ? "fa-solid fa-spinner fa-spin" : "fa-solid fa-file-export"} />
-            <span>{isExporting ? t('export.generating') : getButtonLabel()}</span>
+            <i className={isExporting ? "fa-solid fa-spinner fa-spin" : (
+              selectedFormat === 'word' ? 'fa-solid fa-file-word' :
+              selectedFormat === 'markdown' ? 'fa-brands fa-markdown' :
+              selectedFormat === 'openapi' ? 'fa-solid fa-code' :
+              selectedFormat === 'postman' ? 'fa-solid fa-paper-plane' :
+              selectedFormat === 'iso' ? 'fa-solid fa-file-lines' : 'fa-solid fa-file-pdf'
+            )} />
+            <span id="btn-download-label">{isExporting ? t('export.generating') : getButtonLabel()}</span>
           </button>
-        </div>
-
-        {/* Group 0: Document Export Language Selector (الميزة الجوهرية المطلوبة) */}
-        <div className="export-group">
-          <div className="export-group-header">
-            <div className="export-group-title">
-              <i className="fa-solid fa-language" style={{ color: '#38bdf8' }} />
-              <span>{t('export.exportDocLanguage')}</span>
-            </div>
-            <span className="mono" style={{ fontSize: '0.75rem', color: '#38bdf8' }}>
-              {exportLanguage.toUpperCase()}
-            </span>
-          </div>
-          <div className="export-formats-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            <div
-              className={`format-pill ${exportLanguage === 'ar' ? 'active' : ''}`}
-              onClick={() => setExportLanguage('ar')}
-            >
-              <span>العربية (RTL)</span>
-            </div>
-            <div
-              className={`format-pill ${exportLanguage === 'en' ? 'active' : ''}`}
-              onClick={() => setExportLanguage('en')}
-            >
-              <span>English (LTR)</span>
-            </div>
-          </div>
         </div>
 
         {/* Group 1: Sectors */}
@@ -873,21 +869,51 @@ export const ExportStudioView: React.FC<ExportStudioViewProps> = ({
           <div className="export-group-header">
             <div className="export-group-title">
               <i className="fa-solid fa-layer-group" style={{ color: '#38bdf8' }} />
-              <span>{t('export.sectorsSection')}</span>
+              <span>{isExportEn ? 'Included Sectors' : 'القطاعات المشمولة'}</span>
             </div>
             <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
-              {t('export.sectorsSelectedCount', { selected: selectedSectorCount, total: sectorList.length })}
+              {isExportEn 
+                ? `${selectedSectorCount}/${sectorList.length} Selected` 
+                : `${selectedSectorCount}/${sectorList.length} قطاعات مختارة`}
             </span>
           </div>
           <div className="export-chips-row">
-            {sectorList.map(sec => (
-              <label key={sec.key} className="export-chip">
+            <label className="export-chip">
+              <input
+                type="checkbox"
+                id="chk-sec-banking"
+                checked={isSectorChecked('banking')}
+                onChange={(e) => setSectors(prev => ({ ...prev, banking: e.target.checked }))}
+              />
+              <span>{isExportEn ? 'Banks & Financial Institutions' : 'قطاع البنوك والمصارف'}</span>
+            </label>
+            <label className="export-chip">
+              <input
+                type="checkbox"
+                id="chk-sec-merchants"
+                checked={isSectorChecked('merchants')}
+                onChange={(e) => setSectors(prev => ({ ...prev, merchants: e.target.checked }))}
+              />
+              <span>{isExportEn ? 'Payment Gateways & Merchants' : 'بوابات الدفع والتجار'}</span>
+            </label>
+            <label className="export-chip">
+              <input
+                type="checkbox"
+                id="chk-sec-aml"
+                checked={isSectorChecked('aml')}
+                onChange={(e) => setSectors(prev => ({ ...prev, aml: e.target.checked }))}
+              />
+              <span>{isExportEn ? 'Anti-Money Laundering (AML)' : 'مكافحة غسل الأموال'}</span>
+            </label>
+            {sectorList.filter(s => !['banking', 'merchants', 'aml'].includes(s.key)).map(s => (
+              <label key={s.key} className="export-chip">
                 <input
                   type="checkbox"
-                  checked={isSectorChecked(sec.key)}
-                  onChange={e => setSectors(prev => ({ ...prev, [sec.key]: e.target.checked }))}
+                  id={`chk-sec-${s.key}`}
+                  checked={isSectorChecked(s.key)}
+                  onChange={(e) => setSectors(prev => ({ ...prev, [s.key]: e.target.checked }))}
                 />
-                <span>{isExportEn ? sec.nameEn : sec.name}</span>
+                <span>{isExportEn ? s.nameEn : s.name}</span>
               </label>
             ))}
           </div>
@@ -898,52 +924,59 @@ export const ExportStudioView: React.FC<ExportStudioViewProps> = ({
           <div className="export-group-header">
             <div className="export-group-title">
               <i className="fa-solid fa-boxes-stacked" style={{ color: '#38bdf8' }} />
-              <span>{t('export.modulesSection')}</span>
+              <span>{isExportEn ? 'Package Contents' : 'محتويات الحزمة'}</span>
             </div>
             <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
-              {t('export.modulesSelectedCount', { selected: selectedModuleCount, total: 5 })}
+              {isExportEn 
+                ? `${selectedModuleCount}/5 Modules` 
+                : `${selectedModuleCount}/5 أقسام`}
             </span>
           </div>
           <div className="export-chips-row">
             <label className="export-chip">
               <input
                 type="checkbox"
+                id="mod-schemas"
                 checked={modules.schemas}
-                onChange={e => setModules(prev => ({ ...prev, schemas: e.target.checked }))}
+                onChange={(e) => setModules(prev => ({ ...prev, schemas: e.target.checked }))}
               />
-              <span>{t('export.modSchemas')}</span>
+              <span>{isExportEn ? 'Field Schemas' : 'مخططات الحقول'}</span>
             </label>
             <label className="export-chip">
               <input
                 type="checkbox"
+                id="mod-wire"
                 checked={modules.wire}
-                onChange={e => setModules(prev => ({ ...prev, wire: e.target.checked }))}
+                onChange={(e) => setModules(prev => ({ ...prev, wire: e.target.checked }))}
               />
-              <span>{t('export.modWire')}</span>
+              <span>{isExportEn ? 'Requests & Responses Models' : 'نماذج الطلبات والاستجابات'}</span>
             </label>
             <label className="export-chip">
               <input
                 type="checkbox"
+                id="mod-crypto"
                 checked={modules.crypto}
-                onChange={e => setModules(prev => ({ ...prev, crypto: e.target.checked }))}
+                onChange={(e) => setModules(prev => ({ ...prev, crypto: e.target.checked }))}
               />
-              <span>{t('export.modCrypto')}</span>
+              <span>{isExportEn ? 'Security & Encryption Standards' : 'معايير الأمان والتشفير'}</span>
             </label>
             <label className="export-chip">
               <input
                 type="checkbox"
+                id="mod-errors"
                 checked={modules.errors}
-                onChange={e => setModules(prev => ({ ...prev, errors: e.target.checked }))}
+                onChange={(e) => setModules(prev => ({ ...prev, errors: e.target.checked }))}
               />
-              <span>{t('export.modErrors')}</span>
+              <span>{isExportEn ? 'Error Codes Dictionary' : 'سجل وقاموس الأخطاء'}</span>
             </label>
             <label className="export-chip">
               <input
                 type="checkbox"
+                id="mod-sla"
                 checked={modules.sla}
-                onChange={e => setModules(prev => ({ ...prev, sla: e.target.checked }))}
+                onChange={(e) => setModules(prev => ({ ...prev, sla: e.target.checked }))}
               />
-              <span>{t('export.modSla')}</span>
+              <span>{isExportEn ? 'Service Level Agreement (SLA)' : 'مستويات الخدمة (SLA)'}</span>
             </label>
           </div>
         </div>
@@ -953,53 +986,59 @@ export const ExportStudioView: React.FC<ExportStudioViewProps> = ({
           <div className="export-group-header">
             <div className="export-group-title">
               <i className="fa-solid fa-file-code" style={{ color: '#38bdf8' }} />
-              <span>{t('export.formatSection')}</span>
+              <span>{isExportEn ? 'Export Format' : 'صيغة التصدير'}</span>
             </div>
-            <span className="mono" style={{ fontSize: '0.75rem', color: '#38bdf8' }}>
+            <span className="mono" style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 700 }}>
               {selectedFormat.toUpperCase()}
             </span>
           </div>
           <div className="export-formats-grid">
             <div
               className={`format-pill ${selectedFormat === 'pdf' ? 'active' : ''}`}
+              data-fmt="pdf"
               onClick={() => setSelectedFormat('pdf')}
             >
-              <i className="fa-solid fa-file-pdf" style={{ color: '#ef4444', marginInlineEnd: '0.35rem' }} />
-              <span>PDF</span>
+              <i className="fa-solid fa-file-pdf" style={{ color: '#ef4444', marginInlineEnd: '0.25rem' }} />
+              <span>{isExportEn ? 'PDF Document' : 'مستند (PDF)'}</span>
             </div>
             <div
               className={`format-pill ${selectedFormat === 'word' ? 'active' : ''}`}
+              data-fmt="word"
               onClick={() => setSelectedFormat('word')}
             >
-              <i className="fa-solid fa-file-word" style={{ color: '#2563eb', marginInlineEnd: '0.35rem' }} />
+              <i className="fa-solid fa-file-word" style={{ color: '#2563eb', marginInlineEnd: '0.25rem' }} />
               <span>Word (.docx)</span>
             </div>
             <div
               className={`format-pill ${selectedFormat === 'markdown' ? 'active' : ''}`}
+              data-fmt="markdown"
               onClick={() => setSelectedFormat('markdown')}
             >
-              <i className="fa-brands fa-markdown" style={{ color: '#a855f7', marginInlineEnd: '0.35rem' }} />
-              <span>Markdown (.md)</span>
+              <i className="fa-brands fa-markdown" style={{ color: '#a855f7', marginInlineEnd: '0.25rem' }} />
+              <span>Ultimate Pay (.md)</span>
             </div>
             <div
               className={`format-pill ${selectedFormat === 'openapi' ? 'active' : ''}`}
+              data-fmt="openapi"
               onClick={() => setSelectedFormat('openapi')}
             >
-              <i className="fa-solid fa-code" style={{ color: '#10b981', marginInlineEnd: '0.35rem' }} />
-              <span>OpenAPI 3.1</span>
+              <i className="fa-solid fa-code" style={{ color: '#10b981', marginInlineEnd: '0.25rem' }} />
+              <span>OpenAPI</span>
             </div>
             <div
               className={`format-pill ${selectedFormat === 'postman' ? 'active' : ''}`}
+              data-fmt="postman"
               onClick={() => setSelectedFormat('postman')}
             >
-              <i className="fa-solid fa-paper-plane" style={{ color: '#f97316', marginInlineEnd: '0.35rem' }} />
+              <i className="fa-solid fa-paper-plane" style={{ color: '#f97316', marginInlineEnd: '0.25rem' }} />
               <span>Postman</span>
             </div>
             <div
               className={`format-pill ${selectedFormat === 'iso' ? 'active' : ''}`}
+              data-fmt="iso"
               onClick={() => setSelectedFormat('iso')}
             >
-              <i className="fa-solid fa-file-lines" style={{ color: '#38bdf8', marginInlineEnd: '0.35rem' }} />
+              <i className="fa-solid fa-file-lines" style={{ color: '#38bdf8', marginInlineEnd: '0.25rem' }} />
               <span>ISO 20022</span>
             </div>
           </div>
@@ -1014,7 +1053,7 @@ export const ExportStudioView: React.FC<ExportStudioViewProps> = ({
         <div
           id="export-splitter"
           className={`export-splitter ${isDragging ? 'dragging' : ''}`}
-          title="اسحب لتعديل الحجم / Drag to resize"
+          title={isRtl ? "اسحب يميناً أو يساراً للتحكم بالمسافة بين لوحة التصدير والمعاينة" : "Drag left or right to resize panel"}
           onMouseDown={(e) => {
             if (isExpanded) return;
             e.preventDefault();
@@ -1027,10 +1066,7 @@ export const ExportStudioView: React.FC<ExportStudioViewProps> = ({
         >
           <div className="splitter-line" />
           <div className="splitter-handle">
-            <svg width="6" height="12" viewBox="0 0 6 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="0.5" width="1.5" height="12" rx="0.75" fill="white" />
-              <rect x="4" width="1.5" height="12" rx="0.75" fill="white" />
-            </svg>
+            <i className="fa-solid fa-grip-lines-vertical" />
           </div>
         </div>
       )}
@@ -1040,28 +1076,96 @@ export const ExportStudioView: React.FC<ExportStudioViewProps> = ({
           ========================================================================= */}
       {(!isMobileScreen || mobileTab === 'preview') && (
         <div className="export-summary-card" id="export-summary-card">
-        {/* Floating Maximize Button */}
-        <button
-          type="button"
-          className="btn-pdf-floating-expand"
-          onClick={() => {
-            setIsExpanded(!isExpanded);
-            onNotify(
-              isExpanded ? t('export.restoreBtn') : t('export.maximizeBtn'),
-              isExpanded ? 'Restored default size' : 'Maximized preview to fill container',
-              'info'
-            );
-          }}
-          title={isExpanded ? t('export.restoreBtn') : t('export.maximizeBtn')}
-        >
-          <i className={isExpanded ? 'fa-solid fa-compress' : 'fa-solid fa-expand'} />
-        </button>
+          {/* Permanent Floating Stage Frame (Ensures Permanent Safe Distance from Edges) */}
+          <div className="pdf-viewer-stage">
+            {/* Studio Header Toolbar */}
+            <div className="pdf-viewer-toolbar">
+              <div className="pdf-viewer-toolbar-info">
+                <div className="pdf-doc-title-chip">
+                  <i className={
+                    selectedFormat === 'pdf' ? 'fa-solid fa-file-pdf' :
+                    selectedFormat === 'word' ? 'fa-solid fa-file-word' :
+                    selectedFormat === 'markdown' ? 'fa-brands fa-markdown' :
+                    selectedFormat === 'openapi' ? 'fa-solid fa-code' :
+                    selectedFormat === 'postman' ? 'fa-solid fa-paper-plane' : 'fa-solid fa-file-lines'
+                  } style={{
+                    color: selectedFormat === 'pdf' ? '#ef4444' :
+                           selectedFormat === 'word' ? '#2563eb' :
+                           selectedFormat === 'markdown' ? '#a855f7' :
+                           selectedFormat === 'openapi' ? '#10b981' :
+                           selectedFormat === 'postman' ? '#f97316' : '#38bdf8'
+                  }} />
+                  <strong>
+                    {isExportEn ? 'National Technical Specification' : 'وثيقة المواصفة الفنية الوطنية'}
+                  </strong>
+                </div>
+                <span className="pdf-meta-badge mono">SAMA-{version}</span>
+                <span className="pdf-meta-tag">
+                  {selectedFormat === 'pdf' 
+                    ? (isExportEn ? '4 Pages • Certified' : '4 صفحات • معتمد رسمياً')
+                    : (isExportEn ? 'Live Preview' : 'معاينة مباشرة')}
+                </span>
+              </div>
 
-        {/* Floating Stage Container */}
-        <div className="pdf-viewer-stage">
-          <div className="pdf-viewport-guard-top" />
+              {selectedFormat === 'pdf' && (
+                <div className="pdf-page-jump-bar">
+                  <span className="pdf-jump-label">{isRtl ? 'الصفحة:' : 'Page:'}</span>
+                  {[1, 2, 3, 4].map(pg => (
+                    <button
+                      key={pg}
+                      type="button"
+                      className="btn-page-jump"
+                      onClick={() => {
+                        const target = document.getElementById(`pdf-page-${pg}`);
+                        target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }}
+                      title={isRtl ? `الانتقال إلى صفحة ${pg}` : `Jump to page ${pg}`}
+                    >
+                      {pg}
+                    </button>
+                  ))}
+                </div>
+              )}
 
-          <div className="pdf-viewer-viewport">
+              <div className="pdf-viewer-toolbar-actions">
+                <button
+                  type="button"
+                  className="btn-toolbar-btn"
+                  onClick={() => window.print()}
+                  title={isRtl ? 'طباعة المستند' : 'Print document'}
+                >
+                  <i className="fa-solid fa-print" />
+                  <span className="btn-toolbar-text">{isRtl ? 'طباعة' : 'Print'}</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn-toolbar-btn btn-toolbar-highlight"
+                  onClick={handleExecuteExport}
+                  title={isRtl ? 'تحميل مباشر' : 'Quick download'}
+                >
+                  <i className="fa-solid fa-download" />
+                  <span className="btn-toolbar-text">{isRtl ? 'تحميل' : 'Download'}</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn-toolbar-btn btn-toolbar-icon-only"
+                  onClick={() => {
+                    setIsExpanded(!isExpanded);
+                    onNotify(
+                      isExpanded ? t('export.restoreBtn') : t('export.maximizeBtn'),
+                      isExpanded ? 'Restored default size' : 'Maximized preview to fill container',
+                      'info'
+                    );
+                  }}
+                  title={isExpanded ? (isRtl ? 'العودة للوضع الطبيعي' : 'Restore size') : (isRtl ? 'تكبير لملء مساحة الموقع' : 'Maximize preview')}
+                >
+                  <i className={isExpanded ? 'fa-solid fa-compress' : 'fa-solid fa-expand'} />
+                </button>
+              </div>
+            </div>
+
+            {/* Real Opened PDF / Word / Code Sheet Preview */}
+            <div id="preview-tab-doc" className="pdf-viewer-viewport">
             <div 
               className="pdf-pages-stack" 
               id="pdf-pages-stack-container"
@@ -1502,87 +1606,244 @@ export const ExportStudioView: React.FC<ExportStudioViewProps> = ({
 
               {/* FORMAT 2: WORD DOCUMENT LIVE PREVIEW */}
               {selectedFormat === 'word' && (
-                <div className="pdf-paper-page" style={{ padding: '2rem' }}>
-                  <div style={{ textAlign: 'center', borderBottom: '2px solid #2563eb', paddingBottom: '1rem', marginBottom: '1.5rem' }}>
-                    <i className="fa-solid fa-file-word" style={{ fontSize: '2.5rem', color: '#2563eb', marginBottom: '0.5rem' }} />
-                    <h2 style={{ color: '#0f172a', fontSize: '1.2rem', fontWeight: 800 }}>
-                      {isExportEn ? 'Microsoft Word Document Deliverable (.docx)' : 'مستند Microsoft Word الرسمي المعتمد (.docx)'}
-                    </h2>
-                    <p style={{ color: '#64748b', fontSize: '0.78rem' }}>
+                <>
+                  <div className="word-paper-page">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #cbd5e1', paddingBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: '#64748b' }} className="mono">CONFIDENTIAL • SAMA-SPEC-{version}</span>
+                      <span style={{ fontSize: '0.75rem', color: '#2b579a', fontWeight: 700 }}>{isExportEn ? 'Saudi Central Bank — Unified Technical Specification' : 'البنك المركزي السعودي — وثيقة المواصفات الفنية المعتمدة'}</span>
+                    </div>
+
+                    <div className="word-doc-title">{isExportEn ? 'National Financial API Technical Standard (.docx)' : 'المواصفة القياسية الوطنية لواجهات برمجة التطبيقات (API Standards)'}</div>
+
+                    <p style={{ fontSize: '0.86rem', color: '#334155', lineHeight: 1.7 }}>
                       {isExportEn 
-                        ? `Language: English (LTR) • Total Routes: ${totalEndpoints}` 
-                        : `اللغة: العربية (RTL) • إجمالي المسارات: ${totalEndpoints}`}
+                        ? 'This document specifies mandatory architectural standards, endpoints, and schemas for integrating certified financial institutions, banks, and payment service providers in Microsoft Word (.docx) format.'
+                        : 'تُحدد هذه الوثيقة الصادرة بصيغة Microsoft Word المواصفات المعمارية الإلزامية ونماذج تبادل الرسائل المالية بين كافة المصارف المرخصة وشركات التقنية المالية المعتمدة بالمملكة.'}
                     </p>
+
+                    <div className="word-heading-1">{isExportEn ? '1. Version Control & Release Metadata' : '1. جدول بيانات الاعتماد والتحكم بالنسخة'}</div>
+                    <table className="word-table">
+                      <thead>
+                        <tr>
+                          <th>{isExportEn ? 'Item' : 'البند التنظيمي'}</th>
+                          <th>{isExportEn ? 'Value' : 'القيمة المعتمدة'}</th>
+                          <th>{isExportEn ? 'Status' : 'الحالة التشغيلية'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td style={{ fontWeight: 700 }}>{isExportEn ? 'Technical Version' : 'رقم الإصدار الفني'}</td>
+                          <td className="mono">{version} Official Release</td>
+                          <td><span style={{ color: '#059669', fontWeight: 700 }}>{isExportEn ? 'Effective' : 'ساري المفعول'}</span></td>
+                        </tr>
+                        <tr>
+                          <td style={{ fontWeight: 700 }}>{isExportEn ? 'Total Certified Routes' : 'إجمالي المسارات المعتمدة'}</td>
+                          <td className="mono">{totalEndpoints} Endpoints</td>
+                          <td><span style={{ color: '#0284c7', fontWeight: 700 }}>{isExportEn ? 'Fully Covered' : 'مشمول بالكامل'}</span></td>
+                        </tr>
+                        <tr>
+                          <td style={{ fontWeight: 700 }}>{isExportEn ? 'Mandatory Security Profile' : 'بروتوكول الأمان الإلزامي'}</td>
+                          <td className="mono">TLS 1.3 / mTLS Strict</td>
+                          <td><span style={{ color: '#d97706', fontWeight: 700 }}>{isExportEn ? 'Mandatory' : 'إلزامي ومطابق'}</span></td>
+                        </tr>
+                        <tr>
+                          <td style={{ fontWeight: 700 }}>{isExportEn ? 'Idempotency Key' : 'مفتاح عدم التكرار'}</td>
+                          <td className="mono">X-Idempotency-Key (UUIDv4)</td>
+                          <td><span style={{ color: '#059669', fontWeight: 700 }}>{isExportEn ? 'Active (24h)' : 'مفعل 24 ساعة'}</span></td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+                    <div className="word-heading-1" style={{ marginTop: '1rem' }}>{isExportEn ? '2. API Endpoints Matrix' : '2. مصفوفة نقاط الربط المشمولة (API Endpoints Matrix)'}</div>
+                    <table className="word-table">
+                      <thead>
+                        <tr>
+                          <th>{isExportEn ? 'Sector' : 'القطاع'}</th>
+                          <th>{isExportEn ? 'Method & Path' : 'الطلب والمسار (Method & Path)'}</th>
+                          <th>{isExportEn ? 'Description' : 'الوصف الوظيفي'}</th>
+                          <th>{isExportEn ? 'Response' : 'الاستجابة القياسية'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedServices.map(s => (s.endpoints || []).map(ep => (
+                          <tr key={`${s.code}-${ep.method}-${ep.path}`}>
+                            <td style={{ fontWeight: 700 }}>{isExportEn ? s.sectorNameEn : s.sectorName}</td>
+                            <td>
+                              <strong className="mono" style={{ color: '#2b579a', marginInlineEnd: '0.4rem' }}>{ep.method}</strong>
+                              <code className="mono" style={{ fontSize: '0.75rem' }}>{ep.path}</code>
+                            </td>
+                            <td>{isExportEn ? ep.descEn : ep.desc}</td>
+                            <td><span className="mono" style={{ fontSize: '0.72rem', color: '#059669', fontWeight: 700 }}>{ep.method === 'POST' ? '201 Created' : '200 OK'}</span></td>
+                          </tr>
+                        )))}
+                      </tbody>
+                    </table>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #cbd5e1', paddingTop: '0.6rem', marginTop: 'auto', fontSize: '0.75rem', color: '#64748b' }}>
+                      <span>{isExportEn ? 'Official National Specification • SAMA Print-Ready Word' : 'المواصفة الفنية الوطنية المعتمدة • صالحة للتحرير والطباعة الرسمية'}</span>
+                      <span className="mono">{isExportEn ? 'Page 1 of 2' : 'صفحة 1 من 2'}</span>
+                    </div>
                   </div>
-                  <div style={{ color: '#334155', fontSize: '0.82rem', lineHeight: 1.8 }}>
-                    <p><strong>{isExportEn ? 'Document Structure:' : 'هيكل المستند المُصدر:'}</strong></p>
-                    <ul style={{ paddingInlineStart: '1.25rem' }}>
-                      <li>{isExportEn ? 'Institutional Header & Scope' : 'الترويسة المؤسسية ونطاق العمل'}</li>
-                      <li>{isExportEn ? 'Full Endpoints & Schema Table' : 'جدول المسارات والمخططات المعتمدة'}</li>
-                      <li>{isExportEn ? 'Security Profile & Idempotency Rules' : 'المعايير الأمنية وقواعد عدم التكرار'}</li>
-                      <li>{isExportEn ? 'Regulatory Error Dictionary' : 'قاموس الأخطاء والرموز الرقابية'}</li>
+
+                  <div className="pdf-page-separator"><span>{isExportEn ? 'Page Break • Page 2 of 2' : 'فاصل الصفحات • صفحة 2 من 2'}</span></div>
+
+                  <div className="word-paper-page">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #cbd5e1', paddingBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: '#64748b' }} className="mono">SAMA-SPEC-{version} • {isExportEn ? 'Security & SLA Addendum' : 'الملحق الأمني الفني'}</span>
+                      <span style={{ fontSize: '0.75rem', color: '#2b579a', fontWeight: 700 }}>{isExportEn ? 'Saudi Central Bank — Security & QA Standards' : 'البنك المركزي السعودي — المعايير الأمنية وضمان الجودة'}</span>
+                    </div>
+
+                    <div className="word-heading-1">{isExportEn ? '3. Mandatory Security & Cryptographic Controls' : '3. المعايير الأمنية وضوابط التشفير الإلزامية'}</div>
+                    <p style={{ fontSize: '0.84rem', color: '#334155', lineHeight: 1.7 }}>
+                      {isExportEn 
+                        ? 'All financial integration channels strictly adhere to central banking security directives:' 
+                        : 'تخضع كافة قنوات الربط المالي للضوابط الأمنية المشددة الصادرة عن البنك المركزي:'}
+                    </p>
+                    <ul style={{ fontSize: '0.84rem', color: '#334155', lineHeight: 1.8, paddingInlineStart: '1.2rem' }}>
+                      <li><strong>{isExportEn ? 'Mutual TLS (mTLS):' : 'التوثيق المتبادل للشهادات (mTLS):'}</strong> {isExportEn ? 'X.509 digital certificates with minimum SHA-256 signature.' : 'استخدام شهادات رقمية صادرة من هيئة وطنية معتمدة بتشفير SHA-256 كحد أدنى.'}</li>
+                      <li><strong>{isExportEn ? 'Financial Authorization Protocol:' : 'بروتوكول التفويض المالي:'}</strong> {isExportEn ? 'FAPI 1.0 Advanced standard compliant with OAuth 2.0 & PKCE.' : 'اعتماد معيار FAPI (Financial-grade API) متوافق مع OAuth 2.0 و PKCE.'}</li>
+                      <li><strong>{isExportEn ? 'Digital Message Signing:' : 'التوقيع الرقمي للرسائل:'}</strong> {isExportEn ? 'Full payload signing with RSA-PSS-4096 ensuring non-repudiation.' : 'توقيع كامل محتوى Payload باستخدام خوارزمية RSA-PSS-4096 لضمان عدم الإنكار والتلاعب.'}</li>
                     </ul>
+
+                    <div className="word-heading-1" style={{ marginTop: '0.8rem' }}>{isExportEn ? '4. Service Level Agreement (SLA Standards)' : '4. اتفاقية مستوى الخدمة وجداول الأداء (SLA Standards)'}</div>
+                    <table className="word-table">
+                      <thead>
+                        <tr>
+                          <th>{isExportEn ? 'Metric' : 'المؤشر التشغيلي'}</th>
+                          <th>{isExportEn ? 'Ceiling' : 'الحد الأقصى المسموح'}</th>
+                          <th>{isExportEn ? 'Remedy' : 'الإجراء الرقابي عند التجاوز'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td style={{ fontWeight: 700 }}>{isExportEn ? 'Processing Latency' : 'زمن الاستجابة للعملية (Latency)'}</td>
+                          <td className="mono">P99 &lt; 250ms</td>
+                          <td>{isExportEn ? 'Automated traffic failover' : 'تنبيه فوري وإعادة توجيه حركة المرور'}</td>
+                        </tr>
+                        <tr>
+                          <td style={{ fontWeight: 700 }}>{isExportEn ? 'Monthly Availability' : 'نسبة الجاهزية الشهرية (Availability)'}</td>
+                          <td className="mono">99.99% Uptime</td>
+                          <td>{isExportEn ? 'Regulatory compliance penalty' : 'فرض غرامات الامتثال التنظيمي'}</td>
+                        </tr>
+                        <tr>
+                          <td style={{ fontWeight: 700 }}>{isExportEn ? 'Technical Error Rate' : 'معدل الخطأ الفني (5xx Rate)'}</td>
+                          <td className="mono">&lt; 0.01%</td>
+                          <td>{isExportEn ? 'Immediate circuit break' : 'تعليق فوري لمسار الربط المتأثر'}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+                    <div style={{ background: '#f1f5f9', borderInlineStart: '4px solid #2b579a', padding: '1rem', borderRadius: '4px', marginTop: '1.5rem' }}>
+                      <div style={{ fontWeight: 700, color: '#2b579a', fontSize: '0.88rem', marginBottom: '0.3rem' }}>
+                        {isExportEn ? 'National Digital Specification Attestation' : 'اعتماد وختم المواصفة الوطنية الرقمية'}
+                      </div>
+                      <p style={{ fontSize: '0.8rem', color: '#475569', margin: 0, lineHeight: 1.6 }}>
+                        {isExportEn 
+                          ? 'This document is officially signed and legally enforceable across all licensed financial institutions. Verification available via the National Digital Governance Gateway.' 
+                          : 'صدرت هذه الوثيقة رسمياً وتعتبر ملزمة لكافة المؤسسات المالية والمصرفية المرخصة. التحقق الرقمي متاح عبر بوابة الحوكمة الرقمية الوطنية.'}
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #cbd5e1', paddingTop: '0.6rem', marginTop: 'auto', fontSize: '0.75rem', color: '#64748b' }}>
+                      <span>{isExportEn ? 'End of Technical Document • Word Printable Specification' : 'نهاية الوثيقة الفنية المعتمدة • صالحة للتحرير والطباعة الرسمية'}</span>
+                      <span className="mono">{isExportEn ? 'Page 2 of 2' : 'صفحة 2 من 2'}</span>
+                    </div>
                   </div>
-                </div>
+                </>
               )}
 
               {/* FORMAT 3: MARKDOWN LIVE PREVIEW */}
               {selectedFormat === 'markdown' && (
-                <div className="pdf-paper-page" style={{ padding: '1.5rem', background: '#0f172a', color: '#f8fafc' }}>
-                  <pre style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '0.74rem',
-                    lineHeight: 1.6,
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                    color: '#94a3b8'
-                  }}>
-                    {generateMarkdownContent()}
+                <div className="code-viewer-stage">
+                  <div className="code-viewer-float-bar">
+                    <span className="code-viewer-filename">Ultimate_Pay_FI_API_Documentation_{version}.md</span>
+                    <button
+                      type="button"
+                      className="btn-code-copy-float"
+                      onClick={() => {
+                        navigator.clipboard.writeText(generateMarkdownContent());
+                        onNotify(isRtl ? 'تم نسخ ملف Markdown' : 'Copied Markdown', '', 'success');
+                      }}
+                      title="نسخ الملف بالكامل"
+                    >
+                      <i className="fa-solid fa-copy" />
+                      <span>{isRtl ? 'نسخ' : 'Copy'}</span>
+                    </button>
+                  </div>
+                  <pre className="code-viewer-pre">
+                    <code>{generateMarkdownContent()}</code>
                   </pre>
                 </div>
               )}
 
               {/* FORMAT 4: OPENAPI 3.1 LIVE PREVIEW */}
               {selectedFormat === 'openapi' && (
-                <div className="pdf-paper-page" style={{ padding: '1.5rem', background: '#0f172a', color: '#38bdf8' }}>
-                  <pre style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '0.72rem',
-                    lineHeight: 1.5,
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word'
-                  }}>
-                    {JSON.stringify(generateOpenApiSpec(), null, 2)}
+                <div className="code-viewer-stage">
+                  <div className="code-viewer-float-bar">
+                    <span className="code-viewer-filename">fintech-openapi-{version}.json</span>
+                    <button
+                      type="button"
+                      className="btn-code-copy-float"
+                      onClick={() => {
+                        navigator.clipboard.writeText(JSON.stringify(generateOpenApiSpec(), null, 2));
+                        onNotify(isRtl ? 'تم نسخ مخطط OpenAPI' : 'Copied OpenAPI', '', 'success');
+                      }}
+                      title="نسخ الملف بالكامل"
+                    >
+                      <i className="fa-solid fa-copy" />
+                      <span>{isRtl ? 'نسخ' : 'Copy'}</span>
+                    </button>
+                  </div>
+                  <pre className="code-viewer-pre">
+                    <code>{JSON.stringify(generateOpenApiSpec(), null, 2)}</code>
                   </pre>
                 </div>
               )}
 
               {/* FORMAT 5: POSTMAN LIVE PREVIEW */}
               {selectedFormat === 'postman' && (
-                <div className="pdf-paper-page" style={{ padding: '1.5rem', background: '#0f172a', color: '#f97316' }}>
-                  <pre style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '0.72rem',
-                    lineHeight: 1.5,
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word'
-                  }}>
-                    {JSON.stringify(generatePostmanCollection(), null, 2)}
+                <div className="code-viewer-stage">
+                  <div className="code-viewer-float-bar">
+                    <span className="code-viewer-filename">fintech-postman-collection-{version}.json</span>
+                    <button
+                      type="button"
+                      className="btn-code-copy-float"
+                      onClick={() => {
+                        navigator.clipboard.writeText(JSON.stringify(generatePostmanCollection(), null, 2));
+                        onNotify(isRtl ? 'تم نسخ Postman Collection' : 'Copied Postman', '', 'success');
+                      }}
+                      title="نسخ الملف بالكامل"
+                    >
+                      <i className="fa-solid fa-copy" />
+                      <span>{isRtl ? 'نسخ' : 'Copy'}</span>
+                    </button>
+                  </div>
+                  <pre className="code-viewer-pre">
+                    <code>{JSON.stringify(generatePostmanCollection(), null, 2)}</code>
                   </pre>
                 </div>
               )}
 
               {/* FORMAT 6: ISO 20022 XML LIVE PREVIEW */}
               {selectedFormat === 'iso' && (
-                <div className="pdf-paper-page" style={{ padding: '1.5rem', background: '#0f172a', color: '#34d399' }}>
-                  <pre style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '0.70rem',
-                    lineHeight: 1.5,
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word'
-                  }}>
-                    {generateIsoXml()}
+                <div className="code-viewer-stage">
+                  <div className="code-viewer-float-bar">
+                    <span className="code-viewer-filename">fintech-iso20022-pacs008-{version}.xml</span>
+                    <button
+                      type="button"
+                      className="btn-code-copy-float"
+                      onClick={() => {
+                        navigator.clipboard.writeText(generateIsoXml());
+                        onNotify(isRtl ? 'تم نسخ رسالة ISO 20022' : 'Copied ISO 20022 XML', '', 'success');
+                      }}
+                      title="نسخ الملف بالكامل"
+                    >
+                      <i className="fa-solid fa-copy" />
+                      <span>{isRtl ? 'نسخ' : 'Copy'}</span>
+                    </button>
+                  </div>
+                  <pre className="code-viewer-pre">
+                    <code>{generateIsoXml()}</code>
                   </pre>
                 </div>
               )}

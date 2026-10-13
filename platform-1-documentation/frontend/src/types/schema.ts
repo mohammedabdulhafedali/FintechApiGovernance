@@ -54,6 +54,16 @@ export type CatalogPerspective = 'systems' | 'sectors';
 export type FilterDirection = 'ALL' | 'INBOUND' | 'OUTBOUND';
 export type FilterChannel = 'ALL' | 'MOBILE' | 'CORE_SERVER' | 'WEB';
 
+export interface SystemIntegration {
+  entityId: string;
+  name: string;
+  nameEn?: string;
+  code?: string;
+  icon?: string;
+  direction?: IntegrationDirection;
+  endpoints: Endpoint[];
+}
+
 export interface SystemModule {
   key: string;
   name: string;
@@ -62,7 +72,9 @@ export interface SystemModule {
   icon: string;
   description?: string;
   descriptionEn?: string;
+  status?: 'ACTIVE' | 'BETA' | 'MAINTENANCE';
   associatedSectorKeys?: string[];
+  integrations: Record<string, SystemIntegration>;
 }
 
 export interface ServiceDefinition {

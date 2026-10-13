@@ -86,7 +86,7 @@ export const ar = {
     diffEngine: 'سجل الإصدارات (Diff)',
     mockServer: 'خادم المحاكاة والأمان',
     rbacMatrix: 'مصفوفة الصلاحيات (RBAC)',
-    exportStudio: 'مركز التصدير المخصص',
+    exportStudio: 'التصدير',
     systemStatus: 'الإنتاج المصرفي',
   },
 

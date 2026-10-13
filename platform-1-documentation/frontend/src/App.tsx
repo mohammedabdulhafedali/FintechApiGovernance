@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Header } from './components/layout/Header';
 import { Sidebar, AppViewMode } from './components/layout/Sidebar';
 import { catalogService } from './services/catalogService';
@@ -11,17 +11,20 @@ import { FloatingAlertCard, FloatingAlertState } from './components/common/Float
 import { DeleteSectorModal } from './components/common/DeleteSectorModal';
 
 import { 
+  INITIAL_SYSTEMS,
   INITIAL_SECTORS, 
   INITIAL_SNAPSHOTS 
 } from './data/mockData';
-import { Endpoint, Sector } from './types/schema';
+import { Endpoint, Sector, SystemModule } from './types/schema';
 import { useLanguage } from './i18n';
 
 export const App: React.FC = () => {
-  const { direction, isRtl, t } = useLanguage();
+  const { direction, isRtl, t, getLocalized } = useLanguage();
+
   // Navigation State: 'dashboard' is the default landing view
   const [activeView, setActiveView] = useState<AppViewMode>('dashboard');
-  const [activeSectorKey, setActiveSectorKey] = useState<string>('banking');
+  const [activeSystemKey, setActiveSystemKey] = useState<string>('collection');
+  const [activeIntegrationKey, setActiveIntegrationKey] = useState<string>('banking');
   const [activeEndpointIndex, setActiveEndpointIndex] = useState<number>(0);
   const [currentVersion, setCurrentVersion] = useState<string>('v2026.2');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
@@ -37,23 +40,14 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isMobileMenuOpen]);
 
-  // Business Data
-  const [sectors, setSectors] = useState<Record<string, Sector>>(INITIAL_SECTORS);
+  // Primary Business Entity: Systems (الأنظمة المركزية وتكاملاتها)
+  const [systems, setSystems] = useState<Record<string, SystemModule>>(INITIAL_SYSTEMS);
   const [snapshots] = useState(INITIAL_SNAPSHOTS);
 
-  // Synchronize with Sovereign Backend via Clean Service Layer
-  useEffect(() => {
-    catalogService.fetchCatalog().then(remoteCatalog => {
-      if (remoteCatalog && Object.keys(remoteCatalog).length > 0) {
-        setSectors(remoteCatalog);
-      }
-    });
-  }, []);
-
-  // Sector Management State
+  // Sector Management State (حذف وإدارة التكاملات)
   const [sectorKeyToDelete, setSectorKeyToDelete] = useState<string | null>(null);
 
-  // Global Unified Floating Alert Card (كارد طافية موحدة لكافة رسائل المنظومة)
+  // Global Unified Floating Alert Card
   const [floatingAlert, setFloatingAlert] = useState<FloatingAlertState | null>(null);
 
   const showFloatingAlert = (
@@ -77,161 +71,140 @@ export const App: React.FC = () => {
     setFloatingAlert(null);
   };
 
-  // Active sector and endpoints for sector-spec view
-  const activeSector = sectors[activeSectorKey] || Object.values(sectors)[0];
-  const currentEndpoints: Endpoint[] = [];
-  if (activeSector && activeSector.services) {
-    for (const service of Object.values(activeSector.services)) {
-      if (service.endpoints) {
-        currentEndpoints.push(...service.endpoints);
-      }
-    }
-  }
+  // Dynamically derive sectors from systems for backward-compatibility & Export Studio
+  const sectors: Record<string, Sector> = useMemo(() => {
+    const result: Record<string, Sector> = {};
+    Object.values(systems).forEach(sys => {
+      Object.values(sys.integrations || {}).forEach(intItem => {
+        if (!result[intItem.entityId]) {
+          result[intItem.entityId] = {
+            key: intItem.entityId,
+            name: intItem.name,
+            nameEn: intItem.nameEn,
+            code: intItem.code || `SECTOR_${intItem.entityId.toUpperCase()}`,
+            icon: intItem.icon || 'Building2',
+            services: {
+              core: {
+                title: intItem.name,
+                titleEn: intItem.nameEn,
+                code: intItem.code || 'CORE',
+                baseUrl: 'https://api.gov.fintech',
+                versions: ['v2026.2'],
+                endpoints: []
+              }
+            }
+          };
+        }
+        if (intItem.endpoints) {
+          result[intItem.entityId].services.core.endpoints.push(...intItem.endpoints);
+        }
+      });
+    });
+    return result;
+  }, [systems]);
 
+  // Active System and Integration Resolution
+  const currentSystem = systems[activeSystemKey] || Object.values(systems)[0];
+  const currentIntegration = currentSystem?.integrations?.[activeIntegrationKey] || 
+    (currentSystem?.integrations ? Object.values(currentSystem.integrations)[0] : undefined);
+  const currentEndpoints: Endpoint[] = currentIntegration?.endpoints || [];
   const activeEndpoint = currentEndpoints[activeEndpointIndex] || currentEndpoints[0];
 
-  // Sector Management Handlers (إدارة وحذف الجهات)
-  const handleOpenDeleteSector = (sectorKey: string) => {
-    if (Object.keys(sectors).length <= 1) {
-      showFloatingAlert(
-        t('modals.cannotDeleteLastSectorTitle'),
-        t('modals.cannotDeleteLastSectorMsg'),
-        'warning'
-      );
-      return;
-    }
-    setSectorKeyToDelete(sectorKey);
+  // Active sector for Header compatibility
+  const activeSector = sectors[activeIntegrationKey] || Object.values(sectors)[0];
+
+  // Navigation Handlers
+  const handleSelectSystemIntegration = (sysKey: string, intKey: string) => {
+    setActiveSystemKey(sysKey);
+    setActiveIntegrationKey(intKey);
+    setActiveEndpointIndex(0);
+    setActiveView('sector-spec');
+    setIsMobileMenuOpen(false);
   };
 
-  const handleConfirmDeleteSector = (sectorKey: string) => {
-    const targetSector = sectors[sectorKey];
-    const targetName = targetSector 
-      ? (targetSector.nameEn && !isRtl ? targetSector.nameEn : targetSector.name) 
-      : sectorKey;
-
-    const remainingKeys = Object.keys(sectors).filter(k => k !== sectorKey);
-
-    setSectors(prev => {
-      const updated = { ...prev };
-      delete updated[sectorKey];
-      return updated;
-    });
-
-    // Notify backend
-    catalogService.deleteSector(sectorKey);
-
-    setSectorKeyToDelete(null);
-
-    // If the currently viewed sector was deleted, switch to another sector or dashboard
-    if (activeSectorKey === sectorKey) {
-      if (remainingKeys.length > 0) {
-        setActiveSectorKey(remainingKeys[0]);
-        setActiveEndpointIndex(0);
-      } else {
-        setActiveView('dashboard');
+  const handleSelectSectorLegacy = (key: string) => {
+    // If user clicked legacy sector, find first system containing this sector
+    let foundSysKey = activeSystemKey;
+    for (const [sKey, sObj] of Object.entries(systems)) {
+      if (sObj.integrations && sObj.integrations[key]) {
+        foundSysKey = sKey;
+        break;
       }
     }
-
-    showFloatingAlert(
-      t('modals.sectorDeletedSuccess'),
-      t('modals.sectorDeletedSuccessMsg', { name: targetName }),
-      'info'
-    );
+    handleSelectSystemIntegration(foundSysKey, key);
   };
 
-  const handleAddSector = (newSector: Sector) => {
-    setSectors(prev => ({
+  // Add System Handler
+  const handleAddSystem = (newSystem: SystemModule) => {
+    setSystems(prev => ({
       ...prev,
-      [newSector.key]: newSector
+      [newSystem.key]: newSystem
     }));
 
-    // Persist to backend
-    catalogService.createSector({
-      key: newSector.key,
-      name: newSector.name,
-      nameEn: newSector.nameEn,
-      code: newSector.code
-    });
+    const firstIntKey = Object.keys(newSystem.integrations || {})[0] || 'banking';
+    setActiveSystemKey(newSystem.key);
+    setActiveIntegrationKey(firstIntKey);
+    setActiveEndpointIndex(0);
+    setActiveView('sector-spec');
 
-    const displayName = newSector.nameEn && !isRtl ? newSector.nameEn : newSector.name;
-
+    const displayName = newSystem.nameEn && !isRtl ? newSystem.nameEn : newSystem.name;
     showFloatingAlert(
-      t('modals.sectorAddedSuccess'),
-      t('modals.sectorAddedSuccessMsg', { name: displayName, code: newSector.code }),
+      isRtl ? 'تم إضافة النظام بنجاح' : 'System Created Successfully',
+      isRtl ? `تم تسجيل [${displayName}] وإدراج تكاملاته في القائمة الجانبية والداشبورد.` : `System [${displayName}] created with dynamic integrations.`,
       'success'
     );
   };
 
-  // Handlers
-  const handleSelectSector = (key: string) => {
-    setActiveSectorKey(key);
-    setActiveEndpointIndex(0);
-    setActiveView('sector-spec');
-    setIsMobileMenuOpen(false);
-  };
-
-  const handleSelectEndpoint = (key: string, index: number) => {
-    setActiveSectorKey(key);
-    setActiveEndpointIndex(index);
-    setActiveView('sector-spec');
-    setIsMobileMenuOpen(false);
-  };
-
-  const handleAddEndpointFromHub = (sectorKey: string, endpointsInput: Endpoint | Endpoint[], isBulk = false) => {
+  // Add Endpoint Handler
+  const handleAddEndpointFromHub = (
+    sectorKey: string, 
+    endpointsInput: Endpoint | Endpoint[], 
+    isBulk = false,
+    providedSystemKey?: string
+  ) => {
     const epList = Array.isArray(endpointsInput) ? endpointsInput : [endpointsInput];
-    let addedCount = 0;
-    let updatedCount = 0;
+    const targetSysKey = providedSystemKey || epList[0]?.systemKey || activeSystemKey;
+    const targetIntKey = sectorKey || activeIntegrationKey;
 
-    setSectors(prev => {
+    setSystems(prev => {
       const updated = { ...prev };
-      const sector = updated[sectorKey] || Object.values(updated)[0];
-      if (sector) {
-        const firstServiceKey = Object.keys(sector.services)[0] || 'default';
-        if (sector.services[firstServiceKey]) {
-          const serviceEndpoints = [...sector.services[firstServiceKey].endpoints];
-
-          epList.forEach(newEp => {
-            const existingIndex = serviceEndpoints.findIndex(
-              e => e.path.toLowerCase() === newEp.path.toLowerCase() && e.method === newEp.method
-            );
-            if (existingIndex >= 0) {
-              // Update existing endpoint (Smart Upsert)
-              serviceEndpoints[existingIndex] = {
-                ...serviceEndpoints[existingIndex],
-                ...newEp,
-                id: serviceEndpoints[existingIndex].id // keep id
-              };
-              updatedCount++;
-            } else {
-              // Add new endpoint
-              serviceEndpoints.push(newEp);
-              addedCount++;
-            }
-          });
-
-          sector.services[firstServiceKey].endpoints = serviceEndpoints;
+      let sys = updated[targetSysKey];
+      if (!sys) {
+        sys = Object.values(updated)[0];
+      }
+      if (sys && sys.integrations) {
+        let targetInt = sys.integrations[targetIntKey];
+        if (!targetInt) {
+          targetInt = {
+            entityId: targetIntKey,
+            name: targetIntKey,
+            code: `INT_${targetIntKey.toUpperCase()}`,
+            icon: 'Building2',
+            endpoints: []
+          };
+          sys.integrations[targetIntKey] = targetInt;
         }
+
+        const existingEndpoints = [...targetInt.endpoints];
+        epList.forEach(newEp => {
+          const existingIdx = existingEndpoints.findIndex(
+            e => e.path.toLowerCase() === newEp.path.toLowerCase() && e.method === newEp.method
+          );
+          if (existingIdx >= 0) {
+            existingEndpoints[existingIdx] = { ...existingEndpoints[existingIdx], ...newEp };
+          } else {
+            existingEndpoints.push(newEp);
+          }
+        });
+        targetInt.endpoints = existingEndpoints;
       }
       return updated;
     });
 
-    setActiveSectorKey(sectorKey);
+    setActiveSystemKey(targetSysKey);
+    setActiveIntegrationKey(targetIntKey);
     setActiveEndpointIndex(0);
     setActiveView('sector-spec');
-
-    // Persist endpoints to backend
-    epList.forEach(ep => {
-      catalogService.createEndpoint({
-        sectorKey,
-        path: ep.path,
-        method: ep.method,
-        summary: ep.desc || (ep as any).summary,
-        description: ep.desc || (ep as any).description,
-        parameters: ep.params || (ep as any).parameters,
-        requestPayload: ep.payload || (ep as any).requestPayload,
-        responsePayload: ep.res200 || (ep as any).responsePayload
-      });
-    });
 
     if (isBulk) {
       showFloatingAlert(
@@ -252,31 +225,70 @@ export const App: React.FC = () => {
     }
   };
 
-  const totalSectorsCount = Object.keys(sectors).length;
-  const totalEndpointsCount = Object.values(sectors).reduce((acc, sec) => {
-    if (!sec.services) return acc;
-    return acc + Object.values(sec.services).reduce((sAcc, srv) => sAcc + (srv.endpoints ? srv.endpoints.length : 0), 0);
+  // Delete Handler
+  const handleOpenDeleteIntegration = (sectorKey: string) => {
+    setSectorKeyToDelete(sectorKey);
+  };
+
+  const handleConfirmDeleteIntegration = (sectorKey: string) => {
+    setSystems(prev => {
+      const updated = { ...prev };
+      if (updated[activeSystemKey]?.integrations) {
+        delete updated[activeSystemKey].integrations[sectorKey];
+      }
+      return updated;
+    });
+
+    setSectorKeyToDelete(null);
+
+    // Switch to remaining integration or dashboard
+    const remainingIntegrations = Object.keys(systems[activeSystemKey]?.integrations || {}).filter(k => k !== sectorKey);
+    if (remainingIntegrations.length > 0) {
+      setActiveIntegrationKey(remainingIntegrations[0]);
+      setActiveEndpointIndex(0);
+    } else {
+      setActiveView('dashboard');
+    }
+
+    showFloatingAlert(
+      isRtl ? 'تم حذف التكامل' : 'Integration Removed',
+      isRtl ? `تم حذف التكامل [${sectorKey}] من النظام بنجاح.` : `Integration [${sectorKey}] was removed.`,
+      'info'
+    );
+  };
+
+  const totalSystemsCount = Object.keys(systems).length;
+  const totalEndpointsCount = Object.values(systems).reduce((acc, sys) => {
+    return acc + Object.values(sys.integrations || {}).reduce(
+      (iAcc, intItem) => iAcc + (intItem.endpoints ? intItem.endpoints.length : 0), 
+      0
+    );
   }, 0);
+
+  const localizedSysName = currentSystem ? getLocalized({ ar: currentSystem.name, en: currentSystem.nameEn }, currentSystem.name) : '';
+  const localizedIntName = currentIntegration ? getLocalized({ ar: currentIntegration.name, en: currentIntegration.nameEn }, currentIntegration.name) : '';
 
   return (
     <div className="app-container" style={{ direction }}>
-      {/* 1. Sidebar (Responsive Desktop & Mobile Drawer) */}
+      {/* 1. Sidebar with Nested Dynamic Accordion Tree */}
       <Sidebar
         activeView={activeView}
         onSelectView={(v) => {
           setActiveView(v);
           setIsMobileMenuOpen(false);
         }}
+        systems={systems}
+        activeSystemKey={activeSystemKey}
+        activeIntegrationKey={activeIntegrationKey}
+        onSelectSystemIntegration={handleSelectSystemIntegration}
         sectors={sectors}
-        activeSectorKey={activeSectorKey}
-        onSelectSector={handleSelectSector}
-        activeEndpointIndex={activeEndpointIndex}
-        onSelectEndpoint={handleSelectEndpoint}
+        activeSectorKey={activeIntegrationKey}
+        onSelectSector={handleSelectSectorLegacy}
         isOpenMobile={isMobileMenuOpen}
         onCloseMobile={() => setIsMobileMenuOpen(false)}
       />
 
-      {/* 2. Main Area with Topbar and Views */}
+      {/* 2. Main Layout Area */}
       <div className="app-main-layout">
         <Header
           activeView={activeView}
@@ -295,33 +307,40 @@ export const App: React.FC = () => {
             setActiveView('dashboard');
             setIsMobileMenuOpen(false);
           }}
-          totalSectorsCount={totalSectorsCount}
+          totalSectorsCount={totalSystemsCount}
           totalEndpointsCount={totalEndpointsCount}
           onToggleMobileMenu={() => setIsMobileMenuOpen(prev => !prev)}
           onNotify={(title, msg, type, snippet) => showFloatingAlert(title, msg, type, snippet)}
         />
 
         <main className="app-content-main">
-          {/* VIEW 1: CLEAN SOVEREIGN DASHBOARD */}
+          {/* VIEW 1: SYSTEMS COMMAND DASHBOARD */}
           {activeView === 'dashboard' && (
             <DashboardView
-              sectors={sectors}
-              onSelectSector={handleSelectSector}
-              onAddSector={handleAddSector}
-              onOpenDeleteSector={handleOpenDeleteSector}
+              systems={systems}
+              onSelectSystemIntegration={handleSelectSystemIntegration}
+              onAddSystem={handleAddSystem}
+              onDeleteSystem={(sysKey) => {
+                setSystems(prev => {
+                  const updated = { ...prev };
+                  delete updated[sysKey];
+                  return updated;
+                });
+              }}
             />
           )}
 
-          {/* VIEW 2: DOCUMENTATION HUB & SPEC MAKER (SPLIT FORM) */}
+          {/* VIEW 2: DOCUMENTATION HUB & SPEC MAKER */}
           {activeView === 'add-api' && (
             <DocumentationHub
               sectors={sectors}
+              systems={systems}
               onAddEndpoint={handleAddEndpointFromHub}
               onSuccess={(title, msg, snippet) => showFloatingAlert(title, msg, 'success', snippet)}
             />
           )}
 
-          {/* VIEW 3: SECTOR ENDPOINTS & SPEC VIEWER */}
+          {/* VIEW 3: SECTOR / INTEGRATION SPEC VIEWER */}
           {activeView === 'sector-spec' && (
             <>
               {currentEndpoints.length > 0 ? (
@@ -330,8 +349,9 @@ export const App: React.FC = () => {
                     endpoints={currentEndpoints}
                     activeEndpointIndex={activeEndpointIndex}
                     onSelectEndpoint={setActiveEndpointIndex}
+                    systemName={localizedSysName}
+                    integrationName={localizedIntName}
                     onAddNewEndpoint={() => setActiveView('add-api')}
-                    onDeleteSector={() => handleOpenDeleteSector(activeSectorKey)}
                   />
                   {activeEndpoint && <SpecViewer endpoint={activeEndpoint} />}
                 </>
@@ -356,9 +376,9 @@ export const App: React.FC = () => {
                     </button>
                     <button
                       className="btn btn-rose"
-                      onClick={() => handleOpenDeleteSector(activeSectorKey)}
+                      onClick={() => handleOpenDeleteIntegration(activeIntegrationKey)}
                     >
-                      {t('spec.deleteSectorBtn')}
+                      {isRtl ? 'حذف هذا التكامل' : 'Delete Integration'}
                     </button>
                   </div>
                 </div>
@@ -377,19 +397,19 @@ export const App: React.FC = () => {
         </main>
       </div>
 
-      {/* 3. Global Floating Alert Card (كارد طافية مركزية بدون أي تداخل مع محتوى الصفحة) */}
+      {/* 3. Global Floating Alert Card */}
       <FloatingAlertCard
         alert={floatingAlert}
         onClose={closeFloatingAlert}
       />
 
-      {/* 4. Delete Sector Confirmation Modal (نافذة تأكيد الحذف المصرفي الحرج) */}
+      {/* 4. Delete Integration Confirmation Modal */}
       <DeleteSectorModal
         isOpen={!!sectorKeyToDelete}
         sectorKey={sectorKeyToDelete}
         sector={sectorKeyToDelete ? sectors[sectorKeyToDelete] : null}
         onClose={() => setSectorKeyToDelete(null)}
-        onConfirmDelete={handleConfirmDeleteSector}
+        onConfirmDelete={handleConfirmDeleteIntegration}
       />
     </div>
   );

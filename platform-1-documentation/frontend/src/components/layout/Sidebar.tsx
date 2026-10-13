@@ -1,19 +1,18 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Box,
   PieChart, 
   PlusCircle, 
-  Building2, 
-  Store, 
-  ShieldAlert, 
-  Scale, 
-  Coins, 
-  Wallet, 
   FileDown,
-  Globe,
-  X
+  X,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  BookOpen,
+  ChevronsDownUp,
+  ChevronsUpDown
 } from 'lucide-react';
-import { Sector } from '../../types/schema';
+import { SystemModule, Sector } from '../../types/schema';
 import { useLanguage } from '../../i18n';
 
 export type AppViewMode = 
@@ -25,12 +24,13 @@ export type AppViewMode =
 interface SidebarProps {
   activeView: AppViewMode;
   onSelectView: (view: AppViewMode) => void;
-  sectors: Record<string, Sector>;
-  activeSectorKey: string;
-  onSelectSector: (key: string) => void;
-  activeEndpointIndex?: number;
-  onSelectEndpoint?: (sectorKey: string, endpointIndex: number) => void;
-  pendingCrCount?: number;
+  systems?: Record<string, SystemModule>;
+  activeSystemKey?: string;
+  activeIntegrationKey?: string;
+  onSelectSystemIntegration?: (systemKey: string, integrationKey: string) => void;
+  sectors?: Record<string, Sector>;
+  activeSectorKey?: string;
+  onSelectSector?: (key: string) => void;
   isOpenMobile?: boolean;
   onCloseMobile?: () => void;
 }
@@ -38,51 +38,86 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({
   activeView,
   onSelectView,
-  sectors,
-  activeSectorKey,
+  systems = {},
+  activeSystemKey = '',
+  activeIntegrationKey = '',
+  onSelectSystemIntegration,
+  sectors = {},
+  activeSectorKey = '',
   onSelectSector,
   isOpenMobile = false,
   onCloseMobile,
 }) => {
   const { t, getLocalized, isRtl } = useLanguage();
 
+  // Top-level docs section collapsed/expanded
+  const [isDocSectionOpen, setIsDocSectionOpen] = useState(true);
+
+  // State to track which systems are expanded in the accordion
+  // Default: Only the active system (or the first system) is expanded so they aren't all wide open
+  const [expandedSystems, setExpandedSystems] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    if (activeSystemKey) {
+      initial[activeSystemKey] = true;
+    } else {
+      const firstKey = Object.keys(systems)[0];
+      if (firstKey) initial[firstKey] = true;
+    }
+    return initial;
+  });
+
+  // Ensure active system is expanded if selection changes
+  useEffect(() => {
+    if (activeSystemKey && !expandedSystems[activeSystemKey]) {
+      setExpandedSystems(prev => ({ ...prev, [activeSystemKey]: true }));
+    }
+  }, [activeSystemKey]);
+
+  // Check if all systems are currently collapsed
+  const systemKeyList = Object.keys(systems);
+  const isAllCollapsed = systemKeyList.length > 0 && systemKeyList.every(k => !expandedSystems[k]);
+
+  // Toggle all systems expand / collapse (icon-only button)
+  const handleToggleAllSystems = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isAllCollapsed) {
+      const next: Record<string, boolean> = {};
+      if (activeSystemKey) {
+        next[activeSystemKey] = true;
+      } else {
+        systemKeyList.forEach(k => { next[k] = true; });
+      }
+      setExpandedSystems(next);
+    } else {
+      // Collapse all
+      setExpandedSystems({});
+    }
+  };
+
+  const toggleSystemExpand = (sysKey: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedSystems(prev => ({
+      ...prev,
+      [sysKey]: !prev[sysKey]
+    }));
+  };
+
   const handleNavClick = (view: AppViewMode) => {
     onSelectView(view);
-    if (onCloseMobile) {
-      onCloseMobile();
-    }
+    if (onCloseMobile) onCloseMobile();
   };
 
-  const handleSectorClick = (key: string) => {
-    onSelectSector(key);
-    if (onCloseMobile) {
-      onCloseMobile();
+  const handleIntegrationClick = (sysKey: string, intKey: string) => {
+    if (onSelectSystemIntegration) {
+      onSelectSystemIntegration(sysKey, intKey);
+    } else if (onSelectSector) {
+      onSelectSector(intKey);
     }
+    if (onCloseMobile) onCloseMobile();
   };
 
-  const getSidebarSectorIcon = (key: string, iconName?: string) => {
-    const iconToUse = iconName || key;
-    switch (iconToUse) {
-      case 'banking':
-      case 'Building2': return <Building2 size={16} style={{ color: '#38bdf8' }} />;
-      case 'merchants':
-      case 'Store': return <Store size={16} style={{ color: '#34d399' }} />;
-      case 'aml':
-      case 'ShieldAlert': return <ShieldAlert size={16} style={{ color: '#f59e0b' }} />;
-      case 'settlement':
-      case 'Scale': return <Scale size={16} style={{ color: '#a855f7' }} />;
-      case 'coins':
-      case 'Coins': return <Coins size={16} style={{ color: '#facc15' }} />;
-      case 'wallet':
-      case 'Wallet': return <Wallet size={16} style={{ color: '#ec4899' }} />;
-      case 'globe':
-      case 'Globe': return <Globe size={16} style={{ color: '#06b6d4' }} />;
-      default: return <Building2 size={16} style={{ color: '#38bdf8' }} />;
-    }
-  };
-
-  const sectorEntries = Object.entries(sectors);
   const alignStyle = { textAlign: isRtl ? 'right' : 'left' } as const;
+  const systemEntries = Object.entries(systems);
 
   return (
     <>
@@ -125,7 +160,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onClick={() => handleNavClick('dashboard')}
             title={t('sidebar.dashboard')}
           >
-            <PieChart size={17} />
+            <PieChart size={15} />
             <span style={{ flex: 1, ...alignStyle }}>{t('sidebar.dashboard')}</span>
           </button>
 
@@ -135,45 +170,130 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onClick={() => handleNavClick('add-api')}
             title={t('sidebar.addApiDoc')}
           >
-            <PlusCircle size={17} />
+            <PlusCircle size={15} />
             <span style={{ flex: 1, ...alignStyle }}>{t('sidebar.addApiDoc')}</span>
           </button>
 
           {/* Soft Divider */}
           <hr className="nav-divider" />
 
-          {/* SECTION 2: Dynamic Entities Only */}
-          <div id="sidebar-entities-container" style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            {sectorEntries.map(([key, sector]) => {
-              const isSectorActive = activeView === 'sector-spec' && activeSectorKey === key;
-              const localizedName = getLocalized({ ar: sector.name, en: sector.nameEn }, sector.name);
+          {/* ── COLLAPSIBLE DOCS SECTION HEADER WITH ICON ACTION ── */}
+          <div className="sidebar-section-row">
+            <button
+              className="sidebar-section-toggle"
+              onClick={() => setIsDocSectionOpen(prev => !prev)}
+              aria-expanded={isDocSectionOpen}
+            >
+              <BookOpen size={13} className="sidebar-section-icon" />
+              <span style={{ flex: 1, ...alignStyle }}>
+                {isRtl ? 'التوثيق البرمجي للأنظمة' : 'API Documentation Hub'}
+              </span>
+              <span className="sidebar-section-chevron">
+                {isDocSectionOpen
+                  ? <ChevronDown size={13} />
+                  : isRtl ? <ChevronLeft size={13} /> : <ChevronRight size={13} />
+                }
+              </span>
+            </button>
 
-              return (
-                <button
-                  key={key}
-                  className={`nav-btn ${isSectorActive ? 'active' : ''}`}
-                  onClick={() => handleSectorClick(key)}
-                  title={localizedName}
-                >
-                  {getSidebarSectorIcon(key, sector.icon)}
-                  <span style={{ flex: 1, ...alignStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {localizedName}
-                  </span>
-                </button>
-              );
-            })}
+            {/* Quick icon-only action to fold/unfold systems — keeps maximum space */}
+            {isDocSectionOpen && (
+              <button
+                type="button"
+                className="sidebar-icon-action-btn"
+                onClick={handleToggleAllSystems}
+                title={isAllCollapsed 
+                  ? (isRtl ? 'فتح المسارات' : 'Expand All') 
+                  : (isRtl ? 'ضم المسارات' : 'Collapse All')
+                }
+                aria-label="Toggle all systems"
+              >
+                {isAllCollapsed ? <ChevronsUpDown size={13} /> : <ChevronsDownUp size={13} />}
+              </button>
+            )}
           </div>
+
+          {/* ── SYSTEMS TREE (shown only when docs section is open) ── */}
+          {isDocSectionOpen && (
+            <div id="sidebar-systems-tree" className="sidebar-systems-tree">
+              {systemEntries.map(([sysKey, sys]) => {
+                const isExpanded = !!expandedSystems[sysKey];
+                const isSystemSelected = activeSystemKey === sysKey && activeView === 'sector-spec';
+                const localizedSysName = getLocalized({ ar: sys.name, en: sys.nameEn }, sys.name);
+                const integrationsList = sys.integrations ? Object.entries(sys.integrations) : [];
+
+                return (
+                  <div 
+                    key={sysKey} 
+                    className={`sidebar-system-group ${isSystemSelected ? 'system-group-active' : ''} ${isExpanded ? 'is-expanded' : ''}`}
+                  >
+                    {/* Level 1: System Node Header */}
+                    <div
+                      className={`system-node-btn ${isSystemSelected ? 'system-active' : ''}`}
+                      onClick={(e) => toggleSystemExpand(sysKey, e)}
+                      title={localizedSysName}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === 'Enter') toggleSystemExpand(sysKey, e as any); }}
+                    >
+                      <span className="system-node-label" style={{ ...alignStyle }}>
+                        {localizedSysName}
+                      </span>
+
+                      {/* Expand / Collapse Chevron */}
+                      <span className="system-node-chevron">
+                        {isExpanded
+                          ? <ChevronDown size={12} />
+                          : isRtl ? <ChevronLeft size={12} /> : <ChevronRight size={12} />
+                        }
+                      </span>
+                    </div>
+
+                    {/* Level 2: Nested Integrations */}
+                    {isExpanded && integrationsList.length > 0 && (
+                      <div className="sidebar-integrations-sublist">
+                        {integrationsList.map(([intKey, integration]) => {
+                          const isIntegrationActive =
+                            activeView === 'sector-spec' &&
+                            activeSystemKey === sysKey &&
+                            activeIntegrationKey === intKey;
+
+                          const localizedIntName = getLocalized(
+                            { ar: integration.name, en: integration.nameEn },
+                            integration.name
+                          );
+
+                          return (
+                            <button
+                              key={intKey}
+                              className={`sub-nav-btn ${isIntegrationActive ? 'active' : ''}`}
+                              onClick={() => handleIntegrationClick(sysKey, intKey)}
+                              title={localizedIntName}
+                            >
+                              <span style={{ flex: 1, ...alignStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {localizedIntName}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Soft Divider */}
           <hr className="nav-divider" />
 
-          {/* Dedicated Export Studio */}
+          {/* Export Studio */}
           <button
             className={`nav-btn ${activeView === 'export-studio' ? 'active' : ''}`}
             onClick={() => handleNavClick('export-studio')}
             title={t('sidebar.exportStudio')}
           >
-            <FileDown size={16} style={{ color: activeView === 'export-studio' ? '#ffffff' : 'var(--blue)' }} />
+            <FileDown size={15} style={{ color: activeView === 'export-studio' ? '#ffffff' : 'var(--blue)' }} />
             <span style={{ flex: 1, ...alignStyle }}>{t('sidebar.exportStudio')}</span>
           </button>
         </nav>

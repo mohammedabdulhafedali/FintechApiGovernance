@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Endpoint, HttpMethod, Sector, IntegrationDirection, ClientChannel } from '../../types/schema';
+import { Endpoint, HttpMethod, Sector, IntegrationDirection, ClientChannel, SystemModule } from '../../types/schema';
 import { INITIAL_SYSTEMS } from '../../data/mockData';
 import { 
   CloudUpload, 
@@ -10,7 +10,6 @@ import {
   Route, 
   Code2, 
   RotateCcw, 
-  FileSignature, 
   Info,
   Download,
   FileCode,
@@ -27,13 +26,18 @@ import {
   Smartphone,
   Server,
   ArrowDownLeft,
-  ArrowUpRight
+  ArrowUpRight,
+  Copy,
+  Wand2,
+  Globe,
+  ShieldCheck
 } from 'lucide-react';
 import { useLanguage } from '../../i18n';
 
 interface DocumentationHubProps {
   sectors: Record<string, Sector>;
-  onAddEndpoint: (sectorKey: string, endpoint: Endpoint | Endpoint[], isBulk?: boolean) => void;
+  systems?: Record<string, SystemModule>;
+  onAddEndpoint: (sectorKey: string, endpoint: Endpoint | Endpoint[], isBulk?: boolean, systemKey?: string) => void;
   onSuccess: (title: string, message: string, codeSnippet?: string) => void;
 }
 
@@ -46,18 +50,27 @@ interface ParsedImportResult {
 
 export const DocumentationHub: React.FC<DocumentationHubProps> = ({
   sectors,
+  systems,
   onAddEndpoint,
   onSuccess
 }) => {
   const { t, getLocalized, language, isRtl } = useLanguage();
   const isEn = language === 'en';
 
+  const systemCatalog = systems && Object.keys(systems).length > 0 ? systems : INITIAL_SYSTEMS;
+
   // Mode Selection: 'manual' builder vs 'import' template hub
   const [activeMode, setActiveMode] = useState<'manual' | 'import'>('manual');
 
-  // Manual Form States
-  const [selectedSector, setSelectedSector] = useState('banking');
-  const [systemKey, setSystemKey] = useState<string>('collection');
+  // Manual Form States: System first, then Integration (Entity)
+  const [systemKey, setSystemKey] = useState<string>(() => Object.keys(systemCatalog)[0] || 'collection');
+  const [selectedSector, setSelectedSector] = useState<string>(() => {
+    const firstSys = Object.values(systemCatalog)[0];
+    if (firstSys?.integrations) {
+      return Object.keys(firstSys.integrations)[0] || 'banking';
+    }
+    return 'banking';
+  });
   const [direction, setDirection] = useState<IntegrationDirection>('INBOUND');
   const [selectedChannels, setSelectedChannels] = useState<ClientChannel[]>(['CORE_SERVER', 'MOBILE']);
   const [serviceTitle, setServiceTitle] = useState('');
@@ -91,6 +104,25 @@ export const DocumentationHub: React.FC<DocumentationHubProps> = ({
     code: "INVALID_ACCOUNT_422",
     message: "Account number is inactive or not found in central registry."
   }, null, 2));
+
+  // Copy & Format Interactive State
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopy = (text: string, id: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1800);
+  };
+
+  const handleFormatJson = (setter: React.Dispatch<React.SetStateAction<string>>, currentVal: string) => {
+    try {
+      const parsed = JSON.parse(currentVal);
+      setter(JSON.stringify(parsed, null, 2));
+    } catch {
+      // Keep untouched if invalid JSON
+    }
+  };
 
   // Import State
   const [importInputType, setImportInputType] = useState<'upload' | 'paste'>('upload');
@@ -217,7 +249,7 @@ export const DocumentationHub: React.FC<DocumentationHubProps> = ({
       curl: `curl -X ${method} "${baseUrl}${endpointPath}" \\\n  -H "Authorization: Bearer <TOKEN>" \\\n  -H "Content-Type: application/json"`
     };
 
-    onAddEndpoint(selectedSector, newEndpoint, false);
+    onAddEndpoint(selectedSector, newEndpoint, false, systemKey);
   };
 
   // =========================================================================
@@ -801,157 +833,111 @@ paths:
           <form onSubmit={handleManualSubmit} className="add-api-form-grid">
             {/* Column 1: Specification & Route Configuration */}
             <div className="add-api-card">
+              {/* SECTION 1: Service Identity & Governance */}
               <div className="add-api-card-title">
                 <Building2 size={18} color="var(--blue)" />
-                <span>1. {isEn ? 'Sector & Service Definition' : 'البيانات الأساسية وتصنيف الخدمة'}</span>
+                <span>1. {isEn ? 'Core System & Service Definition' : 'البيانات الأساسية وتصنيف الخدمة'}</span>
+                <span className="mono badge-pill badge-blue" style={{ marginInlineStart: 'auto', fontSize: '0.70rem' }}>
+                  {systemCatalog[systemKey]?.code || 'SYS'}
+                </span>
               </div>
 
+              {/* Row 1: Core System & Target Integration Entity */}
               <div className="form-grid-2">
                 <div className="form-group">
-                  <label className="form-label">{t('docHub.sectorSelectLabel')}</label>
+                  <label className="form-label">
+                    <span>{isRtl ? 'النظام البرمجي المركزي المسؤول:' : 'Core Responsible System:'}</span>
+                  </label>
                   <select
-                    value={selectedSector}
-                    onChange={(e) => setSelectedSector(e.target.value)}
+                    value={systemKey}
+                    onChange={(e) => {
+                      const newSysKey = e.target.value;
+                      setSystemKey(newSysKey);
+                      const sysObj = systemCatalog[newSysKey];
+                      if (sysObj?.integrations) {
+                        const firstInt = Object.keys(sysObj.integrations)[0];
+                        if (firstInt) setSelectedSector(firstInt);
+                      }
+                    }}
                     className="form-control"
                   >
-                    {Object.entries(sectors).map(([key, s]) => (
-                      <option key={key} value={key}>
-                        {getLocalized({ ar: s.name, en: s.nameEn }, s.name)} ({s.code})
+                    {Object.entries(systemCatalog).map(([k, sys]) => (
+                      <option key={k} value={k}>
+                        {getLocalized({ ar: sys.name, en: sys.nameEn }, sys.name)} ({sys.code})
                       </option>
                     ))}
                   </select>
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">{t('docHub.serviceTitleLabel')}</label>
-                  <input
-                    type="text"
-                    value={serviceTitle}
-                    onChange={(e) => setServiceTitle(e.target.value)}
-                    placeholder={isEn ? 'e.g. Real-Time Balance Inquiry' : 'مثال: استعلام رصيد الحساب اللحظي'}
-                    className="form-control"
-                  />
-                </div>
-              </div>
-
-              <div className="form-grid-2">
-                <div className="form-group">
-                  <label className="form-label">{t('docHub.serviceCodeLabel')}</label>
-                  <input
-                    type="text"
-                    value={serviceCode}
-                    onChange={(e) => setServiceCode(e.target.value)}
-                    placeholder="BAL_INQ"
-                    className="form-control mono"
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{t('docHub.baseUrlLabel')}</label>
-                  <input
-                    type="text"
-                    value={baseUrl}
-                    onChange={(e) => setBaseUrl(e.target.value)}
-                    className="form-control mono"
-                    dir="ltr"
-                  />
-                </div>
-              </div>
-
-              {/* Multi-Dimensional Governance Matrix Selection (SOLID Architecture) */}
-              <div style={{
-                background: 'rgba(99, 102, 241, 0.05)',
-                border: '1px solid rgba(99, 102, 241, 0.20)',
-                borderRadius: '8px',
-                padding: '0.75rem',
-                margin: '0.5rem 0',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.6rem'
-              }}>
-                <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <Layers size={14} />
-                  <span>{isEn ? 'Governance Multi-Dimensional Matrix' : 'مصفوفة الحوكمة وتصنيف الأنظمة والقنوات (SOLID)'}</span>
-                </div>
-
-                <div className="form-grid-2">
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontSize: '0.70rem' }}>
-                      {isEn ? 'Core Functional System' : 'النظام المركزي المسؤول:'}
-                    </label>
-                    <select
-                      value={systemKey}
-                      onChange={(e) => setSystemKey(e.target.value)}
-                      className="form-control"
-                      style={{ fontSize: '0.78rem' }}
-                    >
-                      {Object.entries(INITIAL_SYSTEMS).map(([k, sys]) => (
-                        <option key={k} value={k}>
-                          {getLocalized({ ar: sys.name, en: sys.nameEn }, sys.name)} ({sys.code})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontSize: '0.70rem' }}>
-                      {isEn ? 'Integration Direction' : 'اتجاه التكامل والربط:'}
-                    </label>
-                    <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.1rem' }}>
-                      <button
-                        type="button"
-                        onClick={() => setDirection('INBOUND')}
-                        style={{
-                          flex: 1,
-                          padding: '0.35rem 0.5rem',
-                          fontSize: '0.72rem',
-                          fontWeight: direction === 'INBOUND' ? 800 : 500,
-                          borderRadius: '4px',
-                          border: '1px solid',
-                          borderColor: direction === 'INBOUND' ? 'var(--cyan)' : 'var(--border)',
-                          background: direction === 'INBOUND' ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
-                          color: direction === 'INBOUND' ? 'var(--cyan)' : 'var(--text-dim)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '4px'
-                        }}
-                      >
-                        <ArrowDownLeft size={12} />
-                        <span>{isEn ? 'Inbound (They consume us)' : 'وارد (تربط معنا)'}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDirection('OUTBOUND')}
-                        style={{
-                          flex: 1,
-                          padding: '0.35rem 0.5rem',
-                          fontSize: '0.72rem',
-                          fontWeight: direction === 'OUTBOUND' ? 800 : 500,
-                          borderRadius: '4px',
-                          border: '1px solid',
-                          borderColor: direction === 'OUTBOUND' ? 'var(--amber)' : 'var(--border)',
-                          background: direction === 'OUTBOUND' ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
-                          color: direction === 'OUTBOUND' ? 'var(--amber)' : 'var(--text-dim)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '4px'
-                        }}
-                      >
-                        <ArrowUpRight size={12} />
-                        <span>{isEn ? 'Outbound (We consume them)' : 'صادر (نربط معها)'}</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label" style={{ fontSize: '0.70rem' }}>
-                    {isEn ? 'Target Client Channels' : 'قنوات الاستهلاك المستهدفة (ISP Segregation):'}
+                  <label className="form-label">
+                    <span>{isRtl ? 'جهة التكامل والربط المستهدفة:' : 'Target Integrated Entity:'}</span>
                   </label>
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <select
+                    value={selectedSector}
+                    onChange={(e) => setSelectedSector(e.target.value)}
+                    className="form-control"
+                  >
+                    {systemCatalog[systemKey]?.integrations ? (
+                      Object.entries(systemCatalog[systemKey].integrations).map(([k, intItem]: [string, any]) => (
+                        <option key={k} value={k}>
+                          {getLocalized({ ar: intItem.name, en: intItem.nameEn }, intItem.name)}
+                        </option>
+                      ))
+                    ) : (
+                      Object.entries(sectors).map(([key, s]) => (
+                        <option key={key} value={key}>
+                          {getLocalized({ ar: s.name, en: s.nameEn }, s.name)} ({s.code})
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              </div>
+
+              {/* Multi-Dimensional Governance Matrix (SOLID Architecture) */}
+              <div className="governance-matrix-box">
+                <div className="governance-matrix-header">
+                  <div style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Layers size={14} />
+                    <span>{isEn ? 'Governance Multi-Dimensional Matrix (SOLID)' : 'مصفوفة الحوكمة وتصنيف الأنظمة والقنوات (SOLID)'}</span>
+                  </div>
+                  <span className="mono badge-pill badge-cyan" style={{ fontSize: '0.66rem' }}>
+                    {direction} • {selectedChannels.length} {isEn ? 'Channels' : 'قنوات'}
+                  </span>
+                </div>
+
+                {/* Integration Direction Switcher */}
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.72rem' }}>
+                    {isEn ? 'Integration Direction & Topology:' : 'اتجاه التكامل والربط المعماري:'}
+                  </label>
+                  <div className="governance-direction-toggle">
+                    <button
+                      type="button"
+                      onClick={() => setDirection('INBOUND')}
+                      className={`governance-direction-btn ${direction === 'INBOUND' ? 'active-inbound' : ''}`}
+                    >
+                      <ArrowDownLeft size={13} />
+                      <span>{isEn ? 'Inbound (They consume us)' : 'وارد (تربط معنا)'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDirection('OUTBOUND')}
+                      className={`governance-direction-btn ${direction === 'OUTBOUND' ? 'active-outbound' : ''}`}
+                    >
+                      <ArrowUpRight size={13} />
+                      <span>{isEn ? 'Outbound (We consume them)' : 'صادر (نربط معها)'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Targeted Client Channels (ISP Segregation) */}
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.72rem' }}>
+                    {isEn ? 'Target Client Channels (ISP Segregation):' : 'قنوات الاستهلاك المستهدفة (ISP Segregation):'}
+                  </label>
+                  <div className="governance-channels-row">
                     {[
                       { key: 'MOBILE' as ClientChannel, label: isEn ? 'Mobile App (SDK)' : 'تطبيقات الموبايل 📱' },
                       { key: 'CORE_SERVER' as ClientChannel, label: isEn ? 'Banking Core Server' : 'الخوادم البنكية المركزية 🖥️' },
@@ -969,19 +955,10 @@ paths:
                                 : [...prev, ch.key]
                             );
                           }}
-                          style={{
-                            padding: '0.25rem 0.6rem',
-                            fontSize: '0.70rem',
-                            fontWeight: isChecked ? 700 : 500,
-                            borderRadius: '4px',
-                            border: '1px solid',
-                            borderColor: isChecked ? 'var(--emerald)' : 'var(--border)',
-                            background: isChecked ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
-                            color: isChecked ? 'var(--emerald)' : 'var(--text-dim)',
-                            cursor: 'pointer'
-                          }}
+                          className={`governance-channel-chip ${isChecked ? 'active' : ''}`}
                         >
-                          {isChecked ? '✓ ' : ''}{ch.label}
+                          {isChecked ? <Check size={11} /> : null}
+                          <span>{ch.label}</span>
                         </button>
                       );
                     })}
@@ -989,8 +966,66 @@ paths:
                 </div>
               </div>
 
-              <hr style={{ border: 'none', borderTop: '1px solid var(--border-subtle)', margin: '0.4rem 0' }} />
+              {/* Service Titles & Identifiers */}
+              <div className="form-grid-2">
+                <div className="form-group">
+                  <label className="form-label">{t('docHub.serviceTitleLabel')}</label>
+                  <input
+                    type="text"
+                    value={serviceTitle}
+                    onChange={(e) => setServiceTitle(e.target.value)}
+                    placeholder={isEn ? 'e.g. Real-Time Balance Inquiry' : 'مثال: استعلام رصيد الحساب اللحظي'}
+                    className="form-control"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">{t('docHub.serviceCodeLabel')}</label>
+                  <input
+                    type="text"
+                    value={serviceCode}
+                    onChange={(e) => setServiceCode(e.target.value)}
+                    placeholder="BAL_INQ"
+                    className="form-control mono"
+                  />
+                </div>
+              </div>
 
+              {/* Base URL with Copy Button & Live Preview */}
+              <div className="form-group">
+                <label className="form-label">
+                  <span>{t('docHub.baseUrlLabel')}</span>
+                  <span className="mono" style={{ fontSize: '0.68rem', color: '#64748b' }}>
+                    {baseUrl}{endpointPath}
+                  </span>
+                </label>
+                <div className="composite-url-field">
+                  <div className="composite-url-prefix">
+                    <Globe size={13} style={{ marginInlineEnd: '4px' }} />
+                    <span>URL</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={baseUrl}
+                    onChange={(e) => setBaseUrl(e.target.value)}
+                    className="composite-url-input"
+                    dir="ltr"
+                    placeholder="https://api.gov.fintech/v1"
+                  />
+                  <button
+                    type="button"
+                    className={`composite-url-copy ${copiedId === 'baseUrl' ? 'copied' : ''}`}
+                    onClick={() => handleCopy(`${baseUrl}${endpointPath}`, 'baseUrl')}
+                    title="نسخ الرابط الكامل"
+                  >
+                    {copiedId === 'baseUrl' ? <Check size={12} /> : <Copy size={12} />}
+                    <span>{copiedId === 'baseUrl' ? (isEn ? 'Copied' : 'تم النسخ') : (isEn ? 'Copy' : 'نسخ')}</span>
+                  </button>
+                </div>
+              </div>
+
+              <hr style={{ border: 'none', borderTop: '1px solid var(--border-subtle)', margin: '0.2rem 0' }} />
+
+              {/* SECTION 2: Route Path & HTTP Operation */}
               <div className="add-api-card-title">
                 <Route size={18} color="var(--emerald)" />
                 <span>2. {isEn ? 'Route Path & HTTP Operation' : 'مواصفة المسار وعملية الـ HTTP'}</span>
@@ -1056,87 +1091,169 @@ paths:
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="form-control"
-                  style={{ minHeight: '75px', resize: 'vertical' }}
+                  rows={2}
+                  style={{ minHeight: '65px', resize: 'vertical' }}
                 />
               </div>
             </div>
 
-            {/* Column 2: Live Wire Sandbox (Payloads & Responses) */}
-            <div className="add-api-card">
+            {/* Column 2: Sticky Live Wire Sandbox (Payloads & Responses) */}
+            <div className="add-api-card sticky-sandbox">
               <div className="add-api-card-title">
                 <Code2 size={18} color="var(--primary)" />
-                <span>{isEn ? 'Payload & Response Models' : 'نماذج البيانات والاستجابة (Wire Sandbox)'}</span>
+                <span>{isEn ? 'Live Wire Sandbox (Payload & Responses)' : 'نماذج البيانات والاستجابة (Wire Sandbox)'}</span>
                 <span className="mono badge-pill badge-blue" style={{ marginInlineStart: 'auto', fontSize: '0.68rem' }}>
                   application/json
                 </span>
               </div>
 
+              {/* Request Body Editor with Tools */}
               <div className="form-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label className="form-label" style={{ margin: 0 }}>{t('docHub.reqBodyLabel')}</label>
-                  <span className="mono" style={{ fontSize: '0.70rem', color: '#94a3b8' }}>
-                    {method === 'GET' ? 'N/A (Query String)' : 'Schema: Validated JSON'}
-                  </span>
+                <div className="sandbox-editor-wrapper">
+                  <div className="sandbox-editor-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#f1f5f9' }}>
+                        {isEn ? 'Request Payload Model' : 'نموذج بيانات الطلب (Payload)'}
+                      </span>
+                      <span className="mono badge-pill badge-blue" style={{ fontSize: '0.64rem' }}>
+                        {method === 'GET' ? 'N/A' : 'Schema JSON'}
+                      </span>
+                    </div>
+                    {method !== 'GET' && (
+                      <div className="sandbox-editor-tools">
+                        <button
+                          type="button"
+                          className="sandbox-tool-btn"
+                          onClick={() => handleFormatJson(setReqBody, reqBody)}
+                          title="تنسيق الكود تلقائياً"
+                        >
+                          <Wand2 size={11} />
+                          <span>تنسيق</span>
+                        </button>
+                        <button
+                          type="button"
+                          className={`sandbox-tool-btn ${copiedId === 'reqBody' ? 'copied' : ''}`}
+                          onClick={() => handleCopy(reqBody, 'reqBody')}
+                          title="نسخ المحتوى"
+                        >
+                          {copiedId === 'reqBody' ? <Check size={11} /> : <Copy size={11} />}
+                          <span>{copiedId === 'reqBody' ? 'تم النسخ' : 'نسخ'}</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <textarea
+                    value={reqBody}
+                    onChange={(e) => setReqBody(e.target.value)}
+                    className="add-api-code-editor"
+                    style={{ minHeight: '100px' }}
+                    disabled={method === 'GET'}
+                  />
                 </div>
-                <textarea
-                  value={reqBody}
-                  onChange={(e) => setReqBody(e.target.value)}
-                  className="add-api-code-editor"
-                  style={{ minHeight: '110px' }}
-                />
               </div>
 
+              {/* 200 OK Response Editor with Tools */}
               <div className="form-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label className="form-label" style={{ margin: 0, color: 'var(--emerald)' }}>
-                    {t('docHub.res200Label')}
-                  </label>
-                  <span className="badge-pill badge-emerald" style={{ fontSize: '0.68rem', padding: '0.12rem 0.5rem' }}>
-                    200 OK
-                  </span>
+                <div className="sandbox-editor-wrapper">
+                  <div className="sandbox-editor-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--emerald)' }}>
+                        {isEn ? 'Success Response Model' : 'الاستجابة الناجحة المعتمدة'}
+                      </span>
+                      <span className="badge-pill badge-emerald" style={{ fontSize: '0.64rem', padding: '0.12rem 0.45rem' }}>
+                        200 OK
+                      </span>
+                    </div>
+                    <div className="sandbox-editor-tools">
+                      <button
+                        type="button"
+                        className="sandbox-tool-btn"
+                        onClick={() => handleFormatJson(setRes200, res200)}
+                        title="تنسيق الكود تلقائياً"
+                      >
+                        <Wand2 size={11} />
+                        <span>تنسيق</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`sandbox-tool-btn ${copiedId === 'res200' ? 'copied' : ''}`}
+                        onClick={() => handleCopy(res200, 'res200')}
+                        title="نسخ المحتوى"
+                      >
+                        {copiedId === 'res200' ? <Check size={11} /> : <Copy size={11} />}
+                        <span>{copiedId === 'res200' ? 'تم النسخ' : 'نسخ'}</span>
+                      </button>
+                    </div>
+                  </div>
+                  <textarea
+                    value={res200}
+                    onChange={(e) => setRes200(e.target.value)}
+                    className="add-api-code-editor"
+                    style={{ minHeight: '105px' }}
+                  />
                 </div>
-                <textarea
-                  value={res200}
-                  onChange={(e) => setRes200(e.target.value)}
-                  className="add-api-code-editor"
-                  style={{ minHeight: '110px' }}
-                />
               </div>
 
+              {/* 422 Unprocessable Response Editor with Tools */}
               <div className="form-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label className="form-label" style={{ margin: 0, color: 'var(--rose)' }}>
-                    {t('docHub.res422Label')}
-                  </label>
-                  <span className="badge-pill badge-rose" style={{ fontSize: '0.68rem', padding: '0.12rem 0.5rem' }}>
-                    422 Unprocessable
-                  </span>
+                <div className="sandbox-editor-wrapper">
+                  <div className="sandbox-editor-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--rose)' }}>
+                        {isEn ? 'Validation Error Model' : 'استجابة الرفض ومطابقة الأخطاء'}
+                      </span>
+                      <span className="badge-pill badge-rose" style={{ fontSize: '0.64rem', padding: '0.12rem 0.45rem' }}>
+                        422 Rejected
+                      </span>
+                    </div>
+                    <div className="sandbox-editor-tools">
+                      <button
+                        type="button"
+                        className="sandbox-tool-btn"
+                        onClick={() => handleFormatJson(setRes422, res422)}
+                        title="تنسيق الكود تلقائياً"
+                      >
+                        <Wand2 size={11} />
+                        <span>تنسيق</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`sandbox-tool-btn ${copiedId === 'res422' ? 'copied' : ''}`}
+                        onClick={() => handleCopy(res422, 'res422')}
+                        title="نسخ المحتوى"
+                      >
+                        {copiedId === 'res422' ? <Check size={11} /> : <Copy size={11} />}
+                        <span>{copiedId === 'res422' ? 'تم النسخ' : 'نسخ'}</span>
+                      </button>
+                    </div>
+                  </div>
+                  <textarea
+                    value={res422}
+                    onChange={(e) => setRes422(e.target.value)}
+                    className="add-api-code-editor"
+                    style={{ minHeight: '85px' }}
+                  />
                 </div>
-                <textarea
-                  value={res422}
-                  onChange={(e) => setRes422(e.target.value)}
-                  className="add-api-code-editor"
-                  style={{ minHeight: '85px' }}
-                />
               </div>
 
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginTop: '0.5rem',
-                paddingTop: '1rem',
-                borderTop: '1px solid var(--border-subtle)'
-              }}>
-                <button type="button" className="btn btn-ghost" onClick={handleReset} style={{ fontSize: '0.80rem' }}>
-                  <RotateCcw size={14} />
-                  <span>{t('docHub.resetButton')}</span>
-                </button>
+              {/* Action Buttons Bar */}
+              <div className="add-api-action-bar">
+                <div className="add-api-action-status">
+                  <span className="status-pulse-dot" />
+                  <span>{isEn ? 'Schema Validated' : 'المواصفة جاهزة للاعتماد'}</span>
+                </div>
 
-                <button type="submit" className="btn btn-emerald" style={{ padding: '0.55rem 1.35rem', fontSize: '0.84rem' }}>
-                  <CloudUpload size={16} />
-                  <span>{t('docHub.submitButton')}</span>
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <button type="button" className="btn btn-ghost" onClick={handleReset} style={{ fontSize: '0.80rem' }}>
+                    <RotateCcw size={14} />
+                    <span>{t('docHub.resetButton')}</span>
+                  </button>
+
+                  <button type="submit" className="btn btn-emerald" style={{ padding: '0.6rem 1.45rem', fontSize: '0.86rem', fontWeight: 700 }}>
+                    <CloudUpload size={17} />
+                    <span>{t('docHub.submitButton')}</span>
+                  </button>
+                </div>
               </div>
             </div>
           </form>
@@ -1494,42 +1611,6 @@ paths:
         </div>
       )}
 
-      {/* 3. Bottom Sovereign Compliance & Export Integration Card */}
-      <div className="add-api-card" style={{ padding: '1.1rem 1.4rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.85rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: 'var(--radius-sm)',
-              background: 'rgba(168, 85, 247, 0.15)',
-              color: 'var(--purple)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <FileSignature size={18} />
-            </div>
-            <div>
-              <strong style={{ fontSize: '0.88rem', display: 'block', color: '#ffffff' }}>
-                3. {isEn ? 'Automatic National Deliverable Integration' : 'التكامل الرقابي الشامل مع مخرجات التصدير السيادية'}
-              </strong>
-              <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
-                {isEn 
-                  ? 'Any newly imported or documented endpoint is automatically bound to 4-Page PDF, Word (.docx), Markdown, OpenAPI 3.1, Postman & ISO 20022 deliverables.'
-                  : 'أي مسار يتم استيراده أو توثيقه يُربط فورياً وبشكل تلقائي بكافة صيغ التصدير المعتمدة (وثيقة الـ PDF الرسمية 4 صفحات، Word، Markdown، OpenAPI 3.1، Postman، ورسائل ISO 20022).'}
-              </span>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-            <span className="badge-pill badge-blue" style={{ fontSize: '0.70rem' }}>OpenAPI 3.1</span>
-            <span className="badge-pill badge-emerald" style={{ fontSize: '0.70rem' }}>PDF (4-Pages)</span>
-            <span className="badge-pill badge-purple" style={{ fontSize: '0.70rem' }}>Word (.docx)</span>
-            <span className="badge-pill badge-amber" style={{ fontSize: '0.70rem' }}>ISO 20022 XML</span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

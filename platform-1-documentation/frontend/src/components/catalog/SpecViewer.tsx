@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Endpoint } from '../../types/schema';
-import { Copy, Check, ShieldCheck, AlertTriangle, FileDown, ArrowDownLeft, ArrowUpRight, Smartphone, Server, BookOpen, X } from 'lucide-react';
+import { Copy, Check, ShieldCheck, AlertTriangle, FileDown, ArrowDownLeft, ArrowUpRight, Smartphone, Server, BookOpen, X, Table, Code } from 'lucide-react';
 import { useLanguage } from '../../i18n';
 
 interface SpecViewerProps {
@@ -125,7 +125,7 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
       {/* Ultra-Slim Consolidated Single-Row Header Bar (Image 3) */}
       <div className="spec-slim-toolbar">
         <div className="spec-slim-meta">
-          <div className="spec-slim-path-wrap" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <div className="spec-slim-path-wrap" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span className={`method-badge method-${endpoint.method.toLowerCase()}`}>
               {endpoint.method}
             </span>
@@ -133,28 +133,19 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
               {endpoint.path}
             </span>
 
-            {endpoint.isDraft ? (
-              <span className="badge-pill badge-opt" style={{ borderColor: 'rgba(255, 255, 255, 0.15)', color: '#94a3b8' }}>
-                <ShieldCheck size={12} /> {isEn ? 'Screen Draft v2026.2' : 'مسودة مضافة من الشاشة'}
-              </span>
-            ) : (
-              <span className="badge-pill badge-iso" style={{ background: 'rgba(255, 255, 255, 0.08)', borderColor: 'rgba(255, 255, 255, 0.15)', color: '#94a3b8' }}>
-                <ShieldCheck size={12} /> {isEn ? 'Official Certified v2026.2' : 'معتمد رسمي v2026.2'}
-              </span>
-            )}
+            {/* Quick Copy Path Button right next to path instead of certified badge */}
+            <button 
+              className="btn btn-ghost btn-slim-action" 
+              onClick={() => handleCopy(endpoint.path, 'path')} 
+              title={t('spec.copyEndpoint')}
+              style={{ padding: '0.25rem 0.45rem', borderRadius: '6px', color: copiedPath ? 'var(--emerald)' : 'var(--text-dim)' }}
+            >
+              {copiedPath ? <Check size={13} style={{ color: 'var(--emerald)' }} /> : <Copy size={13} />}
+            </button>
           </div>
         </div>
 
         <div className="spec-slim-controls" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          {/* Action copy button on left */}
-          <button 
-            className="btn-slim-action" 
-            onClick={() => handleCopy(endpoint.path, 'path')} 
-            title={t('spec.copyEndpoint')}
-            style={{ padding: '0.35rem 0.55rem', borderRadius: '6px' }}
-          >
-            {copiedPath ? <Check size={13} style={{ color: 'var(--emerald)' }} /> : <Copy size={13} />}
-          </button>
           {activeTab === 'example' && (
             <div className="spec-format-switcher">
               <button 
@@ -179,28 +170,28 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
           )}
 
           {/* Compact Segmented Control (Tabs) */}
-          <div className="spec-slim-segmented">
+          <div className="spec-slim-segmented" role="tablist" aria-label="Specification View Switcher">
             <button 
+              role="tab"
+              aria-selected={activeTab === 'doc'}
               className={`spec-slim-seg-btn ${activeTab === 'doc' ? 'active' : ''}`}
               onClick={() => setActiveTab('doc')}
             >
-              <span>{isEn ? '1. Specification Tables' : '1. جداول المواصفة'}</span>
+              <Table size={13.5} className="spec-tab-icon" />
+              <span>{isEn ? 'Specification Tables' : 'جداول المواصفة'}</span>
+              {activeTab === 'doc' && <span className="spec-tab-indicator" />}
             </button>
             <button 
+              role="tab"
+              aria-selected={activeTab === 'example'}
               className={`spec-slim-seg-btn ${activeTab === 'example' ? 'active' : ''}`}
               onClick={() => setActiveTab('example')}
             >
-              <span>{isEn ? '2. Full Wire Examples' : '2. أمثلة الاستدعاء الكاملة'}</span>
+              <Code size={13.5} className="spec-tab-icon" />
+              <span>{isEn ? 'Full Wire Examples' : 'أمثلة الاستدعاء الكاملة'}</span>
+              {activeTab === 'example' && <span className="spec-tab-indicator" />}
             </button>
           </div>
-
-          <button 
-            className="btn btn-ghost btn-slim-action" 
-            onClick={() => handleCopy(endpoint.curl || '', 'curl')} 
-            title={t('spec.copyCurl')}
-          >
-            {copiedCurl ? <Check size={13} style={{ color: 'var(--emerald)' }} /> : <Copy size={13} />}
-          </button>
 
           <button 
             className="btn btn-ghost btn-slim-action" 
