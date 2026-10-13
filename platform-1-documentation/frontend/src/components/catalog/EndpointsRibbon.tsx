@@ -21,102 +21,41 @@ export const EndpointsRibbon: React.FC<EndpointsRibbonProps> = ({
   onAddApiForSector,
   onDeleteSector
 }) => {
-  const { t } = useLanguage();
+  const { t, isRtl } = useLanguage();
 
   return (
     <div className="endpoints-ribbon">
+      {/* 1. Action Buttons in front (Matching Image 3) */}
+      <button
+        className="btn-ribbon-action-emerald"
+        onClick={onAddApiForSector || onAddNewEndpoint}
+        title={t('ribbon.addNewApiToSector')}
+      >
+        <span>+ {isRtl ? 'إضافة API جديدة لهذه الجهة' : 'Add New API for Sector'}</span>
+      </button>
+
+      <button
+        className="btn-ribbon-action-indigo"
+        onClick={onAddNewEndpoint}
+        title={isRtl ? 'إضافة مسار من الشاشة' : 'Add Endpoint from Screen'}
+      >
+        <span>+ {isRtl ? 'إضافة مسار من الشاشة' : 'Add Endpoint from Screen'}</span>
+      </button>
+
+      {/* 2. Endpoint Pills */}
       {endpoints.map((ep, idx) => {
         const isActive = idx === activeEndpointIndex;
+        const nameToShow = ep.shortName || ep.path.split('/').filter(Boolean).pop() || ep.path;
         return (
           <div
             key={ep.id || idx}
             className={`ep-pill ${isActive ? 'active' : ''}`}
             onClick={() => onSelectEndpoint(idx)}
           >
-            {/* Method badge */}
-            <span style={{
-              fontSize: '0.60rem',
-              fontWeight: 800,
-              padding: '0.1rem 0.28rem',
-              borderRadius: '3px',
-              fontFamily: 'var(--font-mono)',
-              background: ep.method === 'POST' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(56, 189, 248, 0.2)',
-              color: ep.method === 'POST' ? 'var(--emerald)' : 'var(--blue)',
-              marginInlineEnd: '0.3rem'
-            }}>
-              {ep.method}
-            </span>
-
-            <span className="ep-pill-path">
-              {ep.shortName || ep.path.split('/').filter(Boolean).pop()}
-            </span>
-
-            {/* Direction Indicator */}
-            {ep.direction && (
-              <span 
-                style={{
-                  fontSize: '0.62rem',
-                  color: ep.direction === 'INBOUND' ? 'var(--cyan)' : 'var(--amber)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  marginInlineStart: '0.3rem'
-                }} 
-                title={ep.direction === 'INBOUND' ? 'وارد (تربط معنا)' : 'صادر (نربط معها)'}
-              >
-                {ep.direction === 'INBOUND' ? '📥' : '📤'}
-              </span>
-            )}
-
-            {/* Mobile Channel Indicator */}
-            {ep.channels?.includes('MOBILE') && (
-              <span 
-                style={{ 
-                  color: 'var(--emerald)', 
-                  display: 'inline-flex', 
-                  alignItems: 'center', 
-                  marginInlineStart: '0.2rem',
-                  fontSize: '0.65rem'
-                }} 
-                title="يدعم قنوات الموبايل"
-              >
-                📱
-              </span>
-            )}
-
-            {ep.isDraft && (
-              <span
-                style={{
-                  fontSize: '0.65rem',
-                  background: 'rgba(245,158,11,0.2)',
-                  color: 'var(--amber)',
-                  border: '1px solid rgba(245,158,11,0.3)',
-                  padding: '0.1rem 0.35rem',
-                  borderRadius: '3px',
-                  marginInlineStart: '0.35rem',
-                  fontWeight: 700
-                }}
-              >
-                {t('ribbon.draftBadge')}
-              </span>
-            )}
+            <span>{nameToShow}</span>
           </div>
         );
       })}
-
-      <button
-        className="btn-ribbon-add"
-        style={{
-          background: 'rgba(16, 185, 129, 0.12)',
-          color: 'var(--emerald)',
-          borderColor: 'rgba(16, 185, 129, 0.35)',
-          fontWeight: 700
-        }}
-        onClick={onAddApiForSector || onAddNewEndpoint}
-        title={t('ribbon.addNewApiToSector')}
-      >
-        <PlusCircle size={13} />
-        <span>{t('ribbon.addNewApiToSector')}</span>
-      </button>
 
       {onDeleteSector && (
         <button
@@ -126,12 +65,16 @@ export const EndpointsRibbon: React.FC<EndpointsRibbonProps> = ({
             color: 'var(--rose)',
             borderColor: 'rgba(244, 63, 94, 0.35)',
             fontWeight: 700,
-            marginInlineStart: 'auto'
+            marginInlineStart: 'auto',
+            padding: '0.35rem 0.75rem',
+            borderRadius: '9999px',
+            fontSize: '0.75rem',
+            cursor: 'pointer'
           }}
           onClick={onDeleteSector}
           title={t('ribbon.deleteSectorTitle')}
         >
-          <Trash2 size={13} />
+          <Trash2 size={12} />
           <span>{t('ribbon.deleteSector')}</span>
         </button>
       )}

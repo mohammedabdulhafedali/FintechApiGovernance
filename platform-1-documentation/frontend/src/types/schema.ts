@@ -15,7 +15,7 @@ export interface EndpointParam {
   req: boolean;
   rule: string;
   tag: string;
-  tagClass: string;
+  tagClass?: string;
 }
 
 export interface BusinessRule {

@@ -10,7 +10,11 @@ import {
   Trash2, 
   Check, 
   X, 
-  ShieldPlus
+  ShieldPlus,
+  Coins,
+  Wallet,
+  Globe,
+  PlusCircle
 } from 'lucide-react';
 import { Sector } from '../../types/schema';
 import { useLanguage } from '../../i18n';
@@ -35,13 +39,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [nameAr, setNameAr] = useState('');
   const [nameEn, setNameEn] = useState('');
   const [code, setCode] = useState('SECTOR_FIN_');
+  const [selectedIcon, setSelectedIcon] = useState('Building2');
 
-  const getSectorIcon = (key: string) => {
-    switch (key) {
-      case 'banking': return <Building2 size={20} color="#38bdf8" />;
-      case 'merchants': return <Store size={20} color="#34d399" />;
-      case 'aml': return <ShieldAlert size={20} color="#f59e0b" />;
-      case 'settlement': return <Scale size={20} color="#a855f7" />;
+  const availableIcons = [
+    { name: 'Building2', label: 'بنك / قطاع', icon: <Building2 size={16} /> },
+    { name: 'Store', label: 'متاجر', icon: <Store size={16} /> },
+    { name: 'ShieldAlert', label: 'امتثال / حماية', icon: <ShieldAlert size={16} /> },
+    { name: 'Scale', label: 'تسوية / مقاصة', icon: <Scale size={16} /> },
+    { name: 'Coins', label: 'مدفوعات', icon: <Coins size={16} /> },
+    { name: 'Wallet', label: 'محفظة', icon: <Wallet size={16} /> },
+    { name: 'Globe', label: 'بوابة دولية', icon: <Globe size={16} /> },
+  ];
+
+  const getSectorIcon = (key: string, iconName?: string) => {
+    const iconToUse = iconName || key;
+    switch (iconToUse) {
+      case 'banking':
+      case 'Building2': return <Building2 size={20} color="#38bdf8" />;
+      case 'merchants':
+      case 'Store': return <Store size={20} color="#34d399" />;
+      case 'aml':
+      case 'ShieldAlert': return <ShieldAlert size={20} color="#f59e0b" />;
+      case 'settlement':
+      case 'Scale': return <Scale size={20} color="#a855f7" />;
+      case 'coins':
+      case 'Coins': return <Coins size={20} color="#facc15" />;
+      case 'wallet':
+      case 'Wallet': return <Wallet size={20} color="#ec4899" />;
+      case 'globe':
+      case 'Globe': return <Globe size={20} color="#06b6d4" />;
       default: return <Building2 size={20} color="#38bdf8" />;
     }
   };
@@ -68,7 +94,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       name: nameAr.trim(),
       nameEn: nameEn.trim() || nameAr.trim(),
       code: code.trim().toUpperCase() || 'SECTOR_FIN_CUSTOM',
-      icon: 'Building2',
+      icon: selectedIcon,
       services: {
         core: {
           title: 'الخدمات الأساسية',
@@ -85,6 +111,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setNameAr('');
     setNameEn('');
     setCode('SECTOR_FIN_');
+    setSelectedIcon('Building2');
     setIsAdding(false);
   };
 
@@ -92,7 +119,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="dashboard-container">
-      {/* 1. Sectors Grid (Sovereign Cards Grid) */}
+      {/* 1. Sectors Grid (Sovereign Cards Grid - Image 1) */}
       <div className="sectors-grid">
         {sectorEntries.map(([key, sector]) => {
           const count = getSectorCount(sector);
@@ -100,31 +127,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           return (
             <div key={key} className="sector-card">
-              <div className="sector-card-top">
-                <strong style={{ fontSize: '0.95rem', color: 'var(--text)', fontWeight: 700 }}>
+              <div className="sector-card-top" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div className="sector-icon-box">
+                  {getSectorIcon(key, sector.icon)}
+                </div>
+                <strong style={{ fontSize: '0.98rem', color: '#ffffff', fontWeight: 700 }}>
                   {localizedName}
                 </strong>
-                <div className="sector-icon-box">
-                  {getSectorIcon(key)}
-                </div>
               </div>
 
-              <div style={{
-                marginTop: '1.25rem',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
+              <div className="sector-card-footer">
                 <button
-                  className="btn btn-ghost"
-                  style={{ fontSize: '0.78rem', padding: '0.25rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                  className="btn-sector-explore"
                   onClick={() => onSelectSector(key)}
+                  title={t('dashboard.explore')}
                 >
-                  <span>{t('dashboard.explore')}</span>
-                  {isRtl ? <ArrowLeft size={14} /> : <ArrowRight size={14} />}
+                  <span>{isRtl ? 'استعراض' : 'Explore'}</span>
+                  {isRtl ? <ArrowLeft size={13} /> : <ArrowRight size={13} />}
                 </button>
-                <span className="mono" style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--emerald)' }}>
-                  {count} {count === 1 ? 'API' : 'APIs'}
+                <span className="sector-count-badge">
+                  APIs {count}
                 </span>
               </div>
             </div>
@@ -168,6 +190,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
               />
+
+              {/* Icon Selector */}
+              <div style={{ marginTop: '0.2rem' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', display: 'block', marginBottom: '0.35rem' }}>
+                  {isRtl ? 'أيقونة القطاع:' : 'Sector Icon:'}
+                </span>
+                <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                  {availableIcons.map(ico => (
+                    <button
+                      key={ico.name}
+                      type="button"
+                      className={`btn-slim-action ${selectedIcon === ico.name ? 'active' : ''}`}
+                      style={{
+                        padding: '0.3rem 0.5rem',
+                        fontSize: '0.75rem',
+                        borderColor: selectedIcon === ico.name ? 'var(--emerald)' : 'var(--border)',
+                        background: selectedIcon === ico.name ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
+                        color: selectedIcon === ico.name ? 'var(--emerald)' : 'var(--text-dim)'
+                      }}
+                      onClick={() => setSelectedIcon(ico.name)}
+                      title={ico.label}
+                    >
+                      {ico.icon}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.85rem' }}>
@@ -188,25 +237,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </form>
         ) : (
           <div className="sector-add-card" onClick={() => setIsAdding(true)}>
-            <div style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '50%',
-              background: 'rgba(16, 185, 129, 0.12)',
-              border: '1px solid rgba(16, 185, 129, 0.35)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--emerald)',
-              marginBottom: '0.35rem'
-            }}>
-              <Plus size={20} />
+            <div className="sector-add-icon-circle">
+              <Plus size={18} />
             </div>
-            <strong style={{ fontSize: '0.90rem', color: 'var(--emerald)', display: 'block' }}>
-              {t('dashboard.addNewSectorCardTitle')}
+            <strong className="sector-add-title">
+              {isRtl ? '+ إضافة جهة / شريك مالي جديد' : '+ Add New Financial Sector / Partner'}
             </strong>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '0.15rem' }}>
-              {t('dashboard.addNewSectorCardSub')}
+            <span className="sector-add-sub">
+              {isRtl ? 'تسجيل هيئة أو مصرف أو قطاع مالي جديد' : 'Register a new authority, bank, or financial sector'}
             </span>
           </div>
         )}

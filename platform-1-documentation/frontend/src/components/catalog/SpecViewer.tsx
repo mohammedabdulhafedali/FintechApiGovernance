@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Endpoint } from '../../types/schema';
-import { Copy, Check, ShieldCheck, AlertTriangle, FileDown, ArrowDownLeft, ArrowUpRight, Smartphone, Server } from 'lucide-react';
+import { Copy, Check, ShieldCheck, AlertTriangle, FileDown, ArrowDownLeft, ArrowUpRight, Smartphone, Server, BookOpen, X } from 'lucide-react';
 import { useLanguage } from '../../i18n';
 
 interface SpecViewerProps {
@@ -18,9 +18,18 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
   const [copiedCurl, setCopiedCurl] = useState(false);
   const [copiedReq, setCopiedReq] = useState(false);
   const [copiedRes, setCopiedRes] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
 
   const { t, language } = useLanguage();
   const isEn = language === 'en';
+
+  const handleOpenErrors = () => {
+    if (onOpenErrorDictionary) {
+      onOpenErrorDictionary();
+    } else {
+      setShowErrorModal(true);
+    }
+  };
 
   const handleDownloadSpec = () => {
     const specData = {
@@ -113,71 +122,39 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
 
   return (
     <div className="spec-workbench-container">
-      {/* Ultra-Slim Consolidated Single-Row Header Bar (42px) */}
+      {/* Ultra-Slim Consolidated Single-Row Header Bar (Image 3) */}
       <div className="spec-slim-toolbar">
         <div className="spec-slim-meta">
-          <div className="spec-slim-path-wrap" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <div className="spec-slim-path-wrap" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
             <span className={`method-badge method-${endpoint.method.toLowerCase()}`}>
               {endpoint.method}
             </span>
-            <span className="mono spec-slim-path" dir="ltr" style={{ unicodeBidi: 'isolate' }}>
+            <span className="mono spec-slim-path" dir="ltr" style={{ color: '#38bdf8', fontWeight: 700, fontSize: '0.92rem' }}>
               {endpoint.path}
             </span>
 
             {endpoint.isDraft ? (
-              <span className="badge-pill badge-opt" style={{ borderColor: 'var(--amber)', color: 'var(--amber)' }}>
+              <span className="badge-pill badge-opt" style={{ borderColor: 'rgba(255, 255, 255, 0.15)', color: '#94a3b8' }}>
                 <ShieldCheck size={12} /> {isEn ? 'Screen Draft v2026.2' : 'مسودة مضافة من الشاشة'}
               </span>
             ) : (
-              <span className="badge-pill badge-iso">
+              <span className="badge-pill badge-iso" style={{ background: 'rgba(255, 255, 255, 0.08)', borderColor: 'rgba(255, 255, 255, 0.15)', color: '#94a3b8' }}>
                 <ShieldCheck size={12} /> {isEn ? 'Official Certified v2026.2' : 'معتمد رسمي v2026.2'}
               </span>
             )}
-
-            {/* Direction Pill */}
-            {endpoint.direction && (
-              <span className="badge-pill" style={{
-                background: endpoint.direction === 'INBOUND' ? 'rgba(56, 189, 248, 0.12)' : 'rgba(245, 158, 11, 0.12)',
-                color: endpoint.direction === 'INBOUND' ? 'var(--cyan)' : 'var(--amber)',
-                borderColor: endpoint.direction === 'INBOUND' ? 'rgba(56, 189, 248, 0.25)' : 'rgba(245, 158, 11, 0.25)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '3px'
-              }}>
-                {endpoint.direction === 'INBOUND' ? (
-                  <><ArrowDownLeft size={11} /> {isEn ? 'Inbound' : 'وارد'}</>
-                ) : (
-                  <><ArrowUpRight size={11} /> {isEn ? 'Outbound' : 'صادر'}</>
-                )}
-              </span>
-            )}
-
-            {/* Channels Pill */}
-            {endpoint.channels && endpoint.channels.length > 0 && (
-              <span className="badge-pill" style={{
-                background: 'rgba(16, 185, 129, 0.12)',
-                color: 'var(--emerald)',
-                borderColor: 'rgba(16, 185, 129, 0.25)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '3px'
-              }}>
-                {endpoint.channels.includes('MOBILE') ? <Smartphone size={11} /> : <Server size={11} />}
-                {endpoint.channels.includes('MOBILE') ? (isEn ? 'Mobile' : 'موبايل') : (isEn ? 'Server' : 'خوادم')}
-              </span>
-            )}
-
-            <button 
-              className="btn-slim-action" 
-              onClick={() => handleCopy(endpoint.path, 'path')} 
-              title={t('spec.copyEndpoint')}
-            >
-              {copiedPath ? <Check size={13} style={{ color: 'var(--emerald)' }} /> : <Copy size={13} />}
-            </button>
           </div>
         </div>
 
-        <div className="spec-slim-controls">
+        <div className="spec-slim-controls" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {/* Action copy button on left */}
+          <button 
+            className="btn-slim-action" 
+            onClick={() => handleCopy(endpoint.path, 'path')} 
+            title={t('spec.copyEndpoint')}
+            style={{ padding: '0.35rem 0.55rem', borderRadius: '6px' }}
+          >
+            {copiedPath ? <Check size={13} style={{ color: 'var(--emerald)' }} /> : <Copy size={13} />}
+          </button>
           {activeTab === 'example' && (
             <div className="spec-format-switcher">
               <button 
@@ -368,7 +345,7 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
                       className="badge-pill badge-req" 
                       style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
                       title={isEn ? 'Click to open Error Dictionary' : 'اضغط لفتح القاموس الشامل'}
-                      onClick={onOpenErrorDictionary}
+                      onClick={handleOpenErrors}
                     >
                       <AlertTriangle size={12} /> {rule.err}
                     </span>
@@ -376,7 +353,7 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
                 </div>
               </div>
             </div>
-            <button className="btn-open-error-dict" onClick={onOpenErrorDictionary}>
+            <button className="btn-open-error-dict" onClick={handleOpenErrors}>
               <span>{isEn ? 'Comprehensive Error Dictionary (HTTP & 10xxx) →' : 'القاموس الشامل لرموز وأكواد الأخطاء (HTTP & Custom 10xxx) ←'}</span>
             </button>
           </div>
@@ -433,6 +410,55 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
             </div>
             <div className="example-code-pane" style={{ color: '#a7f3d0' }}>
               {getFormattedResponse()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Comprehensive Error Dictionary Modal */}
+      {showErrorModal && (
+        <div className="modal-overlay" onClick={() => setShowErrorModal(false)}>
+          <div className="modal-card" style={{ maxWidth: '640px', width: '90%' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header" style={{ justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <BookOpen size={18} style={{ color: 'var(--rose)' }} />
+                <span>{isEn ? 'Sovereign Financial Error Dictionary' : 'القاموس الشامل لرموز وأكواد الأخطاء المصرفية'}</span>
+              </div>
+              <button className="btn btn-ghost" style={{ padding: '0.2rem' }} onClick={() => setShowErrorModal(false)}>
+                <X size={16} />
+              </button>
+            </div>
+            <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '1rem' }}>
+                {isEn 
+                  ? 'Standardized HTTP status codes and regulatory ISO 20022 error mappings for Saudi Sovereign Open Banking & Fintech Switch.'
+                  : 'الأكواد المعيارية المعتمدة لبروتوكولات الخدمات المصرفية المفتوحة والبنك المركزي (SAMA / ISO 20022).'}
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {[
+                  { code: '400', name: 'ERR_MALFORMED_PAYLOAD', descAr: 'صيغة الطلب غير متوافقة مع مخطط JSON/XML المعتمد.', descEn: 'Malformed syntax or schema parsing failure in wire body.' },
+                  { code: '401', name: 'ERR_INVALID_BEARER', descAr: 'رمز الدخول منتهي الصلاحية أو غير موثق عبر مزود الهوية المركزي.', descEn: 'Expired or signature-invalid OAuth 2.0 Bearer token.' },
+                  { code: '403', name: 'ERR_INSUFFICIENT_SCOPE', descAr: 'الجهة المالية لا تملك تصريح الصلاحية للوصول لهذا المسار.', descEn: 'Missing required FAPI authorization scope for endpoint.' },
+                  { code: '409', name: 'ERR_IDEMPOTENCY_CONFLICT', descAr: 'تم إرسال نفس مفتاح عدم التكرار مع محتوى طلب مختلف.', descEn: 'X-Idempotency-Key collision with mismatched payload hash.' },
+                  { code: '422', name: 'ERR_BUSINESS_RULE_VIOLATION', descAr: 'فشل في تطبيق قواعد العمل (الرصيد غير كاف، خطأ في رقم الآيبان).', descEn: 'Business domain validation failed (e.g. invalid IBAN checksum).' },
+                  { code: '500', name: 'ERR_CENTRAL_SWITCH_TIMEOUT', descAr: 'انقطاع مؤقت في الاتصال مع مقسم المقاصة المركزية.', descEn: 'Central clearing switch gateway timed out processing ledger.' }
+                ].map((item, idx) => (
+                  <div key={idx} style={{ padding: '0.65rem 0.85rem', background: 'rgba(0,0,0,0.15)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                      <span className="badge-pill badge-req" style={{ fontWeight: 800 }}>HTTP {item.code}</span>
+                      <code className="mono" style={{ fontSize: '0.78rem', color: 'var(--cyan)' }}>{item.name}</code>
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      {isEn ? item.descEn : item.descAr}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setShowErrorModal(false)}>
+                {isEn ? 'Close' : 'إغلاق'}
+              </button>
             </div>
           </div>
         </div>

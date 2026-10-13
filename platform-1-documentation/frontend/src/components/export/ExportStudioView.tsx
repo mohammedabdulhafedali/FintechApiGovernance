@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { SealedSnapshot } from '../../types/schema';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { SealedSnapshot, Sector } from '../../types/schema';
 import { useLanguage } from '../../i18n';
 
 interface ExportStudioViewProps {
   snapshots?: SealedSnapshot[];
+  sectorsData?: Record<string, Sector>;
   onNotify: (title: string, message: string, type: 'success' | 'info' | 'warning' | 'error', snippet?: string) => void;
 }
 
@@ -15,7 +16,7 @@ interface ServiceItem {
   titleEn: string;
   sectorName: string;
   sectorNameEn: string;
-  sectorKey: 'banking' | 'merchants' | 'aml';
+  sectorKey: string;
   endpoints: {
     method: string;
     path: string;
@@ -26,6 +27,7 @@ interface ServiceItem {
 
 export const ExportStudioView: React.FC<ExportStudioViewProps> = ({
   snapshots = [],
+  sectorsData,
   onNotify
 }) => {
   const { t, language, isRtl } = useLanguage();
@@ -36,7 +38,20 @@ export const ExportStudioView: React.FC<ExportStudioViewProps> = ({
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [panelWidth, setPanelWidth] = useState<number>(310);
   const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [mobileTab, setMobileTab] = useState<'options' | 'preview'>('options');
+  const [isMobileScreen, setIsMobileScreen] = useState<boolean>(() => 
+    typeof window !== 'undefined' ? window.innerWidth < 960 : false
+  );
   const wrapRef = useRef<HTMLDivElement>(null);
+
+  // Responsive window resize listener
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileScreen(window.innerWidth < 960);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Sync export language with system language when system language changes
   useEffect(() => {
@@ -113,7 +128,7 @@ export const ExportStudioView: React.FC<ExportStudioViewProps> = ({
   const isExportEn = exportLanguage === 'en';
 
   // Build bilingual services list
-  const allServices: ServiceItem[] = [
+  const defaultStaticServices: ServiceItem[] = [
     {
       code: 'IPS',
       title: 'التحويل اللحظي',
@@ -230,10 +245,51 @@ export const ExportStudioView: React.FC<ExportStudioViewProps> = ({
     }
   ];
 
-  const selectedServices = allServices.filter(s => sectors[s.sectorKey]);
+  // Dynamic services list from passed sectorsData or fallback
+  const allServices: ServiceItem[] = useMemo(() => {
+    if (sectorsData && Object.keys(sectorsData).length > 0) {
+      const dynamicList: ServiceItem[] = [];
+      Object.entries(sectorsData).forEach(([secKey, sec]) => {
+        if (!sec.services) return;
+        Object.values(sec.services).forEach(srv => {
+          if (!srv.endpoints || srv.endpoints.length === 0) return;
+          dynamicList.push({
+            code: srv.code || sec.code || 'SVC',
+            title: srv.title || sec.name,
+            titleEn: srv.titleEn || sec.nameEn || srv.title,
+            sectorName: sec.name,
+            sectorNameEn: sec.nameEn || sec.name,
+            sectorKey: secKey,
+            endpoints: srv.endpoints.map(ep => ({
+              method: ep.method,
+              path: ep.path,
+              desc: ep.desc,
+              descEn: ep.descEn || ep.desc
+            }))
+          });
+        });
+      });
+      if (dynamicList.length > 0) return dynamicList;
+    }
+    return defaultStaticServices;
+  }, [sectorsData]);
+
+  // Unique sector list for filters
+  const sectorList = useMemo(() => {
+    const map = new Map<string, { key: string; name: string; nameEn: string }>();
+    allServices.forEach(s => {
+      if (!map.has(s.sectorKey)) {
+        map.set(s.sectorKey, { key: s.sectorKey, name: s.sectorName, nameEn: s.sectorNameEn });
+      }
+    });
+    return Array.from(map.values());
+  }, [allServices]);
+
+  const isSectorChecked = (key: string) => (sectors as any)[key] !== false;
+  const selectedServices = allServices.filter(s => isSectorChecked(s.sectorKey));
   const totalEndpoints = selectedServices.reduce((sum, s) => sum + s.endpoints.length, 0);
 
-  const selectedSectorCount = Object.values(sectors).filter(Boolean).length;
+  const selectedSectorCount = sectorList.filter(s => isSectorChecked(s.key)).length;
   const selectedModuleCount = Object.values(modules).filter(Boolean).length;
 
   const securityMap: Record<string, string> = {
@@ -727,23 +783,51 @@ export const ExportStudioView: React.FC<ExportStudioViewProps> = ({
   };
 
   return (
-    <div
-      ref={wrapRef}
-      id="export-resizable-wrap"
-      className={`export-clean-wrap ${isExpanded ? 'pdf-site-expanded' : ''}`}
-      style={{
-        gridTemplateColumns: isExpanded ? '1fr' : `${panelWidth}px 14px 1fr`,
-        ['--export-panel-w' as any]: `${panelWidth}px`
-      }}
-    >
-      {/* =========================================================================
-          COLUMN 1: Options Rail (Configuration Panel)
-          ========================================================================= */}
+    <div className="export-studio-view-container">
+      {/* Mobile-Friendly Switcher Bar (Screens < 960px) */}
+      {isMobileScreen && (
+        <div className="export-mobile-segmented-bar">
+          <button
+            type="button"
+            className={`export-mobile-tab-btn ${mobileTab === 'options' ? 'active' : ''}`}
+            onClick={() => setMobileTab('options')}
+          >
+            <i className="fa-solid fa-sliders" />
+            <span>{isRtl ? 'إعدادات وحزم التصدير' : 'Export Settings'}</span>
+          </button>
+          <button
+            type="button"
+            className={`export-mobile-tab-btn ${mobileTab === 'preview' ? 'active' : ''}`}
+            onClick={() => setMobileTab('preview')}
+          >
+            <i className="fa-solid fa-file-lines" />
+            <span>{isRtl ? 'معاينة الوثيقة المعتمدة' : 'Live Document Preview'}</span>
+          </button>
+        </div>
+      )}
+
       <div
-        className="export-config-panel"
-        id="export-config-panel"
-        data-size={panelWidth < 260 ? 'compact' : panelWidth >= 360 ? 'wide' : undefined}
+        ref={wrapRef}
+        id="export-resizable-wrap"
+        className={`export-clean-wrap ${isExpanded ? 'pdf-site-expanded' : ''} ${isMobileScreen ? 'export-mobile-mode' : ''}`}
+        style={
+          isExpanded || isMobileScreen
+            ? { gridTemplateColumns: '1fr' }
+            : {
+                gridTemplateColumns: `${panelWidth}px 14px 1fr`,
+                ['--export-panel-w' as any]: `${panelWidth}px`
+              }
+        }
       >
+        {/* =========================================================================
+            COLUMN 1: Options Rail (Configuration Panel)
+            ========================================================================= */}
+        {(!isMobileScreen || mobileTab === 'options') && (
+          <div
+            className="export-config-panel"
+            id="export-config-panel"
+            data-size={panelWidth < 260 ? 'compact' : panelWidth >= 360 ? 'wide' : undefined}
+          >
         {/* Top Action Button */}
         <div className="export-top-action-bar">
           <button
@@ -792,34 +876,20 @@ export const ExportStudioView: React.FC<ExportStudioViewProps> = ({
               <span>{t('export.sectorsSection')}</span>
             </div>
             <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
-              {t('export.sectorsSelectedCount', { selected: selectedSectorCount, total: 3 })}
+              {t('export.sectorsSelectedCount', { selected: selectedSectorCount, total: sectorList.length })}
             </span>
           </div>
           <div className="export-chips-row">
-            <label className="export-chip">
-              <input
-                type="checkbox"
-                checked={sectors.banking}
-                onChange={e => setSectors(prev => ({ ...prev, banking: e.target.checked }))}
-              />
-              <span>{t('export.sectorBanking')}</span>
-            </label>
-            <label className="export-chip">
-              <input
-                type="checkbox"
-                checked={sectors.merchants}
-                onChange={e => setSectors(prev => ({ ...prev, merchants: e.target.checked }))}
-              />
-              <span>{t('export.sectorMerchants')}</span>
-            </label>
-            <label className="export-chip">
-              <input
-                type="checkbox"
-                checked={sectors.aml}
-                onChange={e => setSectors(prev => ({ ...prev, aml: e.target.checked }))}
-              />
-              <span>{t('export.sectorAml')}</span>
-            </label>
+            {sectorList.map(sec => (
+              <label key={sec.key} className="export-chip">
+                <input
+                  type="checkbox"
+                  checked={isSectorChecked(sec.key)}
+                  onChange={e => setSectors(prev => ({ ...prev, [sec.key]: e.target.checked }))}
+                />
+                <span>{isExportEn ? sec.nameEn : sec.name}</span>
+              </label>
+            ))}
           </div>
         </div>
 
@@ -935,37 +1005,41 @@ export const ExportStudioView: React.FC<ExportStudioViewProps> = ({
           </div>
         </div>
       </div>
+      )}
 
       {/* =========================================================================
-          COLUMN 2: Center Splitter Divider
+          COLUMN 2: Center Splitter Divider (Desktop Only)
           ========================================================================= */}
-      <div
-        id="export-splitter"
-        className={`export-splitter ${isDragging ? 'dragging' : ''}`}
-        title="اسحب لتعديل الحجم / Drag to resize"
-        onMouseDown={(e) => {
-          if (isExpanded) return;
-          e.preventDefault();
-          setIsDragging(true);
-        }}
-        onTouchStart={() => {
-          if (isExpanded) return;
-          setIsDragging(true);
-        }}
-      >
-        <div className="splitter-line" />
-        <div className="splitter-handle">
-          <svg width="6" height="12" viewBox="0 0 6 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="0.5" width="1.5" height="12" rx="0.75" fill="white" />
-            <rect x="4" width="1.5" height="12" rx="0.75" fill="white" />
-          </svg>
+      {!isMobileScreen && !isExpanded && (
+        <div
+          id="export-splitter"
+          className={`export-splitter ${isDragging ? 'dragging' : ''}`}
+          title="اسحب لتعديل الحجم / Drag to resize"
+          onMouseDown={(e) => {
+            if (isExpanded) return;
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onTouchStart={() => {
+            if (isExpanded) return;
+            setIsDragging(true);
+          }}
+        >
+          <div className="splitter-line" />
+          <div className="splitter-handle">
+            <svg width="6" height="12" viewBox="0 0 6 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="0.5" width="1.5" height="12" rx="0.75" fill="white" />
+              <rect x="4" width="1.5" height="12" rx="0.75" fill="white" />
+            </svg>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* =========================================================================
           COLUMN 3: Live Deliverable Preview Area
           ========================================================================= */}
-      <div className="export-summary-card" id="export-summary-card">
+      {(!isMobileScreen || mobileTab === 'preview') && (
+        <div className="export-summary-card" id="export-summary-card">
         {/* Floating Maximize Button */}
         <button
           type="button"
@@ -1515,6 +1589,8 @@ export const ExportStudioView: React.FC<ExportStudioViewProps> = ({
             </div>
           </div>
         </div>
+        </div>
+        )}
       </div>
     </div>
   );

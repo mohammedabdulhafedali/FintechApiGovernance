@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:all": "npx concurrently -k -n \"FE,BE\" -c \"cyan,magenta\" \"npm run dev\" \"npm run server:dev\"",
     "build": "vite build",
     "preview": "vite preview",
     "server": "npm --prefix platform-1-documentation/backend start",

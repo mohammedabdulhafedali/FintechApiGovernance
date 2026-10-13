@@ -24,6 +24,18 @@ export const App: React.FC = () => {
   const [activeSectorKey, setActiveSectorKey] = useState<string>('banking');
   const [activeEndpointIndex, setActiveEndpointIndex] = useState<number>(0);
   const [currentVersion, setCurrentVersion] = useState<string>('v2026.2');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
+
+  // Close mobile drawer on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isMobileMenuOpen) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isMobileMenuOpen]);
 
   // Business Data
   const [sectors, setSectors] = useState<Record<string, Sector>>(INITIAL_SECTORS);
@@ -97,6 +109,8 @@ export const App: React.FC = () => {
       ? (targetSector.nameEn && !isRtl ? targetSector.nameEn : targetSector.name) 
       : sectorKey;
 
+    const remainingKeys = Object.keys(sectors).filter(k => k !== sectorKey);
+
     setSectors(prev => {
       const updated = { ...prev };
       delete updated[sectorKey];
@@ -109,7 +123,6 @@ export const App: React.FC = () => {
     setSectorKeyToDelete(null);
 
     // If the currently viewed sector was deleted, switch to another sector or dashboard
-    const remainingKeys = Object.keys(sectors).filter(k => k !== sectorKey);
     if (activeSectorKey === sectorKey) {
       if (remainingKeys.length > 0) {
         setActiveSectorKey(remainingKeys[0]);
@@ -154,12 +167,14 @@ export const App: React.FC = () => {
     setActiveSectorKey(key);
     setActiveEndpointIndex(0);
     setActiveView('sector-spec');
+    setIsMobileMenuOpen(false);
   };
 
   const handleSelectEndpoint = (key: string, index: number) => {
     setActiveSectorKey(key);
     setActiveEndpointIndex(index);
     setActiveView('sector-spec');
+    setIsMobileMenuOpen(false);
   };
 
   const handleAddEndpointFromHub = (sectorKey: string, endpointsInput: Endpoint | Endpoint[], isBulk = false) => {
@@ -244,34 +259,49 @@ export const App: React.FC = () => {
   }, 0);
 
   return (
-    <div className="app-container" style={{ display: 'flex', flexDirection: 'row', minHeight: '100vh', direction, width: '100vw', overflowX: 'hidden' }}>
-      {/* 1. Sidebar */}
+    <div className="app-container" style={{ direction }}>
+      {/* 1. Sidebar (Responsive Desktop & Mobile Drawer) */}
       <Sidebar
         activeView={activeView}
-        onSelectView={setActiveView}
+        onSelectView={(v) => {
+          setActiveView(v);
+          setIsMobileMenuOpen(false);
+        }}
         sectors={sectors}
         activeSectorKey={activeSectorKey}
         onSelectSector={handleSelectSector}
         activeEndpointIndex={activeEndpointIndex}
         onSelectEndpoint={handleSelectEndpoint}
+        isOpenMobile={isMobileMenuOpen}
+        onCloseMobile={() => setIsMobileMenuOpen(false)}
       />
 
       {/* 2. Main Area with Topbar and Views */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: '100vh' }}>
+      <div className="app-main-layout">
         <Header
           activeView={activeView}
           activeSector={activeSector}
           currentVersion={currentVersion}
           onVersionChange={setCurrentVersion}
-          onOpenAddApi={() => setActiveView('add-api')}
-          onOpenAddSector={() => setActiveView('dashboard')}
-          onBackToDashboard={() => setActiveView('dashboard')}
+          onOpenAddApi={() => {
+            setActiveView('add-api');
+            setIsMobileMenuOpen(false);
+          }}
+          onOpenAddSector={() => {
+            setActiveView('dashboard');
+            setIsMobileMenuOpen(false);
+          }}
+          onBackToDashboard={() => {
+            setActiveView('dashboard');
+            setIsMobileMenuOpen(false);
+          }}
           totalSectorsCount={totalSectorsCount}
           totalEndpointsCount={totalEndpointsCount}
+          onToggleMobileMenu={() => setIsMobileMenuOpen(prev => !prev)}
           onNotify={(title, msg, type, snippet) => showFloatingAlert(title, msg, type, snippet)}
         />
 
-        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+        <main className="app-content-main">
           {/* VIEW 1: CLEAN SOVEREIGN DASHBOARD */}
           {activeView === 'dashboard' && (
             <DashboardView
@@ -340,6 +370,7 @@ export const App: React.FC = () => {
           {activeView === 'export-studio' && (
             <ExportStudioView
               snapshots={snapshots}
+              sectorsData={sectors}
               onNotify={(title, msg, type, snippet) => showFloatingAlert(title, msg, type, snippet)}
             />
           )}

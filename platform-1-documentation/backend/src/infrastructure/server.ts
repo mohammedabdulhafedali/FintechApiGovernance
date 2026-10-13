@@ -14,8 +14,16 @@ export function createApp() {
 
   // Middleware
   app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    credentials: true
   }));
   app.use(express.json({ limit: '10mb' }));
 
