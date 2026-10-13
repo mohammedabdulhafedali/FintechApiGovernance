@@ -1,0 +1,83 @@
+{
+  "lastUpdated": "2026-10-13T08:59:38.421Z",
+  "projectName": "enterprise-fintech-api-governance",
+  "architectureType": "Monorepo / Fullstack FinTech Governance",
+  "entryPoints": {
+    "frontend": "platform-1-documentation/frontend/src/App.tsx",
+    "frontendMain": "platform-1-documentation/frontend/src/main.tsx",
+    "backendServer": "platform-1-documentation/backend/src/infrastructure/server.ts",
+    "backendIndex": "platform-1-documentation/backend/src/index.ts"
+  },
+  "frontend": {
+    "basePath": "platform-1-documentation/frontend/src",
+    "components": {
+      "layout": [
+        {
+          "name": "Header",
+          "file": "components/layout/Header.tsx",
+          "role": "Top bar, search, notifications, environment toggle"
+        },
+        {
+          "name": "Sidebar",
+          "file": "components/layout/Sidebar.tsx",
+          "role": "Navigation links, collapse toggle, system status"
+        }
+      ],
+      "catalog": [
+        {
+          "name": "DashboardView",
+          "file": "components/catalog/DashboardView.tsx",
+          "role": "API overview, metrics cards, quick actions"
+        },
+        {
+          "name": "EndpointsRibbon",
+          "file": "components/catalog/EndpointsRibbon.tsx",
+          "role": "Horizontal endpoint filters, status pills"
+        },
+        {
+          "name": "SpecViewer",
+          "file": "components/catalog/SpecViewer.tsx",
+          "role": "Swagger/OpenAPI spec viewer & details"
+        },
+        {
+          "name": "ApiCatalogView",
+          "file": "components/catalog/ApiCatalogView.tsx",
+          "role": "Master catalog table and filtering"
+        }
+      ],
+      "export": [
+        {
+          "name": "ExportStudioView",
+          "file": "components/export/ExportStudioView.tsx",
+          "role": "Export API specs (Postman, OpenAPI, SDKs)"
+        }
+      ]
+    },
+    "styles": {
+      "theme": "styles/theme.css",
+      "totalLines": 3300,
+      "notes": "Central CSS variables: colors, dark/light themes, typography, elevation, glassmorphism, responsive breakpoints"
+    },
+    "types": {
+      "schema": "types/schema.ts",
+      "notes": "API schemas, endpoint definitions, response contracts"
+    }
+  },
+  "backend": {
+    "basePath": "platform-1-documentation/backend/src",
+    "server": "infrastructure/server.ts",
+    "port": 3001,
+    "cors": "Enabled for localhost / 127.0.0.1",
+    "apiPrefix": "/api/v1"
+  },
+  "platform2": {
+    "basePath": "platform-2-testing",
+    "role": "Automated API contract testing, mock runner, assertion suite"
+  },
+  "quickScripts": {
+    "npm run dev": "Start frontend Vite dev server (port 5173)",
+    "npm run dev:all": "Start both FE and BE concurrently",
+    "npm run server": "Start backend express server",
+    "npm run build": "Vite production build"
+  }
+}
