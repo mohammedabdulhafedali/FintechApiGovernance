@@ -323,7 +323,7 @@ export const INITIAL_SYSTEMS: Record<string, SystemModule> = {
               { id: 'BR_RTGS_001', name: 'العمل خلال نافذة المقاصة المركزية', err: 'WINDOW_CLOSED_422' }
             ],
             payload: `{\n  "batchId": "BATCH-9901",\n  "totalAmount": 250000.00\n}`,
-            res200: `{\n  "settlementRef": "RTGS-99482",\n  "status": "ACCEPTED"\n}`,
+            res200: `{\n  "status": "SUCCESS",\n  "code": 20000,\n  "message": "تم قبول وتنفيذ أمر العملية بنجاح عبر شبكة المقاصة الوطنية اللحظية",\n  "transactionId": "TXN-88492019-SA",\n  "clearingCode": "CLR-IPS-20261005-00192",\n  "endToEndIdentification": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",\n  "instructedAmount": {\n    "amount": 1500.00,\n    "currency": "SAR"\n  },\n  "settlementDetails": {\n    "settlementMethod": "IPS_INSTANT",\n    "clearingSystem": "SARIE_IPS_CORE",\n    "settledAt": "2026-10-05T11:15:00.342Z",\n    "executionTimeMs": 68\n  },\n  "audit": {\n    "sourceBankCode": "NCB",\n    "destinationBankCode": "SABB",\n    "signedAuditHash": "sha256:8f2a1b9e0d4c5e6f3b18a209..."\n  }\n}`,
             res422: `{\n  "error": "WINDOW_CLOSED",\n  "code": "WINDOW_CLOSED_422",\n  "message": "Settlement window is currently closed."\n}`,
             curl: `curl -X POST "https://api.gov.fintech/v1/rtgs/settle" \\\n  -d '{"batchId":"BATCH-9901","totalAmount":250000.00}'`
           }

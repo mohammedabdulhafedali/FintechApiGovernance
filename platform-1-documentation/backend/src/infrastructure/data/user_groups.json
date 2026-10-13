@@ -1,0 +1,89 @@
+[
+  {
+    "id": "grp_super_admin",
+    "key": "ADMIN_GROUP",
+    "name": "مدير النظام",
+    "description": "صلاحيات سيادية كاملة على كافة المكونات وإدارة الهويات والأنظمة",
+    "permissions": [
+      "*"
+    ],
+    "isSystemDefault": true,
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "updatedAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "grp_architects",
+    "key": "ARCHITECTS_GROUP",
+    "name": "مهندس API",
+    "description": "صلاحية إنشاء وتوثيق الواجهات البرمجية وتصدير المواصفات دون حذف الأنظمة",
+    "permissions": [
+      "catalog:system:create",
+      "catalog:endpoint:create",
+      "catalog:spec:export"
+    ],
+    "isSystemDefault": true,
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "updatedAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "grp_operations",
+    "key": "OPERATIONS_GROUP",
+    "name": "فريق العمليات",
+    "description": "صلاحية إدارة وتحديث مسارات الـ API وحذف التكاملات عند الحاجة",
+    "permissions": [
+      "catalog:endpoint:create",
+      "catalog:endpoint:delete",
+      "catalog:spec:export"
+    ],
+    "isSystemDefault": false,
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "updatedAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "grp_viewers",
+    "key": "VIEWERS_GROUP",
+    "name": "مستعرض",
+    "description": "اطلاع وقراءة وتصدير فقط دون أي صلاحية إنشاء أو حذف نهائياً",
+    "permissions": [
+      "catalog:spec:export"
+    ],
+    "isSystemDefault": true,
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "updatedAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "grp_1791907974135_ec8f45",
+    "key": "OPS",
+    "name": "ops",
+    "description": "",
+    "permissions": [
+      "banking:ips:read"
+    ],
+    "isSystemDefault": false,
+    "createdAt": "2026-10-13T16:12:54.145Z",
+    "updatedAt": "2026-10-13T16:12:54.145Z"
+  },
+  {
+    "id": "grp_external_partners",
+    "key": "EXTERNAL_PARTNERS",
+    "name": "شركاء وتكاملات خارجية",
+    "description": "مستخدمون خارجيون بصلاحيات مقيدة ومحصورة حصراً بنطاق الجهات والأنظمة المعتمدة",
+    "permissions": [
+      "catalog:spec:export",
+      "banking:ips:read"
+    ],
+    "groupType": "EXTERNAL",
+    "defaultScope": {
+      "allowedEntityIds": [
+        "banking"
+      ],
+      "allowedSystemIds": [
+        "collection"
+      ]
+    },
+    "isSystemDefault": false,
+    "createdAt": "2026-10-13T17:00:00.000Z",
+    "updatedAt": "2026-10-13T19:45:46.555Z",
+    "status": "ACTIVE"
+  }
+]

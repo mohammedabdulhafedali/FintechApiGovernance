@@ -1,0 +1,700 @@
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { 
+  Save, 
+  ArrowRight, 
+  Check, 
+  X, 
+  ShieldCheck, 
+  Sliders, 
+  RotateCcw,
+  Layers,
+  Lock,
+  AlertCircle
+} from 'lucide-react';
+import { 
+  UserPublicProfile, 
+  UserGroup, 
+  ScreenResourceDefinition, 
+  ScreenActionType, 
+  UserOverrides 
+} from '../../types/auth';
+import { iamService } from '../../services/iamService';
+import { useLanguage } from '../../i18n';
+
+interface UserOverrideMatrixViewProps {
+  user: UserPublicProfile;
+  userGroup?: UserGroup;
+  onClose: () => void;
+  onSuccess: (updatedUser: UserPublicProfile) => void;
+  onNotify?: (title: string, message: string, type: 'success' | 'info' | 'warning' | 'error') => void;
+}
+
+const ACTION_COLUMNS: { key: ScreenActionType; labelAr: string; labelEn: string }[] = [
+  { key: 'read', labelAr: 'قراءة', labelEn: 'Read' },
+  { key: 'create', labelAr: 'انشاء', labelEn: 'Create' },
+  { key: 'update', labelAr: 'تعديل', labelEn: 'Update' },
+  { key: 'delete', labelAr: 'حذف', labelEn: 'Delete' }
+];
+
+export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
+  user,
+  userGroup,
+  onClose,
+  onSuccess,
+  onNotify
+}) => {
+  const { isRtl } = useLanguage();
+
+  const [screens, setScreens] = useState<ScreenResourceDefinition[]>([]);
+  const [isLoadingScreens, setIsLoadingScreens] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Overrides state: granted and revoked sets
+  const [grantedSet, setGrantedSet] = useState<Set<string>>(() => {
+    return new Set(user.overrides?.grantedPermissions || []);
+  });
+  const [revokedSet, setRevokedSet] = useState<Set<string>>(() => {
+    return new Set(user.overrides?.revokedPermissions || []);
+  });
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // Group permissions set
+  const groupPermsSet = useMemo(() => {
+    return new Set(userGroup?.permissions || []);
+  }, [userGroup]);
+
+  const isGroupFullAdmin = useMemo(() => {
+    return groupPermsSet.has('*');
+  }, [groupPermsSet]);
+
+  // Load screen resources dynamically
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoadingScreens(true);
+    iamService.getScreenResources()
+      .then((res) => {
+        if (isMounted) {
+          setScreens(res);
+          setIsLoadingScreens(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setIsLoadingScreens(false);
+      });
+    return () => { isMounted = false; };
+  }, []);
+
+  // تجميع الموارد والشاشات ديناميكياً بحسب النظام المصرفي والسيادي
+  const groupedScreens = useMemo(() => {
+    const map = new Map<string, {
+      systemKey: string;
+      systemName: string;
+      systemNameEn?: string;
+      screens: ScreenResourceDefinition[];
+    }>();
+
+    screens.forEach(s => {
+      const sKey = s.systemKey || (s.category === 'GOVERNANCE_SYSTEM' ? 'GOVERNANCE_SYSTEM' : 'SYSTEM_RESOURCES');
+      const sName = s.systemName || (s.category === 'GOVERNANCE_SYSTEM' ? 'إدارة وحوكمة المنظومة السيادية' : 'الخدمات المصرفية العامة');
+      const sNameEn = s.systemNameEn || sKey;
+
+      if (!map.has(sKey)) {
+        map.set(sKey, {
+          systemKey: sKey,
+          systemName: sName,
+          systemNameEn: sNameEn,
+          screens: []
+        });
+      }
+      map.get(sKey)!.screens.push(s);
+    });
+
+    return Array.from(map.values());
+  }, [screens]);
+
+  // التحقق من نطاق صلاحية المستخدم الخارجي للوصول إلى هذا النظام
+  const isSystemAllowed = useCallback((systemKey: string) => {
+    if (user.userType !== 'EXTERNAL') return true;
+    const allowed = user.accessScope?.allowedSystemIds;
+    if (!allowed || allowed.length === 0 || allowed.includes('*')) return true;
+    return allowed.includes(systemKey);
+  }, [user]);
+
+  /**
+   * تقييم حالة الخلية الفردية للمستخدم:
+   * 1. 'revoked': محجوبة كاستثناء فردي (أحمر)
+   * 2. 'granted': ممنوحة كاستثناء فردي (أخضر مضيء)
+   * 3. 'inherited': موروثة طبيعياً من دور المجموعة (أزرق/سماوي)
+   * 4. 'none': غير ممنوحة وغير موروثة (رمادي فارغ)
+   */
+  const getCellState = useCallback((screenKey: string, action: ScreenActionType): 'revoked' | 'granted' | 'inherited' | 'none' => {
+    const permKey = `${screenKey}:${action}`;
+
+    if (revokedSet.has(permKey)) {
+      return 'revoked';
+    }
+
+    if (grantedSet.has(permKey)) {
+      return 'granted';
+    }
+
+    if (isGroupFullAdmin || groupPermsSet.has(permKey)) {
+      return 'inherited';
+    }
+
+    return 'none';
+  }, [revokedSet, grantedSet, isGroupFullAdmin, groupPermsSet]);
+
+  /**
+   * تبديل حالة الخلية الفردية عند النقر:
+   * - إذا كانت موروثة من المجموعة -> النقر يحجبها ويمنعها (Revoke).
+   * - إذا كانت محجوبة -> النقر يزيل الحجب ويعيدها للموروث الطبيعي.
+   * - إذا كانت غير ممنوحة -> النقر يمنحها كاستثناء خاص (Grant).
+   * - إذا كانت ممنوحة كاستثناء -> النقر يلغي الاستثناء ويعيدها لغير ممنوحة.
+   */
+  const handleCellClick = useCallback((screenKey: string, action: ScreenActionType) => {
+    const permKey = `${screenKey}:${action}`;
+    const currentState = getCellState(screenKey, action);
+
+    setGrantedSet(prevGranted => {
+      setRevokedSet(prevRevoked => {
+        const nextGranted = new Set(prevGranted);
+        const nextRevoked = new Set(prevRevoked);
+
+        if (currentState === 'inherited') {
+          // حجب الصلاحية الموروثة
+          nextRevoked.add(permKey);
+          nextGranted.delete(permKey);
+
+          // قاعدة الاعتمادية: إذا حجب القراءة، نحجب تلقائياً الإنشاء والتعديل والحذف
+          if (action === 'read') {
+            nextRevoked.add(`${screenKey}:create`);
+            nextRevoked.add(`${screenKey}:update`);
+            nextRevoked.add(`${screenKey}:delete`);
+            nextGranted.delete(`${screenKey}:create`);
+            nextGranted.delete(`${screenKey}:update`);
+            nextGranted.delete(`${screenKey}:delete`);
+          }
+        } else if (currentState === 'revoked') {
+          // إلغاء الحجب والعودة للأصل الموروث
+          nextRevoked.delete(permKey);
+        } else if (currentState === 'none') {
+          // منح استثناء فردي إضافي
+          nextGranted.add(permKey);
+          nextRevoked.delete(permKey);
+
+          // قاعدة الاعتمادية: إذا منح تعديل أو إنشاء أو حذف، نمنح القراءة تلقائياً
+          if (action === 'create' || action === 'update' || action === 'delete') {
+            nextGranted.add(`${screenKey}:read`);
+            nextRevoked.delete(`${screenKey}:read`);
+          }
+        } else if (currentState === 'granted') {
+          // إلغاء المنح الإضافي والعودة للوضع الطبيعي
+          nextGranted.delete(permKey);
+          if (action === 'read') {
+            nextGranted.delete(`${screenKey}:create`);
+            nextGranted.delete(`${screenKey}:update`);
+            nextGranted.delete(`${screenKey}:delete`);
+          }
+        }
+
+        setHasChanges(true);
+        return nextRevoked;
+      });
+      return prevGranted;
+    });
+  }, [getCellState]);
+
+  // استعادة الوضع الافتراضي لمجموعة المستخدم وإلغاء كافة الاستثناءات
+  const handleResetAllOverrides = useCallback(() => {
+    setGrantedSet(new Set());
+    setRevokedSet(new Set());
+    setHasChanges(true);
+  }, []);
+
+  // حفظ الاستثناءات
+  const handleSave = async () => {
+    setIsSubmitting(true);
+    try {
+      const overrides: UserOverrides = {
+        grantedPermissions: Array.from(grantedSet),
+        revokedPermissions: Array.from(revokedSet)
+      };
+
+      const updated = await iamService.updateUserOverrides(user.id, overrides);
+
+      onNotify?.(
+        isRtl ? 'تم الحفظ بنجاح' : 'Saved Successfully',
+        isRtl ? `تم اعتماد مصفوفة استثناءات المستخدم [${user.fullName}] بنجاح` : `Overrides matrix committed for [${user.fullName}]`,
+        'success'
+      );
+
+      setHasChanges(false);
+      onSuccess(updated);
+    } catch (err: any) {
+      onNotify?.(
+        isRtl ? 'خطأ في الحفظ' : 'Save Error',
+        err.message || (isRtl ? 'فشل حفظ استثناءات الصلاحيات' : 'Failed to save user overrides'),
+        'error'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div 
+      style={{
+        width: '100%',
+        background: 'var(--bg-card, #111827)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        borderRadius: '16px',
+        padding: '1.75rem',
+        direction: isRtl ? 'rtl' : 'ltr',
+        boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.5)'
+      }}
+    >
+      {/* ── 1. TOP HEADER & SAVE BAR (صفحة رسمية كاملة مع زر رجوع وزر حفظ في الأعلى) ── */}
+      <div 
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '1.5rem',
+          paddingBottom: '1.25rem',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.08)'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              borderRadius: '8px',
+              padding: '0.5rem 0.85rem',
+              color: '#9ca3af',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              fontSize: '0.84rem',
+              transition: 'all 0.2s'
+            }}
+          >
+            <ArrowRight size={15} style={{ transform: isRtl ? 'none' : 'rotate(180deg)' }} />
+            <span>{isRtl ? 'رجوع للمستخدمين' : 'Back to Users'}</span>
+          </button>
+
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#ffffff' }}>
+                {isRtl ? `تخصيص مصفوفة الصلاحيات الفردية: ${user.fullName}` : `User Overrides Matrix: ${user.fullName}`}
+              </h2>
+              {user.userType === 'EXTERNAL' ? (
+                <span
+                  style={{
+                    padding: '0.2rem 0.55rem',
+                    borderRadius: '6px',
+                    background: 'rgba(168, 85, 247, 0.18)',
+                    color: '#c084fc',
+                    border: '1px solid rgba(168, 85, 247, 0.35)',
+                    fontWeight: 700,
+                    fontSize: '0.74rem'
+                  }}
+                >
+                  {isRtl ? 'شريك خارجي' : 'External Partner'}
+                </span>
+              ) : (
+                <span
+                  style={{
+                    padding: '0.2rem 0.55rem',
+                    borderRadius: '6px',
+                    background: 'rgba(59, 130, 246, 0.15)',
+                    color: '#60a5fa',
+                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                    fontWeight: 700,
+                    fontSize: '0.74rem'
+                  }}
+                >
+                  {isRtl ? 'مستخدم داخلي' : 'Internal User'}
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: '0.78rem', color: '#9ca3af', marginTop: '0.25rem' }}>
+              {isRtl ? `اسم المستخدم: ${user.username} | الدور: ` : `Username: ${user.username} | Role: `}
+              <span style={{ color: '#60a5fa', fontWeight: 700 }}>
+                [{user.groupName || userGroup?.name || (isRtl ? 'غير محدد' : 'Unassigned')}]
+              </span>
+              {user.userType === 'EXTERNAL' && (
+                <span style={{ marginInlineStart: '0.75rem', color: '#c084fc' }}>
+                  | {isRtl ? 'الجهة السيادية:' : 'Organization:'} <b>{user.organizationName || user.organizationId}</b>
+                  {' • '}
+                  {isRtl ? 'نطاق الأنظمة:' : 'Systems:'} <b>[{user.accessScope?.allowedSystemIds?.join(', ') || '*'}]</b>
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button
+            type="button"
+            onClick={handleResetAllOverrides}
+            title={isRtl ? 'إلغاء كافة الاستثناءات والعودة لأصل الدور' : 'Reset all overrides to role default'}
+            style={{
+              padding: '0.6rem 0.95rem',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              background: 'rgba(255, 255, 255, 0.05)',
+              color: '#9ca3af',
+              fontSize: '0.82rem',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.4rem'
+            }}
+          >
+            <RotateCcw size={14} />
+            <span>{isRtl ? 'استعادة أصل الدور' : 'Reset to Role'}</span>
+          </button>
+
+          {/* زر الحفظ الأخضر الرئيسي (في أعلى الصفحة تماماً كما في الشكل الرسمي) */}
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isSubmitting}
+            style={{
+              background: '#10b981',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '0.65rem 1.6rem',
+              fontSize: '0.92rem',
+              fontWeight: 800,
+              cursor: isSubmitting ? 'not-allowed' : 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              boxShadow: hasChanges ? '0 0 15px rgba(16, 185, 129, 0.4)' : '0 4px 12px rgba(16, 185, 129, 0.25)',
+              transition: 'all 0.2s',
+              opacity: isSubmitting ? 0.7 : 1
+            }}
+          >
+            <Save size={16} />
+            <span>{isSubmitting ? (isRtl ? 'جاري الحفظ...' : 'Saving...') : (isRtl ? 'حفظ' : 'Save')}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── 2. SECTION HEADER & COLOR LEGEND (عنوان "الصلاحيات" والدليل اللوني) ── */}
+      <div 
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '1rem',
+          paddingBottom: '0.65rem',
+          borderBottom: '2px solid rgba(16, 185, 129, 0.3)'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span 
+            style={{
+              background: 'rgba(255, 255, 255, 0.08)',
+              padding: '0.35rem 0.85rem',
+              borderRadius: '6px',
+              fontWeight: 800,
+              fontSize: '0.92rem',
+              color: '#ffffff',
+              letterSpacing: '0.5px'
+            }}
+          >
+            {isRtl ? 'الصلاحيات' : 'Permissions'}
+          </span>
+          <span style={{ fontSize: '0.78rem', color: '#9ca3af' }}>
+            {isRtl ? 'انقر على أي خلية لتعديل حالتها لهذا المستخدم' : 'Click any cell to toggle user override'}
+          </span>
+        </div>
+
+        {/* الدليل اللوني للحالات الثلاث في الصفحة */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', fontSize: '0.78rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span style={{ display: 'inline-block', width: '14px', height: '14px', borderRadius: '4px', background: 'rgba(59, 130, 246, 0.25)', border: '1px solid #3b82f6' }} />
+            <span style={{ color: '#93c5fd', fontWeight: 600 }}>{isRtl ? 'موروثة من الدور' : 'Inherited'}</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span style={{ display: 'inline-block', width: '14px', height: '14px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.3)', border: '1px solid #10b981' }} />
+            <span style={{ color: '#34d399', fontWeight: 700 }}>{isRtl ? 'ممنوحة كاستثناء' : 'Granted Override'}</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span style={{ display: 'inline-block', width: '14px', height: '14px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.3)', border: '1px solid #ef4444' }} />
+            <span style={{ color: '#f87171', fontWeight: 700 }}>{isRtl ? 'محجوبة وممنوعة' : 'Revoked Override'}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 3. FULL PAGE UNIFIED MATRIX TABLE (جدول الصلاحيات بعرض كامل الصفحة) ── */}
+      <div 
+        style={{
+          background: 'rgba(0, 0, 0, 0.25)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          borderRadius: '12px',
+          overflow: 'hidden'
+        }}
+      >
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left' }}>
+          <thead>
+            <tr style={{ background: 'rgba(255, 255, 255, 0.04)', borderBottom: '2px solid rgba(16, 185, 129, 0.4)' }}>
+              <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.88rem', fontWeight: 800, color: '#f3f4f6' }}>
+                {isRtl ? 'اسم الشاشة' : 'Screen Name'}
+              </th>
+
+              {ACTION_COLUMNS.map((col) => (
+                <th 
+                  key={col.key} 
+                  style={{ 
+                    padding: '0.9rem 1rem', 
+                    fontSize: '0.85rem', 
+                    fontWeight: 700, 
+                    color: '#e5e7eb',
+                    textAlign: 'center',
+                    width: '120px'
+                  }}
+                >
+                  {isRtl ? col.labelAr : col.labelEn}
+                </th>
+              ))}
+            </tr>
+          </thead>
+
+          <tbody>
+            {isLoadingScreens ? (
+              <tr>
+                <td colSpan={5} style={{ padding: '3.5rem', textAlign: 'center', color: '#9ca3af' }}>
+                  {isRtl ? 'جاري تحميل سجل الشاشات والموارد المصرفية...' : 'Loading dynamic screens catalog...'}
+                </td>
+              </tr>
+            ) : screens.length === 0 ? (
+              <tr>
+                <td colSpan={5} style={{ padding: '3.5rem', textAlign: 'center' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                    <AlertCircle size={28} color="#f59e0b" />
+                    <span style={{ fontWeight: 700, color: '#f3f4f6' }}>
+                      {isRtl ? 'لم يتم العثور على أنظمة مسجلة أو السيرفر غير متصل' : 'No systems found or backend offline'}
+                    </span>
+                    <span style={{ fontSize: '0.78rem', color: '#9ca3af' }}>
+                      {isRtl ? 'يرجى التأكد من تشغيل سيرفر المنظومة (Backend API) على المنفذ 4000 لجلب الأنظمة والخدمات الحية' : 'Please ensure Backend API server is running on port 4000 to load live systems'}
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              groupedScreens.map((grp) => {
+                const allowed = isSystemAllowed(grp.systemKey);
+
+                return (
+                  <React.Fragment key={grp.systemKey}>
+                    {/* رأس قسم النظام المصرفي الديناميكي */}
+                    <tr style={{ background: 'rgba(59, 130, 246, 0.08)', borderBottom: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                      <td colSpan={5} style={{ padding: '0.65rem 1.25rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                            <Layers size={16} color="#60a5fa" />
+                            <span style={{ fontWeight: 800, fontSize: '0.88rem', color: '#93c5fd' }}>
+                              {isRtl ? grp.systemName : (grp.systemNameEn || grp.systemName)}
+                            </span>
+                            <span style={{ fontSize: '0.74rem', color: '#9ca3af', padding: '0.1rem 0.45rem', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)' }}>
+                              {grp.screens.length} {isRtl ? 'شاشة / خدمة' : 'screens'}
+                            </span>
+                          </div>
+
+                          {/* شارة حالة نطاق صلاحية المستخدم الخارجي */}
+                          {user.userType === 'EXTERNAL' && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                              {allowed ? (
+                                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#34d399', background: 'rgba(16, 185, 129, 0.15)', padding: '0.15rem 0.5rem', borderRadius: '4px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                                  {isRtl ? 'ضمن نطاق ترخيص الشريك المصرح به' : 'Within Partner Scope'}
+                                </span>
+                              ) : (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', fontWeight: 700, color: '#f87171', background: 'rgba(239, 68, 68, 0.15)', padding: '0.15rem 0.5rem', borderRadius: '4px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                                  <Lock size={12} />
+                                  {isRtl ? 'محظور: خارج نطاق ترخيص الشريك' : 'Restricted: Out of Scope'}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* صفوف شاشات وخدمات هذا النظام */}
+                    {grp.screens.map((screen, idx) => {
+                      const isEven = idx % 2 === 0;
+
+                      return (
+                        <tr 
+                          key={screen.key}
+                          style={{
+                            background: isEven ? 'rgba(255, 255, 255, 0.015)' : 'rgba(255, 255, 255, 0.04)',
+                            borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                            transition: 'background 0.15s'
+                          }}
+                        >
+                          {/* اسم الشاشة */}
+                          <td style={{ padding: '0.85rem 1.25rem' }}>
+                            <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#f9fafb' }}>
+                              {screen.name}
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: '0.15rem' }}>
+                              {screen.nameAr}
+                            </div>
+                          </td>
+
+                          {/* أعمدة العمليات الأربعة (قراءة | انشاء | تعديل | حذف) */}
+                          {ACTION_COLUMNS.map((col) => {
+                            const isSupported = screen.supportedActions.includes(col.key);
+                            if (!isSupported) {
+                              return (
+                                <td key={col.key} style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
+                                  <span 
+                                    style={{ 
+                                      display: 'inline-block', 
+                                      width: '16px', 
+                                      height: '2px', 
+                                      background: 'rgba(255, 255, 255, 0.08)',
+                                      borderRadius: '1px'
+                                    }} 
+                                  />
+                                </td>
+                              );
+                            }
+
+                            const state = getCellState(screen.key, col.key);
+
+                            // إعدادات المظهر التفاعلي لكل حالة
+                            let bg = 'rgba(0, 0, 0, 0.3)';
+                            let border = '1px solid rgba(255, 255, 255, 0.18)';
+                            let icon = null;
+                            let tooltip = isRtl ? 'غير ممنوحة (انقر لمنحها)' : 'Not granted (click to grant)';
+
+                            if (state === 'inherited') {
+                              bg = 'rgba(59, 130, 246, 0.2)';
+                              border = '1px solid #3b82f6';
+                              icon = <Check size={16} color="#60a5fa" strokeWidth={3} />;
+                              tooltip = isRtl ? 'موروثة من الدور (انقر لحجبها)' : 'Inherited from role (click to revoke)';
+                            } else if (state === 'granted') {
+                              bg = 'rgba(16, 185, 129, 0.25)';
+                              border = '1px solid #10b981';
+                              icon = <Check size={16} color="#10b981" strokeWidth={3} />;
+                              tooltip = isRtl ? 'استثناء: ممنوحة خاصة (انقر لإلغاء المنح)' : 'Granted override (click to clear)';
+                            } else if (state === 'revoked') {
+                              bg = 'rgba(239, 68, 68, 0.25)';
+                              border = '1px solid #ef4444';
+                              icon = <X size={16} color="#f87171" strokeWidth={3} />;
+                              tooltip = isRtl ? 'استثناء: محجوبة وممنوعة (انقر لإلغاء الحجب)' : 'Revoked override (click to restore)';
+                            }
+
+                            return (
+                              <td 
+                                key={col.key} 
+                                style={{ 
+                                  padding: '0.85rem 1rem', 
+                                  textAlign: 'center',
+                                  verticalAlign: 'middle'
+                                }}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => handleCellClick(screen.key, col.key)}
+                                  title={tooltip}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: '28px',
+                                    height: '28px',
+                                    borderRadius: '6px',
+                                    background: bg,
+                                    border: border,
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s'
+                                  }}
+                                >
+                                  {icon}
+                                </button>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </React.Fragment>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── 4. FOOTER STATS & ACTIONS ── */}
+      <div 
+        style={{
+          marginTop: '1.25rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          fontSize: '0.84rem',
+          color: '#9ca3af'
+        }}
+      >
+        <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center' }}>
+          <span>
+            {isRtl ? `الاستثناءات الإضافية الممنوحة: ` : `Granted Overrides: `}
+            <strong style={{ color: '#34d399' }}>{grantedSet.size}</strong>
+          </span>
+          <span>
+            {isRtl ? `الاستثناءات المحجوبة والممنوعة: ` : `Revoked Overrides: `}
+            <strong style={{ color: '#f87171' }}>{revokedSet.size}</strong>
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: '0.55rem 1.1rem',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              background: 'none',
+              color: '#9ca3af',
+              cursor: 'pointer'
+            }}
+          >
+            {isRtl ? 'رجوع' : 'Back'}
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isSubmitting}
+            style={{
+              padding: '0.55rem 1.5rem',
+              borderRadius: '8px',
+              border: 'none',
+              background: '#10b981',
+              color: '#ffffff',
+              fontWeight: 700,
+              cursor: isSubmitting ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {isRtl ? 'حفظ التعديلات' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

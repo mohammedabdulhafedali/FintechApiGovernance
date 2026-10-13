@@ -66,9 +66,13 @@ export class CatalogService {
     responsePayload?: string;
   }): Promise<Endpoint | null> {
     try {
+      const token = localStorage.getItem('gov_fintech_auth_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const response = await fetch(`${BACKEND_BASE_URL}/endpoints`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(3000)
       });
@@ -87,8 +91,13 @@ export class CatalogService {
    */
   public async deleteSector(sectorKey: string): Promise<boolean> {
     try {
+      const token = localStorage.getItem('gov_fintech_auth_token');
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const response = await fetch(`${BACKEND_BASE_URL}/sectors/${sectorKey}`, {
         method: 'DELETE',
+        headers,
         signal: AbortSignal.timeout(3000)
       });
       return response.ok;
@@ -102,9 +111,13 @@ export class CatalogService {
    */
   public async createSector(sector: { key: string; name: string; nameEn?: string; code: string }): Promise<Sector | null> {
     try {
+      const token = localStorage.getItem('gov_fintech_auth_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const response = await fetch(`${BACKEND_BASE_URL}/sectors`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(sector),
         signal: AbortSignal.timeout(3000)
       });

@@ -1,0 +1,146 @@
+[
+  {
+    "id": "REQ-2026-0001",
+    "resourceKey": "catalog:endpoints",
+    "resourceNameAr": "نقاط النهاية والـ APIs",
+    "resourceNameEn": "Endpoints & API Catalog",
+    "actionType": "CREATE",
+    "actionDescriptionAr": "إضافة API جديد لمعالجة المقاصة الفورية بين البنوك",
+    "actionDescriptionEn": "Add new Instant Interbank Clearing Endpoint",
+    "payload": {
+      "path": "/api/v1/clearing/instant-settlement",
+      "method": "POST",
+      "nameAr": "تسوية المقاصة الفورية المصرفية",
+      "nameEn": "Instant Interbank Settlement",
+      "sectorKey": "payments",
+      "isFinancial": true,
+      "requiresAuth": true
+    },
+    "diffSummary": [
+      {
+        "field": "path",
+        "labelAr": "مسار الـ API",
+        "oldValue": null,
+        "newValue": "/api/v1/clearing/instant-settlement",
+        "type": "ADDED"
+      },
+      {
+        "field": "nameAr",
+        "labelAr": "الاسم بالعربية",
+        "oldValue": null,
+        "newValue": "تسوية المقاصة الفورية المصرفية",
+        "type": "ADDED"
+      },
+      {
+        "field": "isFinancial",
+        "labelAr": "عملية مالية حساسة",
+        "oldValue": null,
+        "newValue": true,
+        "type": "ADDED"
+      }
+    ],
+    "makerId": "user-developer-01",
+    "makerName": "م. أحمد العولقي (مطوّر نظم)",
+    "makerGroup": "مطور واجهات برمجية",
+    "submittedAt": "2026-10-13T16:28:01.112Z",
+    "status": "PENDING",
+    "currentStageOrder": 1,
+    "totalStages": 1,
+    "stages": [
+      {
+        "stageOrder": 1,
+        "stageKey": "tech_review",
+        "stageNameAr": "مراجعة معمارية وتدقيق المواصفة",
+        "stageNameEn": "Technical Architecture Review",
+        "requiredPermission": "governance:approve",
+        "minApprovers": 1
+      }
+    ],
+    "approvalTrail": []
+  },
+  {
+    "id": "REQ-2026-0002",
+    "resourceKey": "catalog:sectors",
+    "resourceNameAr": "القطاعات والأنظمة المصرفية",
+    "resourceNameEn": "Banking Sectors & Systems",
+    "actionType": "UPDATE",
+    "actionDescriptionAr": "تحديث معايير التشفير والاعتماد لقطاع المدفوعات النقدية",
+    "actionDescriptionEn": "Update encryption standards for Cash Payments Sector",
+    "targetResourceId": "payments",
+    "snapshotBefore": {
+      "code": "PAYMENTS",
+      "nameAr": "قطاع المدفوعات والتحويلات",
+      "nameEn": "Payments & Transfers Sector",
+      "requiresHardwareSecurityModule": false,
+      "minSignatureBits": 2048
+    },
+    "payload": {
+      "code": "PAYMENTS",
+      "nameAr": "قطاع المدفوعات والتحويلات السيادية",
+      "nameEn": "Sovereign Payments & Transfers Sector",
+      "requiresHardwareSecurityModule": true,
+      "minSignatureBits": 4096
+    },
+    "diffSummary": [
+      {
+        "field": "nameAr",
+        "labelAr": "الاسم بالعربية",
+        "oldValue": "قطاع المدفوعات والتحويلات",
+        "newValue": "قطاع المدفوعات والتحويلات السيادية",
+        "type": "MODIFIED"
+      },
+      {
+        "field": "requiresHardwareSecurityModule",
+        "labelAr": "إلزامية وحدة التشفير الصلبة (HSM)",
+        "oldValue": false,
+        "newValue": true,
+        "type": "MODIFIED"
+      },
+      {
+        "field": "minSignatureBits",
+        "labelAr": "الحد الأدنى لقوة مفتاح التوقيع",
+        "oldValue": 2048,
+        "newValue": 4096,
+        "type": "MODIFIED"
+      }
+    ],
+    "makerId": "user-security-analyst",
+    "makerName": "سارة المهدي (محلل أمن سيبراني)",
+    "makerGroup": "أمن المعلومات",
+    "submittedAt": "2026-10-13T15:13:01.112Z",
+    "status": "PENDING",
+    "currentStageOrder": 2,
+    "totalStages": 2,
+    "stages": [
+      {
+        "stageOrder": 1,
+        "stageKey": "architect_signoff",
+        "stageNameAr": "اعتماد معماري الـ API",
+        "stageNameEn": "API Architect Sign-off",
+        "requiredPermission": "governance:approve",
+        "minApprovers": 1
+      },
+      {
+        "stageOrder": 2,
+        "stageKey": "security_signoff",
+        "stageNameAr": "اعتماد ضابط أمن المعلومات (CISO)",
+        "stageNameEn": "Chief Information Security Officer Sign-off",
+        "requiredPermission": "governance:approve:security",
+        "minApprovers": 1
+      }
+    ],
+    "approvalTrail": [
+      {
+        "stageOrder": 1,
+        "stageNameAr": "اعتماد معماري الـ API",
+        "approverId": "architect-01",
+        "approverName": "د. طارق المعماري",
+        "approverGroup": "مهندسو المعمارية المصرفية",
+        "decision": "APPROVED",
+        "notes": "تم التحقق من تطابق الترقية مع متطلبات البنك المركزي ISO-20022.",
+        "decidedAt": "2026-10-13T16:13:01.112Z",
+        "digitalSignature": "RSA-PSS-SHA256:3a9f8b...certified"
+      }
+    ]
+  }
+]

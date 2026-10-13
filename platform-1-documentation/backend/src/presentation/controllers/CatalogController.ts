@@ -1,9 +1,11 @@
 import { Request, Response } from 'express';
+import { AuthenticatedRequest } from '../middlewares/authMiddleware.js';
 import { GetCatalogUseCase } from '../../application/usecases/GetCatalogUseCase.js';
 import { GetSectorEndpointsUseCase } from '../../application/usecases/GetSectorEndpointsUseCase.js';
 import { CreateEndpointUseCase } from '../../application/usecases/CreateEndpointUseCase.js';
 import { CreateSectorUseCase } from '../../application/usecases/CreateSectorUseCase.js';
 import { DeleteSectorUseCase } from '../../application/usecases/DeleteSectorUseCase.js';
+import { Sector } from '../../domain/entities/Sector.js';
 
 export class CatalogController {
   constructor(
@@ -14,12 +16,32 @@ export class CatalogController {
     private readonly deleteSectorUseCase: DeleteSectorUseCase
   ) {}
 
-  getCatalog = async (_req: Request, res: Response): Promise<void> => {
+  getCatalog = async (req: Request, res: Response): Promise<void> => {
     try {
       const catalog = await this.getCatalogUseCase.execute();
+      const authReq = req as AuthenticatedRequest;
+      const user = authReq.user;
+
+      // Scoped Data Isolation: For EXTERNAL users, filter sectors and systems
+      let responseCatalog: Record<string, Sector> = catalog;
+      if (user && user.userType === 'EXTERNAL' && user.accessScope) {
+        responseCatalog = {};
+        const allowedSystems = user.accessScope.allowedSystemIds || [];
+
+        for (const [key, sector] of Object.entries(catalog)) {
+          const isAllowed =
+            allowedSystems.includes('*') ||
+            allowedSystems.includes(key) ||
+            allowedSystems.includes(sector.code);
+          if (isAllowed) {
+            responseCatalog[key] = sector;
+          }
+        }
+      }
+
       res.status(200).json({
         success: true,
-        data: catalog,
+        data: responseCatalog,
         timestamp: new Date().toISOString()
       });
     } catch (err: any) {
@@ -33,6 +55,23 @@ export class CatalogController {
   getSectorEndpoints = async (req: Request, res: Response): Promise<void> => {
     try {
       const sectorKey = String(req.params.sectorKey);
+      const authReq = req as AuthenticatedRequest;
+      const user = authReq.user;
+
+      // Verify scope for external user
+      if (user && user.userType === 'EXTERNAL' && user.accessScope) {
+        const allowedSystems = user.accessScope.allowedSystemIds || [];
+        const isAllowed = allowedSystems.includes('*') || allowedSystems.includes(sectorKey);
+        if (!isAllowed) {
+          res.status(403).json({
+            success: false,
+            error: 'Forbidden',
+            message: 'لا تملك صلاحية الوصول لهذا النظام أو القطاع المحدد.'
+          });
+          return;
+        }
+      }
+
       const endpoints = await this.getSectorEndpointsUseCase.execute(sectorKey);
       res.status(200).json({
         success: true,

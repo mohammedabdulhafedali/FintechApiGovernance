@@ -1,0 +1,94 @@
+[
+  {
+    "resourceKey": "catalog:endpoints",
+    "resourceNameAr": "نقاط النهاية والـ APIs",
+    "resourceNameEn": "Endpoints & API Catalog",
+    "mode": "MAKER_CHECKER",
+    "isProtectedCore": false,
+    "stages": [
+      {
+        "stageOrder": 1,
+        "stageKey": "tech_review",
+        "stageNameAr": "مراجعة معمارية وتدقيق المواصفة",
+        "stageNameEn": "Technical Architecture Review",
+        "requiredPermission": "governance:approve",
+        "minApprovers": 1
+      }
+    ],
+    "updatedAt": "2026-10-13T17:23:26.346Z",
+    "updatedBy": "system"
+  },
+  {
+    "resourceKey": "catalog:sectors",
+    "resourceNameAr": "القطاعات والأنظمة المصرفية",
+    "resourceNameEn": "Banking Sectors & Systems",
+    "mode": "MULTI_STAGE_PIPELINE",
+    "isProtectedCore": true,
+    "stages": [
+      {
+        "stageOrder": 1,
+        "stageKey": "architect_signoff",
+        "stageNameAr": "اعتماد معماري الـ API",
+        "stageNameEn": "API Architect Sign-off",
+        "requiredPermission": "governance:approve",
+        "minApprovers": 1
+      },
+      {
+        "stageOrder": 2,
+        "stageKey": "security_signoff",
+        "stageNameAr": "اعتماد ضابط أمن المعلومات (CISO)",
+        "stageNameEn": "Chief Information Security Officer Sign-off",
+        "requiredPermission": "governance:approve:security",
+        "minApprovers": 1
+      }
+    ],
+    "updatedAt": "2026-10-13T17:23:26.346Z",
+    "updatedBy": "system"
+  },
+  {
+    "resourceKey": "iam:groups",
+    "resourceNameAr": "أدوار ومجموعات الصلاحيات",
+    "resourceNameEn": "IAM Groups & Roles",
+    "mode": "MULTI_STAGE_PIPELINE",
+    "isProtectedCore": true,
+    "stages": [
+      {
+        "stageOrder": 1,
+        "stageKey": "security_audit",
+        "stageNameAr": "تدقيق أمني ومطابقة الصلاحيات",
+        "stageNameEn": "Security Audit & Permissions Check",
+        "requiredPermission": "governance:approve:security",
+        "minApprovers": 1
+      },
+      {
+        "stageOrder": 2,
+        "stageKey": "executive_approval",
+        "stageNameAr": "الاعتماد السيادي لمدير النظام",
+        "stageNameEn": "Executive IAM Authorization",
+        "requiredPermission": "iam:manage",
+        "minApprovers": 1
+      }
+    ],
+    "updatedAt": "2026-10-13T17:23:26.346Z",
+    "updatedBy": "system"
+  },
+  {
+    "resourceKey": "iam:users",
+    "resourceNameAr": "حسابات المستخدمين والمشرفين",
+    "resourceNameEn": "IAM Users & Credentials",
+    "mode": "MAKER_CHECKER",
+    "isProtectedCore": true,
+    "stages": [
+      {
+        "stageOrder": 1,
+        "stageKey": "user_governance_approval",
+        "stageNameAr": "اعتماد إدارة الهوية والمطابقة",
+        "stageNameEn": "IAM Identity Compliance Approval",
+        "requiredPermission": "iam:manage",
+        "minApprovers": 1
+      }
+    ],
+    "updatedAt": "2026-10-13T17:23:26.346Z",
+    "updatedBy": "system"
+  }
+]

@@ -25,10 +25,12 @@ export const EndpointsRibbon: React.FC<EndpointsRibbonProps> = ({
 
   return (
     <div className="endpoints-ribbon">
-      {/* Endpoint Pills — Clean Monospace Buttons without POST badge */}
+      {/* Endpoint Pills — Clean Monospace Buttons with dynamic REST API route prefix */}
       {endpoints.map((ep, idx) => {
         const isActive = idx === activeEndpointIndex;
-        const nameToShow = ep.shortName || ep.path.split('/').filter(Boolean).pop() || ep.path;
+        const rawName = ep.shortName || ep.path.split('/').filter(Boolean).pop() || ep.path || `ep-${idx + 1}`;
+        const cleanName = rawName.replace(/^[/\\+]+/, '');
+
         return (
           <div
             key={ep.id || idx}
@@ -36,7 +38,10 @@ export const EndpointsRibbon: React.FC<EndpointsRibbonProps> = ({
             onClick={() => onSelectEndpoint(idx)}
             title={ep.path}
           >
-            <span>{nameToShow}</span>
+            <span className="ep-pill-path" dir="ltr">
+              <span className="ep-slash">/</span>
+              <span className="ep-name">{cleanName}</span>
+            </span>
           </div>
         );
       })}

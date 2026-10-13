@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import { SystemModule, Sector, SystemIntegration } from '../../types/schema';
 import { useLanguage } from '../../i18n';
+import { Can } from '../auth/Can';
+import { useAuth } from '../auth/AuthContext';
 
 interface DashboardViewProps {
   systems: Record<string, SystemModule>;
@@ -148,7 +150,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setIsAdding(false);
   };
 
-  const systemEntries = Object.entries(systems);
+  const { canAccess } = useAuth();
+
+  const systemEntries = Object.entries(systems).filter(([sysKey]) => {
+    return canAccess('catalog:view', { systemId: sysKey });
+  });
 
   return (
     <div className="dashboard-container">
@@ -253,7 +259,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="sectors-grid">
         {systemEntries.map(([sysKey, sys]) => {
           const localizedName = getLocalized({ ar: sys.name, en: sys.nameEn }, sys.name);
-          const integrationsList = sys.integrations ? Object.entries(sys.integrations) : [];
+          const rawIntegrations = sys.integrations ? Object.entries(sys.integrations) : [];
+          // Filter integrations by sovereign scope
+          const integrationsList = rawIntegrations.filter(([intKey, intItem]) => {
+            return canAccess('catalog:view', {
+              entityId: intItem.entityId || intKey,
+              systemId: sysKey
+            });
+          });
           const totalSysEndpoints = integrationsList.reduce(
             (sum, [, intItem]) => sum + (intItem.endpoints ? intItem.endpoints.length : 0),
             0
@@ -334,139 +347,141 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           );
         })}
 
-        {/* 3. Inline System Creation Card */}
-        {isAdding ? (
-          <form className="sector-card sector-inline-form-card" onSubmit={handleCreateSystemInline}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-              <ShieldPlus size={18} style={{ color: 'var(--emerald)' }} />
-              <strong style={{ fontSize: '0.92rem', color: '#ffffff' }}>
-                {isRtl ? 'إضافة نظام برمجي جديد' : 'Add New Core System'}
-              </strong>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-              <input
-                type="text"
-                className="input"
-                style={{ fontSize: '0.82rem', padding: '0.45rem 0.65rem' }}
-                placeholder={isRtl ? 'اسم النظام بالعربية (مثلاً: نظام المقاصة)' : 'System Name (Arabic)'}
-                value={nameAr}
-                onChange={(e) => setNameAr(e.target.value)}
-                autoFocus
-                required
-              />
-              <input
-                type="text"
-                className="input"
-                style={{ fontSize: '0.82rem', padding: '0.45rem 0.65rem', direction: 'ltr' }}
-                placeholder={isRtl ? 'اسم النظام بالإنجليزية (e.g. Clearing System)' : 'System Name (English)'}
-                value={nameEn}
-                onChange={(e) => setNameEn(e.target.value)}
-              />
-              <input
-                type="text"
-                className="input mono"
-                style={{ fontSize: '0.78rem', padding: '0.45rem 0.65rem', direction: 'ltr' }}
-                placeholder="SYS_CLEARING"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-              />
-              <textarea
-                className="input"
-                style={{ fontSize: '0.78rem', padding: '0.45rem 0.65rem', minHeight: '50px', resize: 'vertical' }}
-                placeholder={isRtl ? 'وصف مختصر لمهام النظام ومسؤولياته...' : 'System description and responsibilities...'}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-
-              {/* Icon Selector */}
-              <div style={{ marginTop: '0.2rem' }}>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', display: 'block', marginBottom: '0.35rem' }}>
-                  {isRtl ? 'أيقونة النظام:' : 'System Icon:'}
-                </span>
-                <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                  {availableIcons.map(ico => (
-                    <button
-                      key={ico.name}
-                      type="button"
-                      className={`btn-slim-action ${selectedIcon === ico.name ? 'active' : ''}`}
-                      style={{
-                        padding: '0.3rem 0.5rem',
-                        fontSize: '0.75rem',
-                        borderColor: selectedIcon === ico.name ? 'var(--emerald)' : 'var(--border)',
-                        background: selectedIcon === ico.name ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
-                        color: selectedIcon === ico.name ? 'var(--emerald)' : 'var(--text-dim)'
-                      }}
-                      onClick={() => setSelectedIcon(ico.name)}
-                      title={ico.label}
-                    >
-                      {ico.icon}
-                    </button>
-                  ))}
-                </div>
+        {/* 3. Inline System Creation Card (Totally Hidden if no permission) */}
+        <Can perform="catalog:system:create">
+          {isAdding ? (
+            <form className="sector-card sector-inline-form-card" onSubmit={handleCreateSystemInline}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                <ShieldPlus size={18} style={{ color: 'var(--emerald)' }} />
+                <strong style={{ fontSize: '0.92rem', color: '#ffffff' }}>
+                  {isRtl ? 'إضافة نظام برمجي جديد' : 'Add New Core System'}
+                </strong>
               </div>
 
-              {/* Initial Integrations Selector */}
-              <div style={{ marginTop: '0.4rem' }}>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', display: 'block', marginBottom: '0.35rem' }}>
-                  {isRtl ? 'الجهات التي يتكامل معها هذا النظام:' : 'Integrated Entities:'}
-                </span>
-                <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                  {defaultIntegrationOptions.map(opt => {
-                    const isSelected = selectedIntegrations.includes(opt.id);
-                    return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                <input
+                  type="text"
+                  className="input"
+                  style={{ fontSize: '0.82rem', padding: '0.45rem 0.65rem' }}
+                  placeholder={isRtl ? 'اسم النظام بالعربية (مثلاً: نظام المقاصة)' : 'System Name (Arabic)'}
+                  value={nameAr}
+                  onChange={(e) => setNameAr(e.target.value)}
+                  autoFocus
+                  required
+                />
+                <input
+                  type="text"
+                  className="input"
+                  style={{ fontSize: '0.82rem', padding: '0.45rem 0.65rem', direction: 'ltr' }}
+                  placeholder={isRtl ? 'اسم النظام بالإنجليزية (e.g. Clearing System)' : 'System Name (English)'}
+                  value={nameEn}
+                  onChange={(e) => setNameEn(e.target.value)}
+                />
+                <input
+                  type="text"
+                  className="input mono"
+                  style={{ fontSize: '0.78rem', padding: '0.45rem 0.65rem', direction: 'ltr' }}
+                  placeholder="SYS_CLEARING"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                />
+                <textarea
+                  className="input"
+                  style={{ fontSize: '0.78rem', padding: '0.45rem 0.65rem', minHeight: '50px', resize: 'vertical' }}
+                  placeholder={isRtl ? 'وصف مختصر لمهام النظام ومسؤولياته...' : 'System description and responsibilities...'}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+
+                {/* Icon Selector */}
+                <div style={{ marginTop: '0.2rem' }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', display: 'block', marginBottom: '0.35rem' }}>
+                    {isRtl ? 'أيقونة النظام:' : 'System Icon:'}
+                  </span>
+                  <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                    {availableIcons.map(ico => (
                       <button
-                        key={opt.id}
+                        key={ico.name}
                         type="button"
-                        onClick={() => toggleIntegrationSelect(opt.id)}
+                        className={`btn-slim-action ${selectedIcon === ico.name ? 'active' : ''}`}
                         style={{
-                          padding: '0.25rem 0.55rem',
-                          fontSize: '0.72rem',
-                          borderRadius: '4px',
-                          border: isSelected ? '1px solid var(--blue)' : '1px solid var(--border)',
-                          background: isSelected ? 'rgba(56, 189, 248, 0.20)' : 'transparent',
-                          color: isSelected ? '#ffffff' : 'var(--text-dim)',
-                          cursor: 'pointer'
+                          padding: '0.3rem 0.5rem',
+                          fontSize: '0.75rem',
+                          borderColor: selectedIcon === ico.name ? 'var(--emerald)' : 'var(--border)',
+                          background: selectedIcon === ico.name ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
+                          color: selectedIcon === ico.name ? 'var(--emerald)' : 'var(--text-dim)'
                         }}
+                        onClick={() => setSelectedIcon(ico.name)}
+                        title={ico.label}
                       >
-                        {isSelected && <Check size={11} style={{ display: 'inline', marginInlineEnd: '3px' }} />}
-                        <span>{isRtl ? opt.nameAr : opt.nameEn}</span>
+                        {ico.icon}
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
+                </div>
+
+                {/* Initial Integrations Selector */}
+                <div style={{ marginTop: '0.4rem' }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', display: 'block', marginBottom: '0.35rem' }}>
+                    {isRtl ? 'الجهات التي يتكامل معها هذا النظام:' : 'Integrated Entities:'}
+                  </span>
+                  <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                    {defaultIntegrationOptions.map(opt => {
+                      const isSelected = selectedIntegrations.includes(opt.id);
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => toggleIntegrationSelect(opt.id)}
+                          style={{
+                            padding: '0.25rem 0.55rem',
+                            fontSize: '0.72rem',
+                            borderRadius: '4px',
+                            border: isSelected ? '1px solid var(--blue)' : '1px solid var(--border)',
+                            background: isSelected ? 'rgba(56, 189, 248, 0.20)' : 'transparent',
+                            color: isSelected ? '#ffffff' : 'var(--text-dim)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {isSelected && <Check size={11} style={{ display: 'inline', marginInlineEnd: '3px' }} />}
+                          <span>{isRtl ? opt.nameAr : opt.nameEn}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.85rem' }}>
-              <button type="submit" className="btn btn-emerald" style={{ flex: 1, padding: '0.4rem', fontSize: '0.78rem' }}>
-                <Check size={14} />
-                <span>{isRtl ? 'تأكيد إضافة النظام' : 'Confirm Add System'}</span>
-              </button>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                style={{ padding: '0.4rem 0.6rem', fontSize: '0.78rem' }}
-                onClick={() => setIsAdding(false)}
-              >
-                <X size={14} />
-                <span>{t('modals.cancelBtn')}</span>
-              </button>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.85rem' }}>
+                <button type="submit" className="btn btn-emerald" style={{ flex: 1, padding: '0.4rem', fontSize: '0.78rem' }}>
+                  <Check size={14} />
+                  <span>{isRtl ? 'تأكيد إضافة النظام' : 'Confirm Add System'}</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ padding: '0.4rem 0.6rem', fontSize: '0.78rem' }}
+                  onClick={() => setIsAdding(false)}
+                >
+                  <X size={14} />
+                  <span>{t('modals.cancelBtn')}</span>
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="sector-add-card" onClick={() => setIsAdding(true)}>
+              <div className="sector-add-icon-circle">
+                <Plus size={18} />
+              </div>
+              <strong className="sector-add-title">
+                {isRtl ? '+ إضافة نظام مركزي جديد' : '+ Add New Core System'}
+              </strong>
+              <span className="sector-add-sub">
+                {isRtl ? 'تسجيل نظام مالي جديد (تحصيل، تنترة، المجمع) مع ربط تكاملاته' : 'Register a new financial system (Tahseel, Tantara, Aggregator)'}
+              </span>
             </div>
-          </form>
-        ) : (
-          <div className="sector-add-card" onClick={() => setIsAdding(true)}>
-            <div className="sector-add-icon-circle">
-              <Plus size={18} />
-            </div>
-            <strong className="sector-add-title">
-              {isRtl ? '+ إضافة نظام مركزي جديد' : '+ Add New Core System'}
-            </strong>
-            <span className="sector-add-sub">
-              {isRtl ? 'تسجيل نظام مالي جديد (تحصيل، تنترة، المجمع) مع ربط تكاملاته' : 'Register a new financial system (Tahseel, Tantara, Aggregator)'}
-            </span>
-          </div>
-        )}
+          )}
+        </Can>
       </div>
     </div>
   );

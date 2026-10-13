@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Header } from './components/layout/Header';
 import { Sidebar, AppViewMode } from './components/layout/Sidebar';
 import { catalogService } from './services/catalogService';
@@ -6,20 +6,24 @@ import { DashboardView } from './components/catalog/DashboardView';
 import { DocumentationHub } from './components/catalog/DocumentationHub';
 import { EndpointsRibbon } from './components/catalog/EndpointsRibbon';
 import { SpecViewer } from './components/catalog/SpecViewer';
-import { ExportStudioView } from './components/export/ExportStudioView';
 import { FloatingAlertCard, FloatingAlertState } from './components/common/FloatingAlertCard';
 import { DeleteSectorModal } from './components/common/DeleteSectorModal';
+import { IamManagementView } from './components/admin/IamManagementView';
+import { GovernanceManagementView } from './components/admin/GovernanceManagementView';
+import { AuthProvider, useAuth } from './components/auth/AuthContext';
+import { LoginView } from './components/auth/LoginView';
+import { Can } from './components/auth/Can';
 
 import { 
   INITIAL_SYSTEMS,
-  INITIAL_SECTORS, 
-  INITIAL_SNAPSHOTS 
+  INITIAL_SECTORS 
 } from './data/mockData';
 import { Endpoint, Sector, SystemModule } from './types/schema';
 import { useLanguage } from './i18n';
 
-export const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const { direction, isRtl, t, getLocalized } = useLanguage();
+  const { isAuthenticated, loading } = useAuth();
 
   // Navigation State: 'dashboard' is the default landing view
   const [activeView, setActiveView] = useState<AppViewMode>('dashboard');
@@ -27,7 +31,88 @@ export const App: React.FC = () => {
   const [activeIntegrationKey, setActiveIntegrationKey] = useState<string>('banking');
   const [activeEndpointIndex, setActiveEndpointIndex] = useState<number>(0);
   const [currentVersion, setCurrentVersion] = useState<string>('v2026.2');
+  
+  // Persistent Pin State: Reads from localStorage
+  const [isSidebarPinned, setIsSidebarPinned] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('gov_sidebar_pinned') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Sidebar collapsed state:
+  // If previously pinned, open by default; otherwise completely collapsed by default
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      const isPinned = localStorage.getItem('gov_sidebar_pinned') === 'true';
+      return !isPinned;
+    } catch {
+      return true;
+    }
+  });
+
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
+
+  const handleTogglePin = () => {
+    setIsSidebarPinned(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('gov_sidebar_pinned', String(next));
+      } catch {}
+      if (next) {
+        setIsSidebarCollapsed(false); // Open immediately when pinned
+      }
+      return next;
+    });
+  };
+
+  const handleToggleSidebar = () => {
+    if (window.innerWidth <= 1023) {
+      setIsMobileMenuOpen(prev => !prev);
+    } else {
+      setIsSidebarCollapsed(prev => {
+        const next = !prev;
+        // If user manually collapses sidebar while pinned, unpin it to respect action
+        if (next && isSidebarPinned) {
+          setIsSidebarPinned(false);
+          try {
+            localStorage.setItem('gov_sidebar_pinned', 'false');
+          } catch {}
+        }
+        return next;
+      });
+    }
+  };
+
+  const sidebarContainerRef = useRef<HTMLElement>(null);
+
+  // Auto-dismiss handler when clicking a navigation link or option (if NOT pinned)
+  const handleAutoDismiss = () => {
+    if (!isSidebarPinned) {
+      setIsSidebarCollapsed(true);
+    }
+  };
+
+  // Auto-dismiss sidebar on outside click on desktop (if NOT pinned)
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      // Only dismiss when open, unpinned, and on desktop (>= 1024px)
+      if (!isSidebarCollapsed && !isSidebarPinned && window.innerWidth >= 1024) {
+        const target = e.target as HTMLElement | null;
+        if (
+          sidebarContainerRef.current && 
+          !sidebarContainerRef.current.contains(target as Node) &&
+          !target?.closest('.btn-sidebar-toggle')
+        ) {
+          setIsSidebarCollapsed(true);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isSidebarCollapsed, isSidebarPinned]);
 
   // Close mobile drawer on Escape key press
   useEffect(() => {
@@ -42,7 +127,6 @@ export const App: React.FC = () => {
 
   // Primary Business Entity: Systems (الأنظمة المركزية وتكاملاتها)
   const [systems, setSystems] = useState<Record<string, SystemModule>>(INITIAL_SYSTEMS);
-  const [snapshots] = useState(INITIAL_SNAPSHOTS);
 
   // Sector Management State (حذف وإدارة التكاملات)
   const [sectorKeyToDelete, setSectorKeyToDelete] = useState<string | null>(null);
@@ -123,7 +207,6 @@ export const App: React.FC = () => {
   };
 
   const handleSelectSectorLegacy = (key: string) => {
-    // If user clicked legacy sector, find first system containing this sector
     let foundSysKey = activeSystemKey;
     for (const [sKey, sObj] of Object.entries(systems)) {
       if (sObj.integrations && sObj.integrations[key]) {
@@ -241,7 +324,6 @@ export const App: React.FC = () => {
 
     setSectorKeyToDelete(null);
 
-    // Switch to remaining integration or dashboard
     const remainingIntegrations = Object.keys(systems[activeSystemKey]?.integrations || {}).filter(k => k !== sectorKey);
     if (remainingIntegrations.length > 0) {
       setActiveIntegrationKey(remainingIntegrations[0]);
@@ -256,6 +338,20 @@ export const App: React.FC = () => {
       'info'
     );
   };
+
+  // If checking authentication
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main, #0b0f17)', color: 'var(--text-dim, #9ca3af)', fontSize: '0.92rem' }}>
+        {isRtl ? 'جاري التحقق من هوية المستخدم والسيادة...' : 'Verifying Identity & Sovereign Access...'}
+      </div>
+    );
+  }
+
+  // If not logged in: display clean production login view
+  if (!isAuthenticated) {
+    return <LoginView />;
+  }
 
   const totalSystemsCount = Object.keys(systems).length;
   const totalEndpointsCount = Object.values(systems).reduce((acc, sys) => {
@@ -286,6 +382,12 @@ export const App: React.FC = () => {
         onSelectSector={handleSelectSectorLegacy}
         isOpenMobile={isMobileMenuOpen}
         onCloseMobile={() => setIsMobileMenuOpen(false)}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={handleToggleSidebar}
+        isPinned={isSidebarPinned}
+        onTogglePin={handleTogglePin}
+        containerRef={sidebarContainerRef}
+        onAutoDismiss={handleAutoDismiss}
       />
 
       {/* 2. Main Layout Area */}
@@ -309,7 +411,9 @@ export const App: React.FC = () => {
           }}
           totalSectorsCount={totalSystemsCount}
           totalEndpointsCount={totalEndpointsCount}
-          onToggleMobileMenu={() => setIsMobileMenuOpen(prev => !prev)}
+          onToggleMobileMenu={handleToggleSidebar}
+          isSidebarCollapsed={isSidebarCollapsed}
+          onToggleSidebarCollapse={handleToggleSidebar}
           onNotify={(title, msg, type, snippet) => showFloatingAlert(title, msg, type, snippet)}
         />
 
@@ -371,27 +475,36 @@ export const App: React.FC = () => {
                     {t('spec.noEndpointsSub')}
                   </p>
                   <div style={{ display: 'flex', gap: '0.75rem' }}>
-                    <button className="btn btn-emerald" onClick={() => setActiveView('add-api')}>
-                      {t('spec.addNewEndpointBtn')}
-                    </button>
-                    <button
-                      className="btn btn-rose"
-                      onClick={() => handleOpenDeleteIntegration(activeIntegrationKey)}
-                    >
-                      {isRtl ? 'حذف هذا التكامل' : 'Delete Integration'}
-                    </button>
+                    <Can perform="catalog:endpoint:create">
+                      <button className="btn btn-emerald" onClick={() => setActiveView('add-api')}>
+                        {t('spec.addNewEndpointBtn')}
+                      </button>
+                    </Can>
+                    <Can perform="catalog:system:delete">
+                      <button
+                        className="btn btn-rose"
+                        onClick={() => handleOpenDeleteIntegration(activeIntegrationKey)}
+                      >
+                        {isRtl ? 'حذف هذا التكامل' : 'Delete Integration'}
+                      </button>
+                    </Can>
                   </div>
                 </div>
               )}
             </>
           )}
 
-          {/* VIEW 4: DEDICATED EXPORT STUDIO */}
-          {activeView === 'export-studio' && (
-            <ExportStudioView
-              snapshots={snapshots}
-              sectorsData={sectors}
-              onNotify={(title, msg, type, snippet) => showFloatingAlert(title, msg, type, snippet)}
+          {/* VIEW 4: DEDICATED IAM GOVERNANCE CONSOLE */}
+          {activeView === 'iam' && (
+            <IamManagementView
+              onNotify={(title, msg, type) => showFloatingAlert(title, msg, type)}
+            />
+          )}
+
+          {/* VIEW 5: DEDICATED SOVEREIGN GOVERNANCE & APPROVALS PIPELINES (تبويب مستقل كامل) */}
+          {activeView === 'governance' && (
+            <GovernanceManagementView
+              onNotify={(title, msg, type) => showFloatingAlert(title, msg, type)}
             />
           )}
         </main>
@@ -412,5 +525,13 @@ export const App: React.FC = () => {
         onConfirmDelete={handleConfirmDeleteIntegration}
       />
     </div>
+  );
+};
+
+export const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 };

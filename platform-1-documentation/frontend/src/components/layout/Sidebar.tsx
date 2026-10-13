@@ -3,23 +3,26 @@ import {
   Box,
   PieChart, 
   PlusCircle, 
-  FileDown,
   X,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   BookOpen,
   ChevronsDownUp,
-  ChevronsUpDown
+  ChevronsUpDown,
+  Pin
 } from 'lucide-react';
 import { SystemModule, Sector } from '../../types/schema';
 import { useLanguage } from '../../i18n';
+import { useAuth } from '../auth/AuthContext';
+import { governanceService } from '../../services/governanceService';
 
 export type AppViewMode = 
   | 'dashboard' 
   | 'sector-spec' 
-  | 'add-api' 
-  | 'export-studio';
+  | 'add-api'
+  | 'iam'
+  | 'governance';
 
 interface SidebarProps {
   activeView: AppViewMode;
@@ -33,6 +36,12 @@ interface SidebarProps {
   onSelectSector?: (key: string) => void;
   isOpenMobile?: boolean;
   onCloseMobile?: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
+  isPinned?: boolean;
+  onTogglePin?: () => void;
+  containerRef?: React.Ref<HTMLElement>;
+  onAutoDismiss?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -47,31 +56,44 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectSector,
   isOpenMobile = false,
   onCloseMobile,
+  isCollapsed = false,
+  onToggleCollapse,
+  isPinned = false,
+  onTogglePin,
+  containerRef,
+  onAutoDismiss,
 }) => {
   const { t, getLocalized, isRtl } = useLanguage();
+  const { hasPermission } = useAuth();
 
-  // Top-level docs section collapsed/expanded
-  const [isDocSectionOpen, setIsDocSectionOpen] = useState(true);
+  const [isDocSectionOpen, setIsDocSectionOpen] = useState(false);
+  const [pendingGovCount, setPendingGovCount] = useState<number>(0);
+
+  useEffect(() => {
+    const fetchCount = async () => {
+      try {
+        const res = await governanceService.getInbox();
+        setPendingGovCount(res.pendingForMeCount || res.count || 0);
+      } catch {
+        // ignore
+      }
+    };
+    fetchCount();
+    const timer = setInterval(fetchCount, 12000);
+    return () => clearInterval(timer);
+  }, []);
 
   // State to track which systems are expanded in the accordion
-  // Default: Only the active system (or the first system) is expanded so they aren't all wide open
-  const [expandedSystems, setExpandedSystems] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    if (activeSystemKey) {
-      initial[activeSystemKey] = true;
-    } else {
-      const firstKey = Object.keys(systems)[0];
-      if (firstKey) initial[firstKey] = true;
-    }
-    return initial;
-  });
+  // Default: Completely collapsed ({}) so no system is open by default
+  const [expandedSystems, setExpandedSystems] = useState<Record<string, boolean>>({});
 
-  // Ensure active system is expanded if selection changes
+  // Ensure active system is expanded only when user explicitly navigates to a spec view
   useEffect(() => {
-    if (activeSystemKey && !expandedSystems[activeSystemKey]) {
+    if (activeSystemKey && activeView === 'sector-spec' && !expandedSystems[activeSystemKey]) {
       setExpandedSystems(prev => ({ ...prev, [activeSystemKey]: true }));
+      setIsDocSectionOpen(true);
     }
-  }, [activeSystemKey]);
+  }, [activeSystemKey, activeView]);
 
   // Check if all systems are currently collapsed
   const systemKeyList = Object.keys(systems);
@@ -104,6 +126,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const handleNavClick = (view: AppViewMode) => {
     onSelectView(view);
+    if (!isPinned && onAutoDismiss) {
+      onAutoDismiss();
+    }
     if (onCloseMobile) onCloseMobile();
   };
 
@@ -112,6 +137,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       onSelectSystemIntegration(sysKey, intKey);
     } else if (onSelectSector) {
       onSelectSector(intKey);
+    }
+    if (!isPinned && onAutoDismiss) {
+      onAutoDismiss();
     }
     if (onCloseMobile) onCloseMobile();
   };
@@ -130,7 +158,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         />
       )}
 
-      <aside className={`sidebar ${isOpenMobile ? 'mobile-open' : ''}`}>
+      <aside 
+        ref={containerRef}
+        className={`sidebar ${isCollapsed ? 'is-collapsed' : ''} ${isPinned ? 'is-pinned' : 'is-unpinned'} ${isOpenMobile ? 'mobile-open' : ''}`}
+      >
         {/* 1. Sidebar Brand Header */}
         <div className="sidebar-brand">
           <div className="brand-icon">
@@ -140,17 +171,50 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {t('common.appName') || 'إدارة توثيق API'}
           </div>
 
-          {/* Close button on mobile */}
-          {onCloseMobile && (
-            <button
-              className="sidebar-mobile-close-btn"
-              onClick={onCloseMobile}
-              title={isRtl ? 'إغلاق القائمة' : 'Close Menu'}
-              aria-label="Close Navigation Menu"
-            >
-              <X size={18} />
-            </button>
-          )}
+          {/* Quick Header Actions: Pin & Collapse */}
+          <div className="sidebar-brand-actions">
+            {/* Desktop Pin / Unpin Button */}
+            {onTogglePin && (
+              <button
+                type="button"
+                className={`sidebar-pin-btn ${isPinned ? 'is-active' : ''}`}
+                onClick={onTogglePin}
+                title={isPinned 
+                  ? (isRtl ? 'إلغاء تثبيت القائمة الجانبية' : 'Unpin Sidebar') 
+                  : (isRtl ? 'تثبيت القائمة الجانبية مفتوحة دائماً' : 'Pin Sidebar Open')
+                }
+                aria-label={isPinned ? 'Unpin Sidebar' : 'Pin Sidebar'}
+                aria-pressed={isPinned}
+              >
+                <Pin size={14} className={isPinned ? 'pin-icon-active' : ''} />
+              </button>
+            )}
+
+            {/* Desktop Collapse Button */}
+            {onToggleCollapse && (
+              <button
+                type="button"
+                className="sidebar-desktop-collapse-btn"
+                onClick={onToggleCollapse}
+                title={isRtl ? 'طي القائمة الجانبية' : 'Collapse Sidebar'}
+                aria-label="Collapse Sidebar"
+              >
+                {isRtl ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+              </button>
+            )}
+
+            {/* Close button on mobile */}
+            {onCloseMobile && (
+              <button
+                className="sidebar-mobile-close-btn"
+                onClick={onCloseMobile}
+                title={isRtl ? 'إغلاق القائمة' : 'Close Menu'}
+                aria-label="Close Navigation Menu"
+              >
+                <X size={18} />
+              </button>
+            )}
+          </div>
         </div>
 
         <nav className="sidebar-menu">
@@ -164,14 +228,55 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span style={{ flex: 1, ...alignStyle }}>{t('sidebar.dashboard')}</span>
           </button>
 
-          {/* Tab 2: Add / Document API */}
+          {/* Tab 2: Add / Document API (Totally hidden if no permission) */}
+          {hasPermission('catalog:endpoint:create') && (
+            <button
+              className={`nav-btn nav-btn-dashed ${activeView === 'add-api' ? 'active' : ''}`}
+              onClick={() => handleNavClick('add-api')}
+              title={t('sidebar.addApiDoc')}
+            >
+              <PlusCircle size={15} />
+              <span style={{ flex: 1, ...alignStyle }}>{t('sidebar.addApiDoc')}</span>
+            </button>
+          )}
+
+          {/* Tab 3: IAM Governance (Text-only, no icon, totally hidden if no permission) */}
+          {hasPermission('iam:manage') && (
+            <button
+              className={`nav-btn ${activeView === 'iam' ? 'active' : ''}`}
+              onClick={() => handleNavClick('iam')}
+              title={isRtl ? 'إدارة المستخدمين والصلاحيات' : 'User & Permission Management'}
+            >
+              <span style={{ flex: 1, ...alignStyle, fontWeight: 700 }}>
+                {isRtl ? 'إدارة المستخدمين والصلاحيات' : 'User & Permission Management'}
+              </span>
+            </button>
+          )}
+
+          {/* Tab 4: Sovereign Governance & Dual-Control (تبويب لحاله مثل أداة الصلاحيات) */}
           <button
-            className={`nav-btn nav-btn-dashed ${activeView === 'add-api' ? 'active' : ''}`}
-            onClick={() => handleNavClick('add-api')}
-            title={t('sidebar.addApiDoc')}
+            className={`nav-btn ${activeView === 'governance' ? 'active' : ''}`}
+            onClick={() => handleNavClick('governance')}
+            title={isRtl ? 'مركز الحوكمة والاعتمادات' : 'Governance & Approvals Hub'}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
           >
-            <PlusCircle size={15} />
-            <span style={{ flex: 1, ...alignStyle }}>{t('sidebar.addApiDoc')}</span>
+            <span style={{ flex: 1, ...alignStyle, fontWeight: 700 }}>
+              {isRtl ? 'مركز الحوكمة والاعتمادات' : 'Governance & Approvals Hub'}
+            </span>
+            {pendingGovCount > 0 && (
+              <span
+                style={{
+                  background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                  color: '#000000',
+                  borderRadius: '999px',
+                  fontSize: '0.68rem',
+                  padding: '0.1rem 0.45rem',
+                  fontWeight: 900
+                }}
+              >
+                {pendingGovCount}
+              </span>
+            )}
           </button>
 
           {/* Soft Divider */}
@@ -184,14 +289,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={() => setIsDocSectionOpen(prev => !prev)}
               aria-expanded={isDocSectionOpen}
             >
-              <BookOpen size={13} className="sidebar-section-icon" />
+              <BookOpen size={14} className="sidebar-section-icon" />
               <span style={{ flex: 1, ...alignStyle }}>
                 {isRtl ? 'التوثيق البرمجي للأنظمة' : 'API Documentation Hub'}
               </span>
               <span className="sidebar-section-chevron">
                 {isDocSectionOpen
-                  ? <ChevronDown size={13} />
-                  : isRtl ? <ChevronLeft size={13} /> : <ChevronRight size={13} />
+                  ? <ChevronDown size={14} />
+                  : isRtl ? <ChevronLeft size={14} /> : <ChevronRight size={14} />
                 }
               </span>
             </button>
@@ -284,18 +389,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          {/* Soft Divider */}
-          <hr className="nav-divider" />
-
-          {/* Export Studio */}
-          <button
-            className={`nav-btn ${activeView === 'export-studio' ? 'active' : ''}`}
-            onClick={() => handleNavClick('export-studio')}
-            title={t('sidebar.exportStudio')}
-          >
-            <FileDown size={15} style={{ color: activeView === 'export-studio' ? '#ffffff' : 'var(--blue)' }} />
-            <span style={{ flex: 1, ...alignStyle }}>{t('sidebar.exportStudio')}</span>
-          </button>
         </nav>
       </aside>
     </>

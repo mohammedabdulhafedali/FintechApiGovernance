@@ -1,14 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   GitBranch, 
   Copy, 
   Check, 
   Moon,
   Sun,
-  Menu
+  Menu,
+  LogOut,
+  User as UserIcon,
+  ShieldCheck,
+  ChevronDown
 } from 'lucide-react';
 import { useLanguage } from '../../i18n';
 import { LangSwitcher } from '../common/LangSwitcher';
+import { useAuth } from '../auth/AuthContext';
 
 interface HeaderProps {
   currentVersion: string;
@@ -22,24 +27,56 @@ interface HeaderProps {
   totalSectorsCount?: number;
   totalEndpointsCount?: number;
   onToggleMobileMenu?: () => void;
+  isSidebarCollapsed?: boolean;
+  onToggleSidebarCollapse?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   currentVersion,
   onVersionChange,
   onNotify,
-  onToggleMobileMenu
+  onToggleMobileMenu,
+  isSidebarCollapsed = false,
+  onToggleSidebarCollapse,
 }) => {
   const [copied, setCopied] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('gov_theme') as 'dark' | 'light') || 'dark';
   });
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const [isReleaseOpen, setIsReleaseOpen] = useState(false);
+  const releaseMenuRef = useRef<HTMLDivElement>(null);
+
   const { t, isRtl } = useLanguage();
+  const { user, logout } = useAuth();
+
+  const releaseVersions = [
+    { value: 'v2026.2', shortLabel: 'v2026.2', badge: isRtl ? 'معتمد' : 'Official' },
+    { value: 'v2026.1', shortLabel: 'v2026.1', badge: isRtl ? 'مؤرشف' : 'Archived' },
+    { value: 'v2027.0-draft', shortLabel: 'v2027.0', badge: isRtl ? 'مسودة' : 'Draft' },
+  ];
+
+  const activeRelease = releaseVersions.find(r => r.value === currentVersion) || releaseVersions[0];
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('gov_theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+      if (releaseMenuRef.current && !releaseMenuRef.current.contains(e.target as Node)) {
+        setIsReleaseOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
@@ -60,81 +97,159 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="topbar">
-      {/* 1. Permanent Info Zone: Release & Base URL */}
-      <div className="topbar-left-zone">
-        {/* Mobile Hamburger Menu Button */}
-        {onToggleMobileMenu && (
-          <button
-            type="button"
-            className="btn-mobile-menu-toggle"
-            onClick={onToggleMobileMenu}
-            aria-label="Toggle navigation menu"
-            title={isRtl ? 'فتح القائمة الرئيسية' : 'Open Navigation Menu'}
-          >
-            <Menu size={18} />
-          </button>
-        )}
+    <>
+      <header className="topbar">
+        {/* 1. Permanent Info Zone: Compact Release & Base URL */}
+        <div className="topbar-left-zone">
+          {/* Sidebar Navigation Toggle Button (Desktop & Mobile) */}
+          {(onToggleSidebarCollapse || onToggleMobileMenu) && (
+            <button
+              type="button"
+              className="btn-sidebar-toggle"
+              onClick={onToggleSidebarCollapse || onToggleMobileMenu}
+              aria-label="Toggle navigation menu"
+              title={isSidebarCollapsed 
+                ? (isRtl ? 'إظهار القائمة الجانبية' : 'Expand Sidebar') 
+                : (isRtl ? 'طي القائمة الجانبية' : 'Collapse Sidebar')
+              }
+            >
+              <Menu size={18} />
+            </button>
+          )}
 
-        {/* Item 1: Global Platform Release Selector */}
-        <div className="global-release-wrap">
-          <GitBranch size={13} style={{ color: 'var(--emerald)' }} />
-          <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)', fontWeight: 700 }}>
-            {isRtl ? 'الإصدار العام:' : 'Release:'}
-          </span>
-          <select
-            value={currentVersion}
-            onChange={(e) => onVersionChange(e.target.value)}
-            className="global-release-select"
-          >
-            <option value="v2026.2">v2026.2 ({isRtl ? 'رسمي معتمد' : 'Official Certified'})</option>
-            <option value="v2026.1">v2026.1 ({isRtl ? 'مؤرشف' : 'Archived'})</option>
-            <option value="v2027.0-draft">v2027.0 ({isRtl ? 'مسودة سنوية' : 'Annual Draft'})</option>
-          </select>
-        </div>
+          {/* Item 1: Global Platform Release Selector (Custom Dropdown matching LangSwitcher) */}
+          <div className="release-dropdown-wrap" ref={releaseMenuRef}>
+            <button
+              type="button"
+              className={`release-dropdown-trigger ${isReleaseOpen ? 'active' : ''}`}
+              onClick={() => setIsReleaseOpen(prev => !prev)}
+              aria-haspopup="true"
+              aria-expanded={isReleaseOpen}
+              title={isRtl ? 'إصدار المنظومة المعتمد' : 'Active Platform Release'}
+            >
+              <GitBranch size={13} className="release-branch-icon" />
+              <span className="release-current-label">
+                {activeRelease.shortLabel}
+              </span>
+              <ChevronDown size={11} className={`release-chevron ${isReleaseOpen ? 'rotated' : ''}`} />
+            </button>
 
-        {/* Item 2: Permanent Base URL */}
-        <div className="topbar-base-url-wrap">
-          <button
+            {isReleaseOpen && (
+              <div className={`release-dropdown-menu ${isRtl ? 'rtl' : 'ltr'}`}>
+                {releaseVersions.map((item) => {
+                  const isSelected = item.value === currentVersion;
+                  return (
+                    <button
+                      key={item.value}
+                      type="button"
+                      className={`release-menu-item ${isSelected ? 'selected' : ''}`}
+                      onClick={() => {
+                        onVersionChange(item.value);
+                        setIsReleaseOpen(false);
+                      }}
+                    >
+                      <div className="release-item-text">
+                        <span className="release-code">{item.shortLabel}</span>
+                        <span className="release-badge">{item.badge}</span>
+                      </div>
+                      {isSelected && <Check size={13} className="check-icon" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Item 2: Compact Permanent Base URL */}
+          <div 
+            className="topbar-base-url-wrap compact-clickable"
             onClick={handleCopyBaseUrl}
-            className="btn btn-ghost"
-            style={{ 
-              padding: '0.2rem 0.45rem', 
-              borderRadius: '9999px',
-              border: '1px solid rgba(255, 255, 255, 0.16)',
-              background: 'rgba(255, 255, 255, 0.06)',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#ffffff'
-            }}
-            title={t('header.copyBaseUrl')}
+            title={copied ? (isRtl ? 'تم النسخ بنجاح!' : 'Copied!') : `${t('header.copyBaseUrl')}: https://api.gov.fintech`}
           >
-            {copied ? <Check size={12} style={{ color: 'var(--emerald)' }} /> : <Copy size={12} />}
-          </button>
-          <code className="topbar-base-url" dir="ltr">https://api.gov.fintech</code>
-          <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)', fontWeight: 700 }}>
-            {isRtl ? 'الرابط الأساسي:' : 'Base URL:'}
-          </span>
+            <span className="base-url-copy-icon">
+              {copied ? <Check size={12} style={{ color: 'var(--emerald)' }} /> : <Copy size={12} />}
+            </span>
+            <code className="topbar-base-url" dir="ltr">api.gov.fintech</code>
+          </div>
         </div>
-      </div>
 
-      {/* 2. Actions Zone: LangSwitcher & Theme Toggle ONLY */}
-      <div className="topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-        {/* Item 3: Language Switcher */}
-        <LangSwitcher />
+        {/* 2. Actions Zone: Theme Toggle, LangSwitcher, User Menu (with Logout inside) */}
+        <div className="topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
 
-        {/* Item 4: Theme Toggle Button */}
-        <button 
-          className="btn btn-ghost btn-slim-action" 
-          style={{ padding: '0.4rem 0.6rem', cursor: 'pointer' }} 
-          title={theme === 'dark' ? (isRtl ? 'التبديل إلى الوضع الفاتح' : 'Switch to Light Mode') : (isRtl ? 'التبديل إلى الوضع الداكن' : 'Switch to Dark Mode')}
-          onClick={toggleTheme}
-        >
-          {theme === 'dark' ? <Moon size={15} /> : <Sun size={15} style={{ color: '#f59e0b' }} />}
-        </button>
-      </div>
-    </header>
+          {/* Theme Toggle Button */}
+          <button 
+            className="btn btn-ghost btn-slim-action" 
+            style={{ padding: '0.4rem 0.6rem', cursor: 'pointer' }} 
+            title={theme === 'dark' ? (isRtl ? 'التبديل إلى الوضع الفاتح' : 'Switch to Light Mode') : (isRtl ? 'التبديل إلى الوضع الداكن' : 'Switch to Dark Mode')}
+            onClick={toggleTheme}
+          >
+            {theme === 'dark' ? <Moon size={15} /> : <Sun size={15} style={{ color: '#f59e0b' }} />}
+          </button>
+
+          {/* Language Switcher Dropdown */}
+          <LangSwitcher />
+
+          {/* User Profile Badge & Dropdown Menu (Includes details, role & logout underneath) */}
+          {user && (
+            <div className="user-profile-menu-container" ref={userMenuRef}>
+              <button
+                type="button"
+                className={`user-profile-trigger ${isUserMenuOpen ? 'active' : ''}`}
+                onClick={() => setIsUserMenuOpen(prev => !prev)}
+                aria-haspopup="true"
+                aria-expanded={isUserMenuOpen}
+                title={isRtl ? 'الملف الشخصي وخيارات الجلسة' : 'User Profile & Session Options'}
+              >
+                <div className="user-avatar-badge">
+                  <UserIcon size={14} />
+                </div>
+                <div className="user-info-preview">
+                  <span className="user-name-text">{user.username}</span>
+                  <span className="user-role-text">{user.groupName || (isRtl ? 'مستعرض' : 'Viewer')}</span>
+                </div>
+                <ChevronDown size={12} className={`user-chevron ${isUserMenuOpen ? 'rotated' : ''}`} />
+              </button>
+
+              {isUserMenuOpen && (
+                <div className={`user-dropdown-panel ${isRtl ? 'rtl' : 'ltr'}`}>
+                  {/* Dropdown Header: Full details */}
+                  <div className="user-dropdown-header">
+                    <div className="user-avatar-large">
+                      <UserIcon size={18} />
+                    </div>
+                    <div className="user-details-column">
+                      <div className="user-full-name">{user.fullName || user.username}</div>
+                      <div className="user-email-text">{user.email || `@${user.username}`}</div>
+                      <div className="user-role-badge">
+                        <ShieldCheck size={11} />
+                        <span>{user.groupName || (isRtl ? 'مستعرض' : 'Viewer')}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="user-dropdown-divider" />
+
+                  {/* Dropdown Actions: Logout placed directly underneath role & username */}
+                  <div className="user-dropdown-actions">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        logout();
+                      }}
+                      className="user-dropdown-logout-btn"
+                      title={isRtl ? 'تسجيل الخروج' : 'Sign Out'}
+                    >
+                      <LogOut size={15} />
+                      <span>{isRtl ? 'تسجيل الخروج' : 'Sign Out'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </header>
+    </>
   );
 };

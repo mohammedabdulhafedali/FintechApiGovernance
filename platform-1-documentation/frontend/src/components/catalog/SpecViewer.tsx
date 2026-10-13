@@ -100,24 +100,179 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
     { name: 'timestamp', type: 'string (ISO-8601)', req: 'مؤكد بالرد', desc: 'التوقيت الزمني الدقيق بالمللي ثانية لتوثيق القيد المالي' }
   ]);
 
+  const parseJsonSafe = (str?: string) => {
+    if (!str || typeof str !== 'string') return null;
+    const trimmed = str.trim();
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return null;
+    }
+  };
+
+  const jsonToXml = (obj: any, rootName = 'TransferRequest'): string => {
+    const toXml = (o: any, indent = '  '): string => {
+      if (!o || typeof o !== 'object') return `${indent}${String(o)}`;
+      return Object.entries(o).map(([k, v]) => {
+        if (v === null || v === undefined) return `${indent}<${k}/>`;
+        if (typeof v === 'object' && !Array.isArray(v)) {
+          return `${indent}<${k}>\n${toXml(v, indent + '  ')}\n${indent}</${k}>`;
+        }
+        return `${indent}<${k}>${String(v)}</${k}>`;
+      }).join('\n');
+    };
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<${rootName}>\n${toXml(obj)}\n</${rootName}>`;
+  };
+
+  const jsonToYaml = (obj: any, indent = ''): string => {
+    if (!obj || typeof obj !== 'object') return `${indent}${String(obj)}`;
+    return Object.entries(obj).map(([k, v]) => {
+      if (v === null || v === undefined) return `${indent}${k}: ~`;
+      if (typeof v === 'object' && !Array.isArray(v)) {
+        return `${indent}${k}:\n${jsonToYaml(v, indent + '  ')}`;
+      }
+      const valStr = typeof v === 'string' ? `"${v}"` : String(v);
+      return `${indent}${k}: ${valStr}`;
+    }).join('\n');
+  };
+
+  const getRealisticRequestObj = () => {
+    const p = parseJsonSafe(endpoint.payload);
+    if (!p && endpoint.method.toUpperCase() === 'GET') return null;
+
+    return {
+      sourceAccount: p?.sourceAccount || "SA0380000000608010167519",
+      destinationAccount: p?.destinationAccount || "SA4420000001234567890123",
+      amount: typeof p?.amount === 'number' ? p.amount : 1500.00,
+      currency: p?.currency || "SAR",
+      paymentPurpose: p?.paymentPurpose || "SUPPLIER_INVOICE_SETTLEMENT",
+      remittanceInformation: p?.remittanceInformation || (isEn ? "Cloud Computing Supply Invoice INV-2026-091" : "فاتورة توريد حوسبة سحابية رقم INV-2026-091"),
+      debtor: p?.debtor || {
+        name: isEn ? "Advanced Payments Technology Co." : "شركة التقنية المتقدمة للمدفوعات",
+        identification: "7001928374",
+        bankCode: "NCB"
+      },
+      creditor: p?.creditor || {
+        name: isEn ? "Cloud Infrastructure Foundation" : "مؤسسة البنية التحتية للحوسبة",
+        identification: "1010928172",
+        bankCode: "SABB"
+      },
+      idempotencyKey: p?.idempotencyKey || "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      ...(p && typeof p === 'object' ? Object.fromEntries(Object.entries(p).filter(([k]) => !['sourceAccount', 'destinationAccount', 'amount', 'currency', 'idempotencyKey', 'paymentPurpose', 'remittanceInformation', 'debtor', 'creditor'].includes(k))) : {})
+    };
+  };
+
+  const getRealisticResponseObj = () => {
+    const r = parseJsonSafe(endpoint.res200);
+
+    return {
+      status: r?.status || "SUCCESS",
+      code: r?.code || 20000,
+      message: r?.message || (isEn 
+        ? "Operation order successfully accepted and executed via National Instant Clearing Switch"
+        : "تم قبول وتنفيذ أمر العملية بنجاح عبر شبكة المقاصة الوطنية اللحظية"),
+      transactionId: r?.transactionId || (r?.settlementRef ? `TXN-${r.settlementRef}-SA` : "TXN-88492019-SA"),
+      clearingCode: r?.clearingCode || "CLR-IPS-20261005-00192",
+      endToEndIdentification: r?.endToEndIdentification || "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      instructedAmount: r?.instructedAmount || {
+        amount: typeof r?.amount === 'number' ? r.amount : 1500,
+        currency: r?.currency || "SAR"
+      },
+      settlementDetails: r?.settlementDetails || {
+        settlementMethod: "IPS_INSTANT",
+        clearingSystem: "SARIE_IPS_CORE",
+        settledAt: r?.settledAt || "2026-10-05T11:15:00.342Z",
+        executionTimeMs: 68
+      },
+      audit: r?.audit || {
+        sourceBankCode: "NCB",
+        destinationBankCode: "SABB",
+        signedAuditHash: "sha256:8f2a1b9e0d4c5e6f3b18a209..."
+      },
+      ...(r && typeof r === 'object' ? Object.fromEntries(Object.entries(r).filter(([k]) => !['status', 'code', 'message', 'transactionId', 'clearingCode', 'settlementRef', 'settledAt', 'amount', 'currency'].includes(k))) : {})
+    };
+  };
+
   const getFormattedPayload = () => {
+    const isGet = endpoint.method.toUpperCase() === 'GET';
+    const reqObj = getRealisticRequestObj();
+    const jwtSample = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhdXRoLmdvdi5maW50ZWNoIiwic3ViIjoiQkFOS19TQUJfMDAxOTIiLCJhdWQiOiJpcHMtZ292ZXJuYW5jZSIsImV4cCI6MTgwMTgyNDAwMCwiaWF0IjoxODAxODI0MDAwLCJzY29wZSI6WyJ0cmFuc2ZlcnM6d3JpdGUiLCJpcHM6ZXhlY3V0ZSJdfQ.MEQCID9a0xM208j1ZkdPwIgd892Kls4810a9c84e1b7f2b6eAiB7d02e88a0f91c8";
+    const rsaSigSample = "MEQCID9a0xM208j1ZkdPwIgd892Kls4810a9c84e1b7f2b6eAiB7d02e88a0f91c8901b0f1a92d8e7";
+
+    if (isGet) {
+      return `GET ${endpoint.path}${endpoint.path.includes('{') ? '' : '/TXN-88492019-SA'} HTTP/1.1\n` +
+        `Host: api.gov.fintech\n` +
+        `Authorization: Bearer ${jwtSample}\n` +
+        `X-Correlation-ID: b5a78c1e-9204-4f11-9a99-52e8964d4ef1\n` +
+        `Accept: ${currentExampleFormat === 'xml' ? 'application/xml' : currentExampleFormat === 'yaml' ? 'application/yaml' : 'application/json'}\n` +
+        `User-Agent: FintechCore-Client/2.4.0 (Linux x86_64; OpenJDK 21)`;
+    }
+
+    const rootReqName = (endpoint.shortName ? endpoint.shortName.charAt(0).toUpperCase() + endpoint.shortName.slice(1) : 'Transfer') + 'Request';
+    let bodyStr = '';
+    let contentType = 'application/json; charset=utf-8';
+    let acceptType = 'application/json';
+
     if (currentExampleFormat === 'xml') {
-      return `<?xml version="1.0" encoding="UTF-8"?>\n<TransferRequest>\n  <SourceAccount>SA0380000000608010167519</SourceAccount>\n  <DestinationAccount>SA4420000001234567890123</DestinationAccount>\n  <Amount>1500.00</Amount>\n  <Currency>SAR</Currency>\n  <IdempotencyKey>9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d</IdempotencyKey>\n</TransferRequest>`;
+      contentType = 'application/xml; charset=utf-8';
+      acceptType = 'application/xml';
+      bodyStr = jsonToXml(reqObj, rootReqName);
+    } else if (currentExampleFormat === 'yaml') {
+      contentType = 'application/yaml; charset=utf-8';
+      acceptType = 'application/yaml';
+      bodyStr = jsonToYaml(reqObj);
+    } else {
+      bodyStr = JSON.stringify(reqObj, null, 2);
     }
-    if (currentExampleFormat === 'yaml') {
-      return `sourceAccount: "SA0380000000608010167519"\ndestinationAccount: "SA4420000001234567890123"\namount: 1500.00\ncurrency: "SAR"\nidempotencyKey: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"`;
-    }
-    return endpoint.payload || `{\n  "sourceAccount": "SA0380000000608010167519",\n  "destinationAccount": "SA4420000001234567890123",\n  "amount": 1500.00,\n  "currency": "SAR",\n  "idempotencyKey": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"\n}`;
+
+    const byteLen = new TextEncoder().encode(bodyStr).length;
+
+    return `${endpoint.method} ${endpoint.path} HTTP/1.1\n` +
+      `Host: api.gov.fintech\n` +
+      `Authorization: Bearer ${jwtSample}\n` +
+      `X-Idempotency-Key: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d\n` +
+      `X-Signature: ${rsaSigSample}\n` +
+      `X-Correlation-ID: b5a78c1e-9204-4f11-9a99-52e8964d4ef1\n` +
+      `Content-Type: ${contentType}\n` +
+      `Accept: ${acceptType}\n` +
+      `User-Agent: FintechCore-Client/2.4.0 (Linux x86_64; OpenJDK 21)\n` +
+      `Content-Length: ${byteLen}\n\n` +
+      bodyStr;
   };
 
   const getFormattedResponse = () => {
+    const resObj = getRealisticResponseObj();
+    const rootResName = (endpoint.shortName ? endpoint.shortName.charAt(0).toUpperCase() + endpoint.shortName.slice(1) : 'Transfer') + 'Response';
+
+    let bodyStr = '';
+    let contentType = 'application/json; charset=utf-8';
+
     if (currentExampleFormat === 'xml') {
-      return `<?xml version="1.0" encoding="UTF-8"?>\n<TransferResponse>\n  <Status>SUCCESS</Status>\n  <TransactionId>TXN-88492019</TransactionId>\n  <ClearingCode>SA-IPS-CLR-01</ClearingCode>\n  <SettledAt>2026-10-11T12:00:00Z</SettledAt>\n</TransferResponse>`;
+      contentType = 'application/xml; charset=utf-8';
+      bodyStr = jsonToXml(resObj, rootResName);
+    } else if (currentExampleFormat === 'yaml') {
+      contentType = 'application/yaml; charset=utf-8';
+      bodyStr = jsonToYaml(resObj);
+    } else {
+      bodyStr = JSON.stringify(resObj, null, 2);
     }
-    if (currentExampleFormat === 'yaml') {
-      return `status: "SUCCESS"\ntransactionId: "TXN-88492019"\nclearingCode: "SA-IPS-CLR-01"\nsettledAt: "2026-10-11T12:00:00Z"`;
-    }
-    return endpoint.res200 || `{\n  "status": "SUCCESS",\n  "transactionId": "TXN-88492019",\n  "clearingCode": "SA-IPS-CLR-01",\n  "settledAt": "2026-10-11T12:00:00Z"\n}`;
+
+    const byteLen = new TextEncoder().encode(bodyStr).length;
+
+    return `HTTP/1.1 200 OK\n` +
+      `Date: Mon, 05 Oct 2026 11:15:00 GMT\n` +
+      `Server: Envoy-Gateway/1.30.1\n` +
+      `Content-Type: ${contentType}\n` +
+      `Content-Length: ${byteLen}\n` +
+      `Connection: keep-alive\n` +
+      `X-Correlation-ID: b5a78c1e-9204-4f11-9a99-52e8964d4ef1\n` +
+      `X-Idempotency-Status: RESOLVED_FRESH\n` +
+      `X-RateLimit-Limit: 10000\n` +
+      `X-RateLimit-Remaining: 9984\n` +
+      `X-RateLimit-Reset: 1801824060\n` +
+      `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload\n\n` +
+      bodyStr;
   };
 
   return (
