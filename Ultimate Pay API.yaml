@@ -1,0 +1,1457 @@
+openapi: 3.0.3
+info:
+  title: Ultimate Pay API
+  version: 1.0.1
+  description: Ultimate Pay Backend APIs fr test
+paths:
+  /api/v1/biller/get_payment_by_dates:
+    post:
+      operationId: biller_get_payment_by_dates_create
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - biller
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetPaymentFromDateToDate'
+            examples:
+              ExampleForGetPaymentFromDateToDate_:
+                value:
+                  from_date: '2025-02-01'
+                  to_date: '2027-02-01'
+                  page_no: 1
+                summary: 'Example for get payment from date to date '
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GetPaymentFromDateToDate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GetPaymentFromDateToDate'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+  /api/v1/biller/new_bill:
+    post:
+      operationId: biller_new_bill_create
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - biller
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateNewBill'
+            examples:
+              ExampleForCreateNewBill_:
+                value:
+                  data:
+                    service: 10000
+                    due_amount: 5000
+                    bill_no: '8562362152685496'
+                    customer_no: 235
+                    branch_no: 5
+                    created_on_erp_at: '2025-05-01'
+                    created_on_erp_by: 1
+                    uploaded_to_pay_by: 2
+                    currency: YER
+                summary: 'Example for create new bill '
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CreateNewBill'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateNewBill'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+  /api/v1/biller/payment_reference_id:
+    post:
+      operationId: biller_payment_reference_id_create
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - biller
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetPaymentWithReferenceId'
+            examples:
+              ExampleForGetPaymentWithPaymentReferenceId_:
+                value:
+                  payment_reference_id: '2155298853779565686'
+                summary: 'Example for get payment with payment_reference_id  '
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GetPaymentWithReferenceId'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GetPaymentWithReferenceId'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+  /api/v1/biller/payments_with_page:
+    post:
+      operationId: biller_payments_with_page_create
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - biller
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetPaymentWithPaginate'
+            examples:
+              ExampleForGetPaymentWithId_:
+                value:
+                  payment_id: 104
+                  page_no: 1
+                summary: 'Example for get payment with id '
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GetPaymentWithPaginate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GetPaymentWithPaginate'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+  /api/v1/financial_corp/billers:
+    get:
+      operationId: financial_corp_billers_retrieve
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - financial_corp
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+  /api/v1/financial_corp/customer_name:
+    post:
+      operationId: financial_corp_customer_name_create
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - financial_corp
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerConfirmation'
+            examples:
+              ExampleForCustomerConfirmation_:
+                value:
+                  to_customer_no: '7539'
+                  biller_id: 33
+                  amount: 500
+                  currency_code: YER
+                summary: 'Example for customer confirmation '
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerConfirmation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerConfirmation'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+  /api/v1/financial_corp/get_biller_services:
+    post:
+      operationId: financial_corp_get_biller_services_create
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - financial_corp
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Biller'
+            examples:
+              Example:
+                value:
+                  biller_id: 1
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Biller'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Biller'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+  /api/v1/financial_corp/get_billers_list:
+    post:
+      operationId: financial_corp_get_billers_list_create
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - financial_corp
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BillersList'
+            examples:
+              Example:
+                value:
+                  service_type: fees
+                  sector_id: 14
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BillersList'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BillersList'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+  /api/v1/financial_corp/get_parent_sectors:
+    get:
+      operationId: financial_corp_get_parent_sectors_retrieve
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - financial_corp
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+  /api/v1/financial_corp/get_payment_by_dates:
+    post:
+      operationId: financial_corp_get_payment_by_dates_create
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - financial_corp
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetPaymentFromDateToDate'
+            examples:
+              ExampleForGetPaymentFromDateToDate_:
+                value:
+                  from_date: '2025-02-01'
+                  to_date: '2027-02-01'
+                  page_no: 1
+                summary: 'Example for get payment from date to date '
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GetPaymentFromDateToDate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GetPaymentFromDateToDate'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+  /api/v1/financial_corp/get_payment_by_fin_payment_id:
+    post:
+      operationId: financial_corp_get_payment_by_fin_payment_id_create
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - financial_corp
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetPaymentWithFinCorpPaymentRefId'
+            examples:
+              ExampleForGetPaymentWithFinancialCorpPaymentId_:
+                value:
+                  financial_corp_payment_id: '6952125223621452'
+                summary: 'Example for get payment with financial_corp_payment_id  '
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GetPaymentWithFinCorpPaymentRefId'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GetPaymentWithFinCorpPaymentRefId'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+  /api/v1/financial_corp/get_payment_by_reference_id:
+    post:
+      operationId: financial_corp_get_payment_by_reference_id_create
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - financial_corp
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetPaymentWithReferenceId'
+            examples:
+              ExampleForGetPaymentWithPaymentReferenceId_:
+                value:
+                  payment_reference_id: '2155298853779565686'
+                summary: 'Example for get payment with payment_reference_id  '
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GetPaymentWithReferenceId'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GetPaymentWithReferenceId'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+  /api/v1/financial_corp/get_payment_start_with_id:
+    post:
+      operationId: financial_corp_get_payment_start_with_id_create
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - financial_corp
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetPaymentWithPaginate'
+            examples:
+              ExampleForGetPaymentWithId_:
+                value:
+                  payment_id: 104
+                  page_no: 1
+                summary: 'Example for get payment with id '
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GetPaymentWithPaginate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GetPaymentWithPaginate'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+  /api/v1/financial_corp/get_payments_by_prepaid_reference_id:
+    post:
+      operationId: financial_corp_get_payments_by_prepaid_reference_id_create
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - financial_corp
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetPaymentWithPrepaidReferenceId'
+            examples:
+              ExampleForGetPaymentWithPrepadReferenceId_:
+                value:
+                  prepaid_reference_id: '26000140973360'
+                summary: 'Example for get payment with prepad_reference_id  '
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GetPaymentWithPrepaidReferenceId'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GetPaymentWithPrepaidReferenceId'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+  /api/v1/financial_corp/get_sub_sectors:
+    post:
+      operationId: financial_corp_get_sub_sectors_create
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - financial_corp
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SectoresSub'
+            examples:
+              ExampleForGetSubSectoresByParentSectorId:
+                value:
+                  parent_sector_id: 31
+                summary: Example for get sub sectores by parent_sector_id
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SectoresSub'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SectoresSub'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+  /api/v1/financial_corp/invoice_amount:
+    post:
+      operationId: financial_corp_invoice_amount_create
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - financial_corp
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Invoice'
+            examples:
+              Example:
+                value:
+                  prepaid_reference_id: '26000140973360'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Invoice'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Invoice'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+  /api/v1/financial_corp/refund:
+    post:
+      operationId: financial_corp_refund_create
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - financial_corp
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundPayment'
+            examples:
+              ExampleForRefundPaymentWithPaymentReferenceId_:
+                value:
+                  payment_reference_id: AWODK25DFDSDSD65dfDS
+                summary: 'Example for refund payment with payment_reference_id '
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RefundPayment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RefundPayment'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+  /api/v1/financial_corp/sectors:
+    get:
+      operationId: financial_corp_sectors_retrieve
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - financial_corp
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+  /api/v1/pay_by_ref_id:
+    post:
+      operationId: pay_by_ref_id_create
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - pay_by_ref_id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentWithRefId'
+            examples:
+              Example:
+                value:
+                  paid_amount: 550
+                  prepaid_reference_id: '26000140973360'
+                  financial_corp_payment_id: '6952125223621452'
+                  currency_code: YER
+                  notes: test
+                  payer_name: test
+                  payer_type: 2
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PaymentWithRefId'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PaymentWithRefId'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+  /api/v1/pay_fee:
+    post:
+      operationId: pay_fee_create
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - pay_fee
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Paymentfee'
+            examples:
+              ExampleForFeesPayment_:
+                value:
+                  biller_id: 1
+                  service_id: 20004
+                  paid_amount: 550
+                  financial_corp_payment_id: '6952125223621452'
+                  currency_code: YER
+                  notes: test
+                  payer_name: test
+                  payer_type: 2
+                summary: 'Example for fees payment '
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Paymentfee'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Paymentfee'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+  /api/v1/pay_to_customer:
+    post:
+      operationId: pay_to_customer_create
+      parameters:
+      - in: header
+        name: X-Client-Id
+        schema:
+          type: string
+        description: 'Client ID. Format: ''client_biller_<user_id>'' for biller or
+          ''client_corp_<user_id>'' for financial corp'
+        required: true
+      - in: header
+        name: X-Nonce
+        schema:
+          type: string
+        description: Unique random string (single use) to prevent replay attacks
+        required: true
+      - in: header
+        name: X-Signature
+        schema:
+          type: string
+        description: |-
+          RSA-SHA256 signature (base64). Canonical string = METHOD
+          FULL_PATH
+          TIMESTAMP
+          NONCE
+          BODY_SHA256
+        required: true
+      - in: header
+        name: X-Timestamp
+        schema:
+          type: string
+        description: 'Unix timestamp in seconds. Allowed clock drift: 300 seconds'
+        required: true
+      tags:
+      - pay_to_customer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentToAccount'
+            examples:
+              ExampleForFeesPayment_:
+                value:
+                  biller_id: 1
+                  paid_amount: 550
+                  to_customer_no: '21973'
+                  financial_corp_payment_id: '6952125223621452'
+                  currency_code: YER
+                  notes: test
+                  to_customer_name: test
+                  payer_name: test
+                  payer_type: 2
+                summary: 'Example for fees payment '
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PaymentToAccount'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PaymentToAccount'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success response
+components:
+  schemas:
+    Biller:
+      type: object
+      properties:
+        biller_id:
+          type: integer
+      required:
+      - biller_id
+    BillersList:
+      type: object
+      properties:
+        service_type:
+          type: string
+      required:
+      - service_type
+    CreateNewBill:
+      type: object
+      properties:
+        service:
+          type: integer
+        due_amount:
+          type: number
+          format: double
+        bill_no:
+          type: string
+        customer_no:
+          type: integer
+        branch_no:
+          type: integer
+        created_on_erp_at:
+          type: string
+        created_on_erp_by:
+          type: integer
+        uploaded_to_pay_by:
+          type: integer
+      required:
+      - bill_no
+      - branch_no
+      - created_on_erp_at
+      - created_on_erp_by
+      - customer_no
+      - due_amount
+      - service
+      - uploaded_to_pay_by
+    CustomerConfirmation:
+      type: object
+      properties:
+        to_customer_no:
+          type: string
+        biller:
+          type: integer
+        amount:
+          type: number
+          format: double
+        currency:
+          type: string
+      required:
+      - amount
+      - biller
+      - currency
+      - to_customer_no
+    GetPaymentFromDateToDate:
+      type: object
+      properties:
+        from_date:
+          type: string
+        to_date:
+          type: string
+      required:
+      - from_date
+    GetPaymentWithFinCorpPaymentRefId:
+      type: object
+      properties:
+        prepaid_reference_id:
+          type: string
+      required:
+      - prepaid_reference_id
+    GetPaymentWithPaginate:
+      type: object
+      properties:
+        payment_id:
+          type: integer
+        page_no:
+          type: integer
+      required:
+      - payment_id
+    GetPaymentWithPrepaidReferenceId:
+      type: object
+      properties:
+        prepaid_reference_id:
+          type: string
+      required:
+      - prepaid_reference_id
+    GetPaymentWithReferenceId:
+      type: object
+      properties:
+        payment_reference_id:
+          type: string
+      required:
+      - payment_reference_id
+    Invoice:
+      type: object
+      properties:
+        payment_id:
+          type: integer
+      required:
+      - payment_id
+    PaymentToAccount:
+      type: object
+      properties:
+        biller_id:
+          type: integer
+        paid_amount:
+          type: number
+          format: double
+        to_customer_no:
+          type: string
+        financial_corp_payment_id:
+          type: string
+        currency_code:
+          type: string
+        to_customer_name:
+          type: string
+        payer_name:
+          type: string
+        payer_type:
+          type: integer
+      required:
+      - biller_id
+      - currency_code
+      - financial_corp_payment_id
+      - paid_amount
+      - payer_type
+    PaymentWithRefId:
+      type: object
+      properties:
+        paid_amount:
+          type: number
+          format: double
+        prepaid_reference_id:
+          type: string
+        financial_corp_payment_id:
+          type: string
+        currency_code:
+          type: string
+        payer_name:
+          type: string
+        payer_type:
+          type: integer
+      required:
+      - currency_code
+      - financial_corp_payment_id
+      - paid_amount
+      - payer_type
+      - prepaid_reference_id
+    Paymentfee:
+      type: object
+      properties:
+        biller_id:
+          type: integer
+        service_id:
+          type: integer
+        paid_amount:
+          type: number
+          format: double
+        financial_corp_payment_id:
+          type: string
+        currency_code:
+          type: string
+        payer_name:
+          type: string
+        payer_type:
+          type: integer
+      required:
+      - biller_id
+      - currency_code
+      - financial_corp_payment_id
+      - paid_amount
+      - payer_type
+      - service_id
+    RefundPayment:
+      type: object
+      properties:
+        payment_reference_id:
+          type: string
+      required:
+      - payment_reference_id
+    SectoresSub:
+      type: object
+      properties:
+        parent_sector_id:
+          type: integer
+      required:
+      - parent_sector_id
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
+servers:
+- url: /webserve
+  description: Test Server

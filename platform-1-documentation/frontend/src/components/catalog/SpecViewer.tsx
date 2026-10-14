@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Endpoint } from '../../types/schema';
 import { Copy, Check, ShieldCheck, AlertTriangle, FileDown, ArrowDownLeft, ArrowUpRight, Smartphone, Server, BookOpen, X, Table, Code } from 'lucide-react';
 import { useLanguage } from '../../i18n';
@@ -6,11 +6,13 @@ import { useLanguage } from '../../i18n';
 interface SpecViewerProps {
   endpoint: Endpoint;
   onOpenErrorDictionary?: () => void;
+  highlightedField?: string | null;
 }
 
 export const SpecViewer: React.FC<SpecViewerProps> = ({ 
   endpoint,
-  onOpenErrorDictionary
+  onOpenErrorDictionary,
+  highlightedField
 }) => {
   const [activeTab, setActiveTab] = useState<'doc' | 'example'>('doc');
   const [currentExampleFormat, setCurrentExampleFormat] = useState<'json' | 'xml' | 'yaml'>('json');
@@ -19,6 +21,15 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
   const [copiedReq, setCopiedReq] = useState(false);
   const [copiedRes, setCopiedRes] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
+
+  // Auto-scroll to modified field in Screen 2
+  useEffect(() => {
+    if (!highlightedField) return;
+    const el = document.getElementById(`col2-field-${highlightedField}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [highlightedField]);
 
   const { t, language } = useLanguage();
   const isEn = language === 'en';
@@ -362,7 +373,58 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
       {/* PANE 1: SPECIFICATION TABLES (HEADERS -> REQUEST -> RESPONSE -> ERRORS) */}
       {activeTab === 'doc' && (
         <div className="spec-tables-stack">
-          {/* 1. Headers Table Block */}
+          {/* 1. Request Body Table Block (Prioritized at top for instant live visibility) */}
+          <div className="spec-table-block">
+            <div className="spec-table-block-header">
+              <div className="spec-table-block-title">
+                <span>{isEn ? 'Request Body Schema' : 'حقول جسم الطلب الحية (Request Body Schema)'}</span>
+              </div>
+              <span className="mono" style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>تحديث مباشر</span>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="spec-data-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '25%' }}>{t('spec.paramName')}</th>
+                    <th style={{ width: '20%' }}>{t('spec.paramType')}</th>
+                    <th style={{ width: '15%' }}>{t('spec.paramReq')}</th>
+                    <th style={{ width: '40%' }}>{t('spec.paramRule')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {endpoint.params && endpoint.params.length > 0 ? (
+                    endpoint.params.map((param, i) => (
+                      <tr 
+                        key={param.name || i}
+                        id={`col2-field-${param.name}`}
+                        className={highlightedField === param.name ? 'row-live-highlight' : ''}
+                      >
+                        <td><code className="mono spec-code-key">{param.name}</code></td>
+                        <td><span className="mono" style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{param.type}</span></td>
+                        <td>
+                          <span className={`badge-pill ${param.req ? 'badge-req' : 'badge-opt'}`} style={{ marginInlineEnd: '0.35rem' }}>
+                            {param.req ? t('spec.reqTrue') : t('spec.reqFalse')}
+                          </span>
+                          <span className={`badge-pill ${param.tagClass || 'badge-iso'}`}>
+                            {param.tag}
+                          </span>
+                        </td>
+                        <td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{param.rule}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '1.25rem' }}>
+                        {isEn ? 'No request body required for this endpoint.' : 'لا يتطلب هذا المسار بيانات في جسم الطلب (No Request Body)'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* 2. Headers Table Block */}
           <div className="spec-table-block">
             <div className="spec-table-block-header">
               <div className="spec-table-block-title">
@@ -393,53 +455,6 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
                       <td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{h.desc}</td>
                     </tr>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* 2. Request Body Table Block */}
-          <div className="spec-table-block">
-            <div className="spec-table-block-header">
-              <div className="spec-table-block-title">
-                <span>{isEn ? 'Request Body Schema' : 'حقول جسم الطلب (Request Body Schema)'}</span>
-              </div>
-              <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Content-Type: application/json</span>
-            </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="spec-data-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '25%' }}>{t('spec.paramName')}</th>
-                    <th style={{ width: '20%' }}>{t('spec.paramType')}</th>
-                    <th style={{ width: '15%' }}>{t('spec.paramReq')}</th>
-                    <th style={{ width: '40%' }}>{t('spec.paramRule')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {endpoint.params && endpoint.params.length > 0 ? (
-                    endpoint.params.map((param, i) => (
-                      <tr key={i}>
-                        <td><code className="mono spec-code-key">{param.name}</code></td>
-                        <td><span className="mono" style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{param.type}</span></td>
-                        <td>
-                          <span className={`badge-pill ${param.req ? 'badge-req' : 'badge-opt'}`} style={{ marginInlineEnd: '0.35rem' }}>
-                            {param.req ? t('spec.reqTrue') : t('spec.reqFalse')}
-                          </span>
-                          <span className={`badge-pill ${param.tagClass || 'badge-iso'}`}>
-                            {param.tag}
-                          </span>
-                        </td>
-                        <td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{param.rule}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '1.25rem' }}>
-                        {isEn ? 'No request body required for this endpoint.' : 'لا يتطلب هذا المسار بيانات في جسم الطلب (No Request Body)'}
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>

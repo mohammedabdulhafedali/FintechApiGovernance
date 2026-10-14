@@ -10,7 +10,8 @@ import {
   BookOpen,
   ChevronsDownUp,
   ChevronsUpDown,
-  Pin
+  Pin,
+  Layers
 } from 'lucide-react';
 import { SystemModule, Sector } from '../../types/schema';
 import { useLanguage } from '../../i18n';
@@ -21,6 +22,7 @@ export type AppViewMode =
   | 'dashboard' 
   | 'sector-spec' 
   | 'add-api'
+  | 'workbench'
   | 'iam'
   | 'governance';
 
@@ -228,15 +230,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span style={{ flex: 1, ...alignStyle }}>{t('sidebar.dashboard')}</span>
           </button>
 
-          {/* Tab 2: Add / Document API (Totally hidden if no permission) */}
+          {/* Tab 2: Add New Documentation (Text-only sovereign button) */}
           {hasPermission('catalog:endpoint:create') && (
             <button
-              className={`nav-btn nav-btn-dashed ${activeView === 'add-api' ? 'active' : ''}`}
-              onClick={() => handleNavClick('add-api')}
-              title={t('sidebar.addApiDoc')}
+              className={`nav-btn nav-btn-dashed ${activeView === 'workbench' || activeView === 'add-api' ? 'active' : ''}`}
+              onClick={() => handleNavClick('workbench')}
+              title={isRtl ? 'إضافة توثيق جديد' : 'Add New Documentation'}
             >
-              <PlusCircle size={15} />
-              <span style={{ flex: 1, ...alignStyle }}>{t('sidebar.addApiDoc')}</span>
+              <span style={{ flex: 1, ...alignStyle, fontWeight: 700 }}>
+                {isRtl ? 'إضافة توثيق جديد' : 'Add New Documentation'}
+              </span>
             </button>
           )}
 

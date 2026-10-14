@@ -4,6 +4,8 @@ import { Sidebar, AppViewMode } from './components/layout/Sidebar';
 import { catalogService } from './services/catalogService';
 import { DashboardView } from './components/catalog/DashboardView';
 import { DocumentationHub } from './components/catalog/DocumentationHub';
+import { UniversalWorkbench } from './components/catalog/UniversalWorkbench';
+import { UastDocument, IUastNode } from './services/uast/types';
 import { EndpointsRibbon } from './components/catalog/EndpointsRibbon';
 import { SpecViewer } from './components/catalog/SpecViewer';
 import { FloatingAlertCard, FloatingAlertState } from './components/common/FloatingAlertCard';
@@ -339,6 +341,58 @@ const AppContent: React.FC = () => {
     );
   };
 
+  // Bridge UAST Document to Catalog Endpoint
+  const uastDocToEndpoint = (uastDoc: UastDocument, defaultSysKey: string): Endpoint => {
+    const params: Endpoint['params'] = (uastDoc.headers || []).map(h => ({
+      name: h.semantics.name,
+      type: h.semantics.dataType,
+      req: h.constraints.required,
+      rule: h.semantics.description,
+      tag: h.governance.securityLevel === 'CONFIDENTIAL_MASKED' ? 'Security' : 'General',
+      tagClass: h.governance.securityLevel === 'CONFIDENTIAL_MASKED' ? 'badge-purple' : 'badge-blue'
+    }));
+
+    const flattenParams = (node: IUastNode) => {
+      if (node.structure.path && node.structure.path !== '$') {
+        params.push({
+          name: node.semantics.name,
+          type: node.semantics.dataType,
+          req: node.constraints.required,
+          rule: node.semantics.description,
+          tag: node.governance.securityLevel === 'CONFIDENTIAL_MASKED' ? 'PII' : 'Payload',
+          tagClass: node.governance.securityLevel === 'CONFIDENTIAL_MASKED' ? 'badge-amber' : undefined
+        });
+      }
+      for (const c of node.children) {
+        flattenParams(c);
+      }
+    };
+    flattenParams(uastDoc.requestTree);
+
+    return {
+      id: `ep_uast_${Date.now()}`,
+      method: uastDoc.channel.method,
+      path: uastDoc.channel.endpointPath,
+      shortName: uastDoc.serviceCode.toLowerCase().replace(/_/g, '-'),
+      desc: uastDoc.serviceName,
+      descEn: uastDoc.serviceNameEn || uastDoc.serviceName,
+      isDraft: uastDoc.status !== 'PUBLISHED',
+      statusBadge: `v${uastDoc.semver}`,
+      releaseId: uastDoc.publishedVersionId,
+      systemKey: defaultSysKey,
+      params,
+      rules: (uastDoc.errorCodes || []).map((err, i) => ({
+        id: `BR_${uastDoc.serviceCode}_00${i + 1}`,
+        name: err.message,
+        err: err.code
+      })),
+      payload: uastDoc.rawSource,
+      res200: JSON.stringify({ status: "SUCCESS", code: "SETTLED_200", version: uastDoc.semver }, null, 2),
+      res422: JSON.stringify({ error: "VALIDATION_FAILED", code: "ERR_422", message: "Invalid payload constraints" }, null, 2),
+      curl: `curl -X ${uastDoc.channel.method} "${uastDoc.channel.environments.production || uastDoc.channel.endpointPath}" \\\n  -H "Authorization: Bearer <TOKEN>" \\\n  -H "Content-Type: application/json"`
+    };
+  };
+
   // If checking authentication
   if (loading) {
     return (
@@ -398,7 +452,7 @@ const AppContent: React.FC = () => {
           currentVersion={currentVersion}
           onVersionChange={setCurrentVersion}
           onOpenAddApi={() => {
-            setActiveView('add-api');
+            setActiveView('workbench');
             setIsMobileMenuOpen(false);
           }}
           onOpenAddSector={() => {
@@ -434,13 +488,20 @@ const AppContent: React.FC = () => {
             />
           )}
 
-          {/* VIEW 2: DOCUMENTATION HUB & SPEC MAKER */}
-          {activeView === 'add-api' && (
-            <DocumentationHub
-              sectors={sectors}
-              systems={systems}
-              onAddEndpoint={handleAddEndpointFromHub}
-              onSuccess={(title, msg, snippet) => showFloatingAlert(title, msg, 'success', snippet)}
+          {/* VIEW 2: UNIVERSAL SOVEREIGN 3-PANE WORKBENCH & DRAFT ENGINE */}
+          {(activeView === 'workbench' || activeView === 'add-api') && (
+            <UniversalWorkbench
+              onPublishSuccess={(publishedDoc) => {
+                const newEp = uastDocToEndpoint(publishedDoc, activeSystemKey);
+                handleAddEndpointFromHub(activeIntegrationKey, newEp, false, activeSystemKey);
+                showFloatingAlert(
+                  isRtl ? 'تم اعتماد ونشر الـ API بنجاح' : 'API Published Successfully',
+                  isRtl ? `تم تسجيل وتجميد الإصدار v${publishedDoc.semver} في الكتالوج المعتمد.` : `Version v${publishedDoc.semver} published to catalog.`,
+                  'success',
+                  publishedDoc.channel.endpointPath
+                );
+              }}
+              onBackToCatalog={() => setActiveView('dashboard')}
             />
           )}
 

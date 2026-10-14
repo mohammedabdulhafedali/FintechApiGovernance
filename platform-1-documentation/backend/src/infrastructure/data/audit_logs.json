@@ -7,6 +7,17 @@
     "status": "SUCCESS",
     "details": "تم تسجيل الدخول بنجاح - المجموعة: مدير النظام",
     "ip": "::1",
+    "id": "log_1791996019381_88a0abff",
+    "timestamp": "2026-10-14T16:40:19.389Z"
+  },
+  {
+    "userId": "usr_admin_01",
+    "username": "admin",
+    "action": "auth:login",
+    "resource": "iam:session",
+    "status": "SUCCESS",
+    "details": "تم تسجيل الدخول بنجاح - المجموعة: مدير النظام",
+    "ip": "::1",
     "id": "log_1791921343607_b84c30cc",
     "timestamp": "2026-10-13T19:55:43.607Z"
   },
