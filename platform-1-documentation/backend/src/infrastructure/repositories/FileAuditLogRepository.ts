@@ -17,7 +17,7 @@ export class FileAuditLogRepository implements IAuditLogRepository {
       const raw = await fs.readFile(this.filePath, 'utf-8');
       return JSON.parse(raw);
     } catch (err: any) {
-      if (err.code === 'ENOENT') {
+      if (err.code === 'ENOENT' || err instanceof SyntaxError) {
         return [];
       }
       throw err;
@@ -31,18 +31,27 @@ export class FileAuditLogRepository implements IAuditLogRepository {
   }
 
   async record(log: Omit<AuditLog, 'id' | 'timestamp'>): Promise<AuditLog> {
-    const logs = await this.readData();
-    const entry: AuditLog = {
-      ...log,
-      id: `log_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
-      timestamp: new Date().toISOString()
-    };
-    logs.unshift(entry);
-    if (logs.length > 2000) {
-      logs.length = 2000;
+    try {
+      const logs = await this.readData();
+      const entry: AuditLog = {
+        ...log,
+        id: `log_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+        timestamp: new Date().toISOString()
+      };
+      logs.unshift(entry);
+      if (logs.length > 2000) {
+        logs.length = 2000;
+      }
+      await this.writeData(logs);
+      return entry;
+    } catch (err) {
+      console.error('[FileAuditLogRepository] Failed to record audit log:', err);
+      return {
+        ...log,
+        id: `log_${Date.now()}_fallback`,
+        timestamp: new Date().toISOString()
+      };
     }
-    await this.writeData(logs);
-    return entry;
   }
 
   async findAll(limit = 100): Promise<AuditLog[]> {

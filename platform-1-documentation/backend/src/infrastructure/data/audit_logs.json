@@ -1,5 +1,49 @@
 [
   {
+    "userId": "usr_admin_01",
+    "username": "admin",
+    "action": "auth:login",
+    "resource": "iam:session",
+    "status": "SUCCESS",
+    "details": "تم تسجيل الدخول بنجاح - المجموعة: مدير النظام",
+    "ip": "::1",
+    "id": "log_1792104718766_733536b0",
+    "timestamp": "2026-10-15T22:51:58.767Z"
+  },
+  {
+    "userId": "usr_1792102702300_bac59b",
+    "username": "admin2",
+    "action": "auth:login",
+    "resource": "iam:session",
+    "status": "SUCCESS",
+    "details": "تم تسجيل الدخول بنجاح - المجموعة: ops",
+    "ip": "::1",
+    "id": "log_1792104680579_fc19ce48",
+    "timestamp": "2026-10-15T22:51:20.580Z"
+  },
+  {
+    "userId": "usr_1792102702300_bac59b",
+    "username": "admin2",
+    "action": "auth:login",
+    "resource": "iam:session",
+    "status": "FAILED",
+    "details": "فشل تسجيل الدخول: كلمة المرور غير صحيحة",
+    "ip": "::1",
+    "id": "log_1792104678110_1b069574",
+    "timestamp": "2026-10-15T22:51:18.110Z"
+  },
+  {
+    "userId": "usr_1792102702300_bac59b",
+    "username": "admin2",
+    "action": "auth:login",
+    "resource": "iam:session",
+    "status": "FAILED",
+    "details": "فشل تسجيل الدخول: كلمة المرور غير صحيحة",
+    "ip": "::1",
+    "id": "log_1792104676998_a53e79bd",
+    "timestamp": "2026-10-15T22:51:16.998Z"
+  },
+  {
     "userId": "usr_1792102702300_bac59b",
     "username": "admin2",
     "action": "access_denied:iam:manage",
@@ -1531,7 +1575,5 @@
     "details": "تهيئة نظام الصلاحيات السيادي وتدشين مجموعات المستخدمين",
     "timestamp": "2026-01-01T00:00:00.000Z",
     "ip": "127.0.0.1"
-  }
-]"ip": "127.0.0.1"
   }
 ]
