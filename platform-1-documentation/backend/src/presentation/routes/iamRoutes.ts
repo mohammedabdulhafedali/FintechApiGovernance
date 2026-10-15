@@ -64,6 +64,8 @@ export function createIamRouter(
   router.put('/users/:id/scope', requirePermission('iam:manage'), iamController.updateUserScope);
   router.put('/users/:id/group', requirePermission('iam:manage'), iamController.updateUserGroup);
   router.put('/users/:id/status', requirePermission('iam:manage'), iamController.toggleUserStatus);
+  router.delete('/users/:id', requirePermission('iam:manage'), iamController.deleteUser);
+
 
   // --- Groups ---
   router.get('/groups', requirePermission('iam:manage'), iamController.getGroups);
@@ -73,20 +75,12 @@ export function createIamRouter(
   router.put(
     '/groups/:id/permissions',
     requirePermission('iam:manage'),
-    intercept('iam:groups', 'UPDATE', (r) => ({
-      ar: `تعديل حزمة صلاحيات المجموعة ID: ${r.params.id}`,
-      en: `Update Group Permissions ID: ${r.params.id}`
-    })),
     iamController.updateGroupPermissions
   );
 
   router.delete(
     '/groups/:id',
     requirePermission('iam:manage'),
-    intercept('iam:groups', 'DELETE', (r) => ({
-      ar: `حذف مجموعة الصلاحيات ID: ${r.params.id}`,
-      en: `Delete IAM Group ID: ${r.params.id}`
-    })),
     iamController.deleteGroup
   );
 

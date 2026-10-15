@@ -15,19 +15,47 @@ import {
   Pin,
   PinOff,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Building2,
+  Store,
+  Scale,
+  ShieldAlert,
+  Receipt,
+  Layers,
+  BellRing,
+  ArrowRight,
+  ArrowLeft,
+  Plus,
+  FolderPlus,
+  Sparkles,
+  X,
+  AlertCircle,
+  AlertTriangle,
+  Printer
 } from 'lucide-react';
 import { UastDocument, IUastNode, type DataType } from '../../services/uast/types';
-import { Endpoint } from '../../types/schema';
+import { Endpoint, SystemModule, SystemIntegration } from '../../types/schema';
+import { INITIAL_SYSTEMS } from '../../data/mockData';
 import { uastAdapterFactory } from '../../services/uast/adapters/AdapterFactory';
 import { uastDraftService } from '../../services/uast/draftService';
 import { SpecViewer } from './SpecViewer';
+import { MarkdownDocumentRenderer } from './MarkdownDocumentRenderer';
+import { EndpointsRibbon } from './EndpointsRibbon';
+import { ApiDocumentationView } from './ApiDocumentationView';
+import { ErrorBoundary } from '../common/ErrorBoundary';
+import { FloatingAlertCard, FloatingAlertState } from '../common/FloatingAlertCard';
+import { formatSyntaxError } from '../../utils/syntaxErrorFormatter';
 import { useLanguage } from '../../i18n';
 
 interface UniversalWorkbenchProps {
   initialDocument?: UastDocument;
-  onPublishSuccess?: (doc: UastDocument) => void;
+  onPublishSuccess?: (doc: UastDocument, targetSystemKey?: string, targetEntityKey?: string) => void;
   onBackToCatalog?: () => void;
+  systems?: Record<string, SystemModule>;
+  activeSystemKey?: string;
+  activeIntegrationKey?: string;
+  onAddSystem?: (newSystem: SystemModule) => void;
+  onAddIntegration?: (systemKey: string, newIntegration: SystemIntegration) => void;
 }
 
 type WorkbenchTab = 'add' | 'drafts' | 'submissions';
@@ -238,9 +266,191 @@ function extractLenientFields(source: string): Array<{ name: string; type: DataT
 
 export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
   initialDocument,
-  onPublishSuccess
+  onPublishSuccess,
+  onBackToCatalog,
+  systems = {},
+  activeSystemKey = '',
+  activeIntegrationKey = '',
+  onAddSystem,
+  onAddIntegration
 }) => {
   const { isRtl } = useLanguage();
+
+  // ── Workbench Systems & Integrations Target State ──
+  const [workbenchSystems, setWorkbenchSystems] = useState<Record<string, SystemModule>>(() => {
+    return (systems && Object.keys(systems).length > 0) ? systems : INITIAL_SYSTEMS;
+  });
+
+  useEffect(() => {
+    if (systems && Object.keys(systems).length > 0) {
+      setWorkbenchSystems(systems);
+    }
+  }, [systems]);
+
+  const [selectedSystemKey, setSelectedSystemKey] = useState<string>(() => {
+    if (initialDocument?.systemKey) return initialDocument.systemKey;
+    if (activeSystemKey && (systems[activeSystemKey] || INITIAL_SYSTEMS[activeSystemKey])) {
+      return activeSystemKey;
+    }
+    const avail = (systems && Object.keys(systems).length > 0) ? systems : INITIAL_SYSTEMS;
+    return Object.keys(avail)[0] || 'collection';
+  });
+
+  const [selectedEntityId, setSelectedEntityId] = useState<string>(() => {
+    if (initialDocument?.entityId) return initialDocument.entityId;
+    const avail = (systems && Object.keys(systems).length > 0) ? systems : INITIAL_SYSTEMS;
+    const sys = avail[selectedSystemKey] || Object.values(avail)[0];
+    if (activeIntegrationKey && sys?.integrations?.[activeIntegrationKey]) {
+      return activeIntegrationKey;
+    }
+    return Object.keys(sys?.integrations || {})[0] || 'banking';
+  });
+
+  // Modals for Adding System & Entity Inline
+  const [isAddSystemModalOpen, setIsAddSystemModalOpen] = useState(false);
+  const [newSysNameAr, setNewSysNameAr] = useState('');
+  const [newSysNameEn, setNewSysNameEn] = useState('');
+  const [newSysCode, setNewSysCode] = useState('SYS_');
+  const [newSysIcon, setNewSysIcon] = useState('Layers');
+  const [newSysDesc, setNewSysDesc] = useState('');
+
+  const [isAddEntityModalOpen, setIsAddEntityModalOpen] = useState(false);
+  const [newEntityNameAr, setNewEntityNameAr] = useState('');
+  const [newEntityNameEn, setNewEntityNameEn] = useState('');
+  const [newEntityCode, setNewEntityCode] = useState('INT_');
+  const [newEntityIcon, setNewEntityIcon] = useState('Building2');
+  const [newEntityDirection, setNewEntityDirection] = useState<'INBOUND' | 'OUTBOUND' | 'BIDIRECTIONAL'>('INBOUND');
+
+  const getSystemIconElement = (iconName?: string) => {
+    switch (iconName) {
+      case 'Layers': return <Layers size={18} style={{ color: '#10b981' }} />;
+      case 'Receipt': return <Receipt size={18} style={{ color: '#34d399' }} />;
+      case 'Globe': return <Globe size={18} style={{ color: '#06b6d4' }} />;
+      case 'BellRing': return <BellRing size={18} style={{ color: '#f59e0b' }} />;
+      case 'ShieldAlert': return <ShieldAlert size={18} style={{ color: '#f43f5e' }} />;
+      case 'Scale': return <Scale size={18} style={{ color: '#a855f7' }} />;
+      case 'Building2': return <Building2 size={18} style={{ color: '#38bdf8' }} />;
+      default: return <Layers size={18} style={{ color: '#10b981' }} />;
+    }
+  };
+
+  const getEntityIconElement = (iconName?: string) => {
+    switch (iconName) {
+      case 'Building2': return <Building2 size={16} style={{ color: '#38bdf8' }} />;
+      case 'Store': return <Store size={16} style={{ color: '#34d399' }} />;
+      case 'Scale': return <Scale size={16} style={{ color: '#a855f7' }} />;
+      case 'ShieldAlert': return <ShieldAlert size={16} style={{ color: '#f59e0b' }} />;
+      case 'Globe': return <Globe size={16} style={{ color: '#06b6d4' }} />;
+      default: return <Building2 size={16} style={{ color: '#38bdf8' }} />;
+    }
+  };
+
+  const handleSystemChange = (newSysKey: string) => {
+    setSelectedSystemKey(newSysKey);
+    const targetSys = workbenchSystems[newSysKey];
+    const availableInts = Object.keys(targetSys?.integrations || {});
+    if (!targetSys?.integrations?.[selectedEntityId]) {
+      setSelectedEntityId(availableInts[0] || '');
+    }
+  };
+
+  const handleCreateSystem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSysNameAr.trim()) return;
+
+    const generatedKey = (newSysNameEn.trim() || newSysNameAr.trim())
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '_')
+      .replace(/^_+|_+$/g, '') || `sys_${Date.now()}`;
+
+    const newSys: SystemModule = {
+      key: generatedKey,
+      name: newSysNameAr.trim(),
+      nameEn: newSysNameEn.trim() || newSysNameAr.trim(),
+      code: newSysCode.trim().toUpperCase() || `SYS_${generatedKey.toUpperCase()}`,
+      icon: newSysIcon,
+      description: newSysDesc.trim() || (isRtl ? 'نظام سيادي مالي معتمد' : 'Certified Sovereign Financial System'),
+      status: 'ACTIVE',
+      associatedSectorKeys: ['banking'],
+      integrations: {
+        banking: {
+          entityId: 'banking',
+          name: isRtl ? 'البنوك والمصارف المركزية' : 'Banks & Central Clearing',
+          nameEn: 'Banks & Clearing Houses',
+          code: 'INT_BANKING',
+          icon: 'Building2',
+          direction: 'INBOUND',
+          endpoints: []
+        }
+      }
+    };
+
+    setWorkbenchSystems(prev => ({ ...prev, [generatedKey]: newSys }));
+    setSelectedSystemKey(generatedKey);
+    setSelectedEntityId('banking');
+
+    if (onAddSystem) {
+      onAddSystem(newSys);
+    }
+
+    setIsAddSystemModalOpen(false);
+    setNewSysNameAr('');
+    setNewSysNameEn('');
+    setNewSysCode('SYS_');
+    setNewSysDesc('');
+  };
+
+  const handleCreateEntity = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEntityNameAr.trim()) return;
+
+    const generatedId = (newEntityNameEn.trim() || newEntityNameAr.trim())
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '_')
+      .replace(/^_+|_+$/g, '') || `ent_${Date.now()}`;
+
+    const newInt: SystemIntegration = {
+      entityId: generatedId,
+      name: newEntityNameAr.trim(),
+      nameEn: newEntityNameEn.trim() || newEntityNameAr.trim(),
+      code: newEntityCode.trim().toUpperCase() || `INT_${generatedId.toUpperCase()}`,
+      icon: newEntityIcon,
+      direction: newEntityDirection,
+      endpoints: []
+    };
+
+    setWorkbenchSystems(prev => {
+      const updated = { ...prev };
+      const currentSys = updated[selectedSystemKey] || Object.values(updated)[0];
+      if (currentSys) {
+        updated[currentSys.key] = {
+          ...currentSys,
+          integrations: {
+            ...(currentSys.integrations || {}),
+            [generatedId]: newInt
+          }
+        };
+      }
+      return updated;
+    });
+
+    setSelectedEntityId(generatedId);
+
+    if (onAddIntegration) {
+      onAddIntegration(selectedSystemKey, newInt);
+    }
+
+    setIsAddEntityModalOpen(false);
+    setNewEntityNameAr('');
+    setNewEntityNameEn('');
+    setNewEntityCode('INT_');
+    setNewEntityDirection('INBOUND');
+  };
+
+  const currentSysObj = workbenchSystems[selectedSystemKey] || Object.values(workbenchSystems)[0];
+  const currentIntObj = currentSysObj?.integrations?.[selectedEntityId] || Object.values(currentSysObj?.integrations || {})[0];
+  const currentSysDisplayName = currentSysObj ? (isRtl ? currentSysObj.name : (currentSysObj.nameEn || currentSysObj.name)) : selectedSystemKey;
+  const currentIntDisplayName = currentIntObj ? (isRtl ? currentIntObj.name : (currentIntObj.nameEn || currentIntObj.name)) : selectedEntityId;
 
   // ── Navigation Tabs ──
   const [activeTab, setActiveTab] = useState<WorkbenchTab>('add');
@@ -275,6 +485,19 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
     }
   });
 
+  // Active endpoint index for multi-endpoint documents (OpenAPI, Postman, Markdown)
+  const [selectedEndpointIndex, setSelectedEndpointIndex] = useState<number>(0);
+
+  // View mode for Screen 3 (PDF Sheet): 'full_doc' for complete original document (matching document.pdf), or 'gov_summary' for structured governance card
+  const [pdfViewMode, setPdfViewMode] = useState<'full_doc' | 'gov_summary'>('full_doc');
+
+  // View mode for Screen 2 (Preview): 'portal' for interactive SpecViewer or 'doc' for complete document
+  const [webViewMode, setWebViewMode] = useState<'portal' | 'doc'>('portal');
+
+  // View mode for Tab 2 (Drafts) and Tab 3 (Submissions)
+  const [draftViewMode, setDraftViewMode] = useState<'full_doc' | 'gov_summary'>('full_doc');
+  const [subViewMode, setSubViewMode] = useState<'full_doc' | 'gov_summary'>('full_doc');
+
   // Fullscreen controller for screens
   const [fullscreenTarget, setFullscreenTarget] = useState<FullscreenTarget>('none');
   const fullscreenTargetRef = useRef<FullscreenTarget>('none');
@@ -298,7 +521,7 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
   // Toolbar Auto-hide & Pin State (Default: Auto-hide / Unpinned for max screen area)
   const [isToolbarPinned, setIsToolbarPinned] = useState<boolean>(false);
   const [isToolbarHovered, setIsToolbarHovered] = useState<boolean>(false);
-  const toolbarHoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const toolbarHoverTimeoutRef = useRef<any>(null);
 
   const handleToolbarMouseEnter = () => {
     if (toolbarHoverTimeoutRef.current) {
@@ -376,6 +599,7 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
   // File Upload Reference and Format target
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [targetUploadFormat, setTargetUploadFormat] = useState<string>('json');
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
 
   const triggerFilePicker = (format: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -386,6 +610,7 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
       else if (format === 'soap') fileInputRef.current.accept = '.xml,.wsdl,text/xml,application/xml';
       else if (format === 'openapi') fileInputRef.current.accept = '.yaml,.yml,.json';
       else if (format === 'postman') fileInputRef.current.accept = '.json';
+      else if (format === 'pdf') fileInputRef.current.accept = '.pdf,application/pdf';
       else fileInputRef.current.accept = '*/*';
       fileInputRef.current.value = '';
       fileInputRef.current.click();
@@ -396,17 +621,60 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
     const file = event.target.files?.[0];
     if (!file) return;
 
+    const baseName = file.name.replace(/\.[^/.]+$/, "");
+    const ext = file.name.split('.').pop()?.toLowerCase();
+
+    // Direct PDF Document handling (preserves original binary PDF 100%)
+    if (ext === 'pdf' || file.type === 'application/pdf') {
+      const blobUrl = URL.createObjectURL(file);
+      setPdfBlobUrl(blobUrl);
+      setSourceFormat('pdf');
+      setSourceCode(`/* ملف وثيقة PDF الرسمية: ${file.name} */\n// الحجم: ${(file.size / 1024).toFixed(1)} KB\n// يتم عرض الملف الأصلي في شاشة الوثيقة والمعاينة بجودة 100% بدون أي نقصان أو تعديل.`);
+      
+      const doc: any = {
+        documentId: `doc_${Date.now()}`,
+        version: '1.0.0',
+        systemKey: selectedSystemKey,
+        entityId: selectedEntityId,
+        serviceName: baseName || 'وثيقة PDF معتمدة',
+        serviceCode: baseName.toUpperCase().replace(/[^A-Z0-9_]/g, '_') || 'PDF_DOC',
+        channel: {
+          protocol: 'REST',
+          method: 'GET',
+          endpointPath: `/${baseName.toLowerCase().replace(/[^a-z0-9_]/g, '_')}`,
+          environments: {}
+        },
+        rawFormat: 'pdf',
+        rawSource: `[PDF Document: ${file.name}]`,
+        headers: [],
+        requestTree: {
+          nodeId: 'root',
+          kind: 'OBJECT',
+          structure: { path: '$', depth: 0, isCollection: false },
+          semantics: { name: 'root', dataType: 'OBJECT' },
+          constraints: { required: true, nullable: false },
+          children: []
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        status: 'PRIVATE_DRAFT'
+      };
+      setActiveDoc(doc);
+      setPdfViewMode('full_doc');
+      setEditorState('active_editing');
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (e) => {
       const content = e.target?.result as string;
       if (!content) return;
 
-      const baseName = file.name.replace(/\.[^/.]+$/, "");
-      const ext = file.name.split('.').pop()?.toLowerCase();
+      setPdfBlobUrl(null);
       let detectedFormat = targetUploadFormat;
       if (ext === 'yaml' || ext === 'yml') detectedFormat = 'openapi';
       if (ext === 'xml' || ext === 'wsdl') detectedFormat = 'soap';
-      if (ext === 'md') detectedFormat = 'markdown';
+      if (ext === 'md' || ext === 'markdown') detectedFormat = 'markdown';
 
       setSourceFormat(detectedFormat);
       setSourceCode(content);
@@ -417,17 +685,34 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
           serviceCode: baseName.toUpperCase().replace(/[^A-Z0-9_]/g, '_') || 'IMPORTED_API',
           status: 'PRIVATE_DRAFT'
         });
+        parsed.systemKey = selectedSystemKey;
+        parsed.entityId = selectedEntityId;
         parsed.updatedAt = new Date().toISOString();
         setActiveDoc(parsed);
+        setSelectedEndpointIndex(0);
+        setPdfViewMode('full_doc');
+        setSyntaxError(null);
         uastDraftService.saveLocalImmediate(parsed);
         setEditorState('active_editing');
       } catch (err: any) {
-        alert(`تم قراءة محتوى الملف بنجاح. يمكنك الآن مراجعته وتعديله مباشرة في المحرر.`);
-        setEditorState('active_editing');
+        const formatted = formatSyntaxError(content, detectedFormat, err, file.name);
+        setFloatingAlert({
+          isOpen: true,
+          type: 'error',
+          title: formatted.title,
+          message: formatted.message,
+          codeSnippet: formatted.snippet,
+          confirmText: 'إغلاق وتصحيح الملف'
+        });
+        floatingAlertOnConfirmRef.current = null;
+        setSourceCode('');
       }
     };
     reader.readAsText(file);
   };
+
+  // ── Syntax Error State (Zero tolerance for bad code / no fake data) ──
+  const [syntaxError, setSyntaxError] = useState<string | null>(null);
 
   // ── Live Editing Highlight & Auto-Navigation State ──
   const [highlightedField, setHighlightedField] = useState<string | null>(null);
@@ -441,13 +726,9 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
     }
   }, [highlightedField]);
 
-  // ── Center Modal Alert State ──
-  const [centerModal, setCenterModal] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    onConfirm: () => void;
-  } | null>(null);
+  // ── Floating Alert Card State (Replacing plain modal with rich floating box) ──
+  const [floatingAlert, setFloatingAlert] = useState<FloatingAlertState | null>(null);
+  const floatingAlertOnConfirmRef = useRef<(() => void) | null>(null);
 
   // ── Tab 2: [المسودات] State ──
   const [draftsList, setDraftsList] = useState<UastDocument[]>([]);
@@ -465,10 +746,10 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
       const isEscapeKey = e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27 || e.which === 27;
       if (!isEscapeKey) return;
 
-      // 1. If Center Modal is open, close it
-      if (centerModal && centerModal.isOpen) {
+      // 1. If Floating Alert is open, close it
+      if (floatingAlert && floatingAlert.isOpen) {
         e.preventDefault();
-        setCenterModal(null);
+        setFloatingAlert(null);
         return;
       }
 
@@ -537,7 +818,7 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [draftPdfFullscreen, subPdfFullscreen, editorState, centerModal]);
+  }, [draftPdfFullscreen, subPdfFullscreen, editorState, floatingAlert]);
 
   const handleToggleAllFullscreen = () => {
     if (fullscreenTargetRef.current === 'all') {
@@ -672,13 +953,15 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
     const allDrafts = uastDraftService.listDrafts();
     const privateDrafts = allDrafts.filter(d => d.status === 'PRIVATE_DRAFT' || d.status === 'CHANGES_REQUESTED');
     setDraftsList(privateDrafts);
-    if (privateDrafts.length > 0 && !selectedDraftId) {
+    if (activeDoc && privateDrafts.some(d => d.documentId === activeDoc.documentId)) {
+      setSelectedDraftId(activeDoc.documentId);
+    } else if (privateDrafts.length > 0 && (!selectedDraftId || !privateDrafts.some(d => d.documentId === selectedDraftId))) {
       setSelectedDraftId(privateDrafts[0].documentId);
     }
 
     const submitted = allDrafts.filter(d => d.status === 'PENDING_REVIEW' || d.status === 'PUBLISHED');
     setSubmissionsList(submitted);
-    if (submitted.length > 0 && !selectedSubmissionId) {
+    if (submitted.length > 0 && (!selectedSubmissionId || !submitted.some(s => s.documentId === selectedSubmissionId))) {
       setSelectedSubmissionId(submitted[0].documentId);
     }
   };
@@ -689,7 +972,7 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
 
   // ── Continuous Auto-Save to Drafts (Debounced 500ms) ──
   useEffect(() => {
-    if (!activeDoc) return;
+    if (!activeDoc || syntaxError) return; // Zero tolerance: freeze auto-save during syntax errors to prevent corrupting drafts!
     const currentDoc: UastDocument = {
       ...activeDoc,
       rawSource: sourceCode,
@@ -707,12 +990,12 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [activeDoc, sourceCode, sourceFormat]);
+  }, [activeDoc, sourceCode, sourceFormat, syntaxError]);
 
   // ── Auto-save on page exit or refresh (beforeunload) ──
   useEffect(() => {
     const handleBeforeUnload = () => {
-      if (activeDoc) {
+      if (activeDoc && !syntaxError) {
         const docToSave: UastDocument = {
           ...activeDoc,
           rawSource: sourceCode,
@@ -725,7 +1008,7 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [activeDoc, sourceCode, sourceFormat]);
+  }, [activeDoc, sourceCode, sourceFormat, syntaxError]);
 
   // ── Action: Start Fresh New Documentation ──
   const handleStartNewDoc = () => {
@@ -752,6 +1035,8 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
         serviceName: "خدمة مالية جديدة",
         status: 'PRIVATE_DRAFT'
       });
+      blankDoc.systemKey = selectedSystemKey;
+      blankDoc.entityId = selectedEntityId;
       setSourceFormat('json');
       setSourceCode(initialBlankJson);
       setActiveDoc(blankDoc);
@@ -823,7 +1108,15 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
       uastDraftService.saveLocalImmediate(parsed);
       setEditorState('active_editing');
     } catch (e: any) {
-      alert(`خطأ في قراءة الصيغة: ${e.message}`);
+      const formatted = formatSyntaxError(codeToUse, fmt, e);
+      setFloatingAlert({
+        isOpen: true,
+        type: 'error',
+        title: formatted.title,
+        message: `تعذر إعداد القالب المختار (${format}): ${formatted.message}`,
+        codeSnippet: formatted.snippet,
+        confirmText: 'إغلاق'
+      });
     }
   };
 
@@ -838,53 +1131,27 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
       const parsed = uastAdapterFactory.parse(newSource, format, {
         documentId: activeDoc?.documentId,
         serviceCode: activeDoc?.serviceCode || 'SERVICE_DOC',
-        serviceName: activeDoc?.serviceName || 'خدمة موثقة حديثاً',
+        serviceName: activeDoc?.serviceName || 'خدمة موثقة',
         status: activeDoc?.status || 'PRIVATE_DRAFT',
         channel: activeDoc?.channel
       });
       parsed.updatedAt = new Date().toISOString();
       parsed.rawSource = newSource;
       parsed.rawFormat = format;
+      parsed.systemKey = activeDoc?.systemKey || selectedSystemKey;
+      parsed.entityId = activeDoc?.entityId || selectedEntityId;
       setActiveDoc(parsed);
-    } catch {
-      // Incomplete syntax during live typing; leniently extract fields so table updates immediately without waiting
-      const extracted = extractLenientFields(newSource);
-      if (extracted.length > 0 && activeDoc) {
-        const syntheticChildren: IUastNode[] = extracted.map((f, i) => ({
-          nodeId: `lenient_node_${i}_${f.name}`,
-          structure: {
-            path: f.path,
-            depth: 1,
-            isLeaf: true
-          },
-          semantics: {
-            name: f.name,
-            dataType: f.type,
-            description: `الحقل ${f.name} (تحديث حي)`
-          },
-          constraints: {
-            required: true
-          },
-          governance: {
-            securityLevel: 'PUBLIC',
-            exampleValue: f.value
-          },
-          children: []
-        }));
-
+      setSyntaxError(null);
+    } catch (err: any) {
+      // Zero tolerance: reject invalid syntax and never fabricate fake synthetic fields!
+      const formatted = formatSyntaxError(newSource, format, err);
+      const expressiveMsg = `${formatted.title}: ${err?.message || 'خطأ في صياغة الكود'}`;
+      setSyntaxError(expressiveMsg);
+      if (activeDoc) {
         setActiveDoc(prev => prev ? ({
           ...prev,
           rawSource: newSource,
-          updatedAt: new Date().toISOString(),
-          requestTree: {
-            ...prev.requestTree,
-            children: syntheticChildren
-          }
-        }) : null);
-      } else if (activeDoc) {
-        setActiveDoc(prev => prev ? ({
-          ...prev,
-          rawSource: newSource,
+          rawFormat: format,
           updatedAt: new Date().toISOString()
         }) : null);
       }
@@ -920,6 +1187,7 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
       });
       parsed.updatedAt = new Date().toISOString();
       setActiveDoc(parsed);
+      setSelectedEndpointIndex(0);
     } catch {
       // ignore
     }
@@ -929,116 +1197,225 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
   const endpointPreview = useMemo<Endpoint | null>(() => {
     if (!activeDoc) return null;
 
-    const params: Endpoint['params'] = (activeDoc.headers || []).map(h => ({
-      name: h.semantics.name,
-      type: h.semantics.dataType,
-      req: h.constraints.required,
-      rule: h.semantics.description,
-      tag: h.governance.securityLevel === 'CONFIDENTIAL_MASKED' ? 'Security' : 'General',
-      tagClass: h.governance.securityLevel === 'CONFIDENTIAL_MASKED' ? 'badge-purple' : 'badge-blue'
-    }));
+    const currentEp = (activeDoc.allEndpoints && activeDoc.allEndpoints.length > selectedEndpointIndex)
+      ? activeDoc.allEndpoints[selectedEndpointIndex]
+      : (activeDoc.allEndpoints?.[0] || null);
 
-    const flattenParams = (node: IUastNode) => {
-      if (node.structure.path && node.structure.path !== '$') {
-        const valStr = node.governance?.exampleValue !== undefined && node.governance?.exampleValue !== null 
-          ? String(node.governance.exampleValue)
-          : '';
+    // Build params: if currentEp has requestFields (from file), use them! Otherwise fallback to requestTree
+    const params: Endpoint['params'] = [];
+
+    if (currentEp?.requestFields && currentEp.requestFields.length > 0) {
+      currentEp.requestFields.forEach(f => {
+        const valStr = f.example || '';
         params.push({
-          name: node.semantics.name,
-          type: node.semantics.dataType,
-          req: node.constraints.required,
-          rule: valStr ? `القيمة الحية: ${valStr}` : node.semantics.description,
-          tag: valStr ? valStr : (node.governance.securityLevel === 'CONFIDENTIAL_MASKED' ? 'PII' : 'Payload'),
-          tagClass: node.governance.securityLevel === 'CONFIDENTIAL_MASKED' ? 'badge-amber' : 'badge-green'
+          name: f.name,
+          type: f.type,
+          req: f.required,
+          rule: valStr ? `القيمة: ${valStr}` : (f.description || `حقل ${f.name}`),
+          tag: f.length ? f.length.substring(0, 20) : (valStr ? valStr.substring(0, 20) : 'Payload'),
+          tagClass: /iban|pan|pin|token|auth|sign|nonce/i.test(f.name) ? 'badge-amber' : 'badge-green'
         });
-      }
-      for (const c of node.children) {
-        flattenParams(c);
-      }
-    };
-    flattenParams(activeDoc.requestTree);
+      });
+    } else {
+      const flattenParams = (node: IUastNode) => {
+        if (node.structure.path && node.structure.path !== '$') {
+          const valStr = node.governance?.exampleValue !== undefined && node.governance?.exampleValue !== null 
+            ? String(node.governance.exampleValue)
+            : '';
+          params.push({
+            name: node.semantics.name,
+            type: node.semantics.dataType,
+            req: node.constraints.required,
+            rule: valStr ? `القيمة: ${valStr}` : (node.semantics.description || `حقل ${node.semantics.name}`),
+            tag: valStr ? valStr.substring(0, 20) : (node.governance.securityLevel === 'CONFIDENTIAL_MASKED' ? 'PII' : 'Payload'),
+            tagClass: node.governance.securityLevel === 'CONFIDENTIAL_MASKED' ? 'badge-amber' : 'badge-green'
+          });
+        }
+        for (const c of node.children) {
+          flattenParams(c);
+        }
+      };
+      flattenParams(activeDoc.requestTree);
+    }
+
+    // Build responseFields from currentEp if available (real from file)
+    const responseFields: Endpoint['responseFields'] = currentEp?.responseFields?.map(f => ({
+      name: f.name,
+      type: f.type,
+      req: 'Guaranteed',
+      desc: f.description || `Response field: ${f.name}`
+    })) || undefined;
+
+    // Real response example from parsed file
+    let res200 = currentEp?.responseExample;
+    if (!res200) {
+      res200 = JSON.stringify({ 
+        status: 'success',
+        msg: 'operation completed successfully',
+        data: { id: 1, created_at: new Date().toISOString() }
+      }, null, 2);
+    }
 
     return {
-      id: `ep_uast_${activeDoc.documentId || 'live_edit'}`,
-      method: activeDoc.channel.method,
-      path: activeDoc.channel.endpointPath,
-      shortName: activeDoc.serviceCode.toLowerCase().replace(/_/g, '-'),
-      desc: activeDoc.serviceName,
-      descEn: activeDoc.serviceNameEn || activeDoc.serviceName,
+      id: `ep_uast_${activeDoc.documentId || 'live_edit'}_${selectedEndpointIndex}`,
+      method: currentEp?.method || activeDoc.channel.method,
+      path: currentEp?.path || activeDoc.channel.endpointPath,
+      shortName: (currentEp?.summary || activeDoc.serviceCode).toLowerCase().replace(/[^a-z0-9]/g, '-'),
+      desc: currentEp?.summary || activeDoc.serviceName,
+      descEn: currentEp?.description || activeDoc.serviceNameEn || activeDoc.serviceName,
       isDraft: activeDoc.status !== 'PUBLISHED',
       statusBadge: `v${activeDoc.semver}`,
       releaseId: activeDoc.publishedVersionId,
-      systemKey: 'DOC_GATEWAY',
+      systemKey: activeDoc.systemKey || selectedSystemKey,
+      targetEntities: [activeDoc.entityId || selectedEntityId],
       params,
-      rules: (activeDoc.errorCodes || []).map((err, i) => ({
-        id: `BR_${activeDoc.serviceCode}_00${i + 1}`,
+      rules: (activeDoc.errorCodes || []).slice(0, 12).map((err, i) => ({
+        id: `BR_${activeDoc.serviceCode}_${String(i + 1).padStart(3, '0')}`,
         name: err.message,
         err: err.code
       })),
-      payload: sourceCode || activeDoc.rawSource,
-      res200: JSON.stringify({ 
-        status: "SUCCESS", 
-        code: "SETTLED_200", 
-        timestamp: new Date().toISOString(),
-        version: activeDoc.semver 
-      }, null, 2)
+      payload: currentEp?.requestExample || sourceCode || activeDoc.rawSource,
+      res200,
+      responseFields
     };
-  }, [activeDoc, sourceCode]);
+  }, [activeDoc, sourceCode, selectedSystemKey, selectedEntityId, selectedEndpointIndex]);
 
-  // ── Action: Save as Draft (Center Modal) ──
+  const workbenchEndpoints: Endpoint[] = useMemo(() => {
+    if (activeDoc?.allEndpoints && activeDoc.allEndpoints.length > 0) {
+      return activeDoc.allEndpoints.map((ep, idx) => {
+        const pathSegments = (ep.path || '').split('/').filter(Boolean);
+        const lastSegment = pathSegments[pathSegments.length - 1] || ep.summary || `endpoint-${idx + 1}`;
+        return {
+          id: `wb_ep_${idx}`,
+          method: ep.method || 'POST',
+          path: ep.path,
+          shortName: lastSegment,
+          desc: ep.summary,
+          descEn: ep.description || ep.summary,
+          summary: ep.summary,
+          params: ep.requestFields ? ep.requestFields.map(f => ({
+            name: f.name,
+            type: f.type,
+            req: f.required,
+            rule: f.example ? `القيمة: ${f.example}` : (f.description || `حقل ${f.name}`),
+            tag: f.length ? f.length.substring(0, 20) : (f.example ? f.example.substring(0, 20) : 'Payload'),
+            tagClass: /iban|pan|pin|token|auth|sign|nonce/i.test(f.name) ? 'badge-amber' : 'badge-green'
+          })) : (endpointPreview?.params || []),
+          rules: (activeDoc.errorCodes || []).map((err, i) => ({
+            id: `BR_${activeDoc.serviceCode}_${String(i + 1).padStart(3, '0')}`,
+            name: err.message,
+            err: err.code
+          })),
+          payload: ep.requestExample || endpointPreview?.payload || '',
+          res200: ep.responseExample || endpointPreview?.res200 || '',
+          responseFields: ep.responseFields?.map(f => ({
+            name: f.name,
+            type: f.type,
+            req: 'Guaranteed',
+            desc: f.description || `Response field: ${f.name}`
+          })) || endpointPreview?.responseFields
+        };
+      });
+    }
+    if (endpointPreview) return [endpointPreview];
+    return [];
+  }, [activeDoc, endpointPreview]);
+
+
+  // ── Action: Save as Draft (Floating Alert) ──
   const handleSaveAsDraft = async () => {
     if (!activeDoc) return;
 
+    if (syntaxError) {
+      const formatted = formatSyntaxError(sourceCode, sourceFormat, syntaxError);
+      setFloatingAlert({
+        isOpen: true,
+        type: 'warning',
+        title: 'تعذر حفظ المسودة: الكود يحتوي على أخطاء صياغة',
+        message: 'تم تجميد الحفظ لمنع تلويث قاعدة البيانات بمسودات غير صالحة. يرجى مراجعة وتصحيح الخلل البرمجي التالي:',
+        codeSnippet: formatted.snippet,
+        confirmText: 'العودة لتصحيح الكود'
+      });
+      floatingAlertOnConfirmRef.current = null;
+      return;
+    }
+
     await uastDraftService.saveDraft({
       ...activeDoc,
+      systemKey: activeDoc.systemKey || selectedSystemKey,
+      entityId: activeDoc.entityId || selectedEntityId,
       rawSource: sourceCode,
       rawFormat: sourceFormat,
       status: 'PRIVATE_DRAFT'
     });
 
-    setCenterModal({
+    setFloatingAlert({
       isOpen: true,
-      title: 'تأكيد العملية',
-      message: 'تم حفظ المسودة بنجاح في سجل مسوداتك الخاصة.',
-      onConfirm: () => {
-        setCenterModal(null);
-        refreshStorageLists();
-        setEditorState('import_selection');
-      }
+      type: 'success',
+      title: 'تم حفظ المسودة بنجاح',
+      message: `تم حفظ أحدث نسخة من مسودة الوثيقة في سجل مسوداتك الخاصة تحت نظام [${currentSysDisplayName}] ← جهة [${currentIntDisplayName}].`,
+      confirmText: 'متابعة'
     });
+    floatingAlertOnConfirmRef.current = () => {
+      refreshStorageLists();
+      setEditorState('import_selection');
+    };
   };
 
-  // ── Action: Submit to Reviewer (Center Modal + Move to Tab 3) ──
+  // ── Action: Submit to Reviewer (Floating Alert + Move to Tab 3) ──
   const handleSubmitToReviewer = async () => {
     if (!activeDoc) return;
 
+    if (syntaxError) {
+      const formatted = formatSyntaxError(sourceCode, sourceFormat, syntaxError);
+      setFloatingAlert({
+        isOpen: true,
+        type: 'error',
+        title: 'تم رفض الإرسال: مواصفة الوثيقة غير صالحة',
+        message: 'ترفض المنظومة رفع أي وثيقة إلى المشرف الرقابي طالما تحتوي على أخطاء صياغة برمجية. تفاصيل الخطأ:',
+        codeSnippet: formatted.snippet,
+        confirmText: 'العودة للمحرر وتصحيح الخطأ'
+      });
+      floatingAlertOnConfirmRef.current = null;
+      return;
+    }
+
     const docToSubmit = {
       ...activeDoc,
+      systemKey: activeDoc.systemKey || selectedSystemKey,
+      entityId: activeDoc.entityId || selectedEntityId,
       rawSource: sourceCode,
       rawFormat: sourceFormat,
       status: 'PENDING_REVIEW' as const
     };
     await uastDraftService.saveDraft(docToSubmit);
 
-    setCenterModal({
+    setFloatingAlert({
       isOpen: true,
-      title: 'تم رفع الوثيقة بنجاح',
-      message: 'تم إرسال الوثيقة للمشرف الرقابي للاعتماد.',
-      onConfirm: () => {
-        setCenterModal(null);
-        refreshStorageLists();
-        setEditorState('import_selection');
-        setActiveTab('submissions');
-        if (onPublishSuccess) {
-          onPublishSuccess(docToSubmit);
-        }
-      }
+      type: 'success',
+      title: 'تم رفع الوثيقة بنجاح للمراجعة الرقابية',
+      message: `تم إرسال الوثيقة الرسمية للمشرف الرقابي للاعتماد تحت نظام [${currentSysDisplayName}] ← جهة [${currentIntDisplayName}].`,
+      confirmText: 'عرض قائمة المرفوعات'
     });
+    floatingAlertOnConfirmRef.current = () => {
+      refreshStorageLists();
+      setEditorState('import_selection');
+      setActiveTab('submissions');
+      if (onPublishSuccess) {
+        onPublishSuccess(docToSubmit, docToSubmit.systemKey, docToSubmit.entityId);
+      }
+    };
   };
 
   // ── Action in Tab 2: [استكمال] ──
   const handleResumeDraft = (draft: UastDocument) => {
     setActiveDoc(draft);
+    if (draft.systemKey && workbenchSystems[draft.systemKey]) {
+      setSelectedSystemKey(draft.systemKey);
+    }
+    if (draft.entityId) {
+      setSelectedEntityId(draft.entityId);
+    }
     setSourceCode(draft.rawSource || JSON.stringify(draft.requestTree, null, 2));
     setSourceFormat(draft.rawFormat || 'json');
     setEditorState('active_editing');
@@ -1071,9 +1448,9 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          borderBottom: '1px solid var(--border, rgba(255, 255, 255, 0.1))',
           padding: '0 1.25rem',
-          backgroundColor: '#090f19',
+          backgroundColor: 'var(--bg-subtle, #090f19)',
           flexShrink: 0
         }}
       >
@@ -1122,9 +1499,9 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
               style={{
                 fontSize: '0.75rem',
                 padding: '0.1rem 0.5rem',
-                background: 'rgba(255, 255, 255, 0.08)',
+                background: 'var(--overlay-subtle, rgba(255, 255, 255, 0.08))',
                 borderRadius: '999px',
-                color: activeTab === 'drafts' ? '#10b981' : '#cbd5e1'
+                color: activeTab === 'drafts' ? '#10b981' : 'var(--text-main, #cbd5e1)'
               }}
             >
               {draftsList.length}
@@ -1154,9 +1531,9 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
               style={{
                 fontSize: '0.75rem',
                 padding: '0.1rem 0.5rem',
-                background: 'rgba(255, 255, 255, 0.08)',
+                background: 'var(--overlay-subtle, rgba(255, 255, 255, 0.08))',
                 borderRadius: '999px',
-                color: activeTab === 'submissions' ? '#10b981' : '#cbd5e1'
+                color: activeTab === 'submissions' ? '#10b981' : 'var(--text-main, #cbd5e1)'
               }}
             >
               {submissionsList.length}
@@ -1166,13 +1543,34 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
 
         {/* Studio Actions in Tab Header */}
         {activeTab === 'add' && editorState === 'active_editing' && activeDoc && (
-          <div className="studio-actions-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div className="studio-actions-group" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            {/* Live Context Route Pill in Header */}
+            <div 
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                padding: '0.3rem 0.75rem',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                borderRadius: '6px',
+                fontSize: '0.8rem',
+                color: '#34d399',
+                fontWeight: 600
+              }}
+              title={isRtl ? 'الجهة والنظام التابع لهما هذا التوثيق' : 'Assigned System & Entity'}
+            >
+              <span>{currentSysDisplayName}</span>
+              <span style={{ opacity: 0.5 }}>←</span>
+              <span>{currentIntDisplayName}</span>
+            </div>
+
             <button 
               className="studio-btn-save"
               onClick={() => setEditorState('import_selection')}
               style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                color: '#e2e8f0',
+                backgroundColor: 'var(--overlay-subtle, rgba(255, 255, 255, 0.08))',
+                color: 'var(--text-main, #e2e8f0)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '4px'
@@ -1194,6 +1592,9 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
             <button 
               className="studio-btn-save"
               onClick={handleSaveAsDraft}
+              disabled={!!syntaxError}
+              style={syntaxError ? { opacity: 0.5, cursor: 'not-allowed', filter: 'grayscale(0.6)' } : undefined}
+              title={syntaxError ? 'تعذر الحفظ: صحح أخطاء الصياغة أولاً' : 'حفظ كمسودة'}
             >
               حفظ كمسودة
             </button>
@@ -1201,6 +1602,9 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
             <button 
               className="studio-btn-submit"
               onClick={handleSubmitToReviewer}
+              disabled={!!syntaxError}
+              style={syntaxError ? { opacity: 0.5, cursor: 'not-allowed', filter: 'grayscale(0.6)' } : undefined}
+              title={syntaxError ? 'تعذر الرفع: صحح أخطاء الصياغة أولاً' : 'رفع إلى المراجع'}
             >
               رفع إلى المراجع
             </button>
@@ -1208,23 +1612,246 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
         )}
       </div>
 
-      {/* ── CENTER MODAL DIALOG ── */}
-      {centerModal && centerModal.isOpen && (
-        <div className="center-modal-backdrop">
-          <div className="center-modal-card">
-            <h3 className="center-modal-title">{centerModal.title}</h3>
-            <p className="center-modal-body">{centerModal.message}</p>
-            <div className="center-modal-actions">
+      {/* ── MODAL: ADD NEW SYSTEM ── */}
+      {isAddSystemModalOpen && (
+        <div className="sovereign-modal-backdrop" onClick={() => setIsAddSystemModalOpen(false)}>
+          <div className="sovereign-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="sovereign-modal-header">
+              <h3 className="sovereign-modal-title">
+                <Layers size={20} style={{ color: '#10b981' }} />
+                <span>{isRtl ? 'إضافة نظام جديد إلى المنظومة' : 'Add New System'}</span>
+              </h3>
               <button 
-                className="btn-sovereign-primary"
-                onClick={centerModal.onConfirm}
+                className="sovereign-modal-close-btn" 
+                onClick={() => setIsAddSystemModalOpen(false)}
+                type="button"
               >
-                موافق
+                <X size={18} />
               </button>
             </div>
+
+            <form onSubmit={handleCreateSystem} className="sovereign-modal-form">
+              <div className="sovereign-form-group">
+                <label className="sovereign-form-label">
+                  {isRtl ? 'اسم النظام بالعربية *' : 'System Name (Arabic) *'}
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder={isRtl ? 'مثال: نظام التسويات والمقاصة' : 'e.g. Clearing & Settlements System'}
+                  value={newSysNameAr}
+                  onChange={(e) => setNewSysNameAr(e.target.value)}
+                  className="sovereign-form-input"
+                  autoFocus
+                />
+              </div>
+
+              <div className="sovereign-form-group">
+                <label className="sovereign-form-label">
+                  {isRtl ? 'اسم النظام بالإنجليزية' : 'System Name (English)'}
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Settlements and Clearing Gateway"
+                  value={newSysNameEn}
+                  onChange={(e) => setNewSysNameEn(e.target.value)}
+                  className="sovereign-form-input"
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div className="sovereign-form-group">
+                  <label className="sovereign-form-label">
+                    {isRtl ? 'رمز النظام (Code)' : 'System Code'}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="SYS_SETTLEMENT"
+                    value={newSysCode}
+                    onChange={(e) => setNewSysCode(e.target.value.toUpperCase())}
+                    className="sovereign-form-input"
+                  />
+                </div>
+
+                <div className="sovereign-form-group">
+                  <label className="sovereign-form-label">
+                    {isRtl ? 'الأيقونة' : 'Icon'}
+                  </label>
+                  <select
+                    value={newSysIcon}
+                    onChange={(e) => setNewSysIcon(e.target.value)}
+                    className="sovereign-form-select"
+                  >
+                    <option value="Layers">{isRtl ? 'تحصيل / منصة (Layers)' : 'Layers'}</option>
+                    <option value="Receipt">{isRtl ? 'تنترة / فواتير (Receipt)' : 'Receipt'}</option>
+                    <option value="Globe">{isRtl ? 'المجمع / بوابة عامة (Globe)' : 'Globe'}</option>
+                    <option value="BellRing">{isRtl ? 'إشعارات (BellRing)' : 'BellRing'}</option>
+                    <option value="ShieldAlert">{isRtl ? 'حماية وامتثال (ShieldAlert)' : 'ShieldAlert'}</option>
+                    <option value="Scale">{isRtl ? 'تسوية / ERP (Scale)' : 'Scale'}</option>
+                    <option value="Building2">{isRtl ? 'مؤسسي / بنكي (Building2)' : 'Building2'}</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="sovereign-form-group">
+                <label className="sovereign-form-label">
+                  {isRtl ? 'الوصف والغرض التشغيلي' : 'Description'}
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder={isRtl ? 'وصف مختصر لمهام هذا النظام...' : 'Brief summary of this system...'}
+                  value={newSysDesc}
+                  onChange={(e) => setNewSysDesc(e.target.value)}
+                  className="sovereign-form-textarea"
+                />
+              </div>
+
+              <div className="sovereign-modal-actions">
+                <button
+                  type="button"
+                  className="sovereign-btn-cancel"
+                  onClick={() => setIsAddSystemModalOpen(false)}
+                >
+                  {isRtl ? 'إلغاء' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  className="sovereign-btn-submit"
+                >
+                  <Plus size={16} />
+                  <span>{isRtl ? 'إضافة وتعيين النظام' : 'Create & Select System'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
+
+      {/* ── MODAL: ADD NEW ENTITY / INTEGRATION ── */}
+      {isAddEntityModalOpen && (
+        <div className="sovereign-modal-backdrop" onClick={() => setIsAddEntityModalOpen(false)}>
+          <div className="sovereign-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="sovereign-modal-header">
+              <h3 className="sovereign-modal-title">
+                <Building2 size={20} style={{ color: '#38bdf8' }} />
+                <span>{isRtl ? `إضافة جهة تابعة لنظام [${currentSysDisplayName}]` : `Add Entity under [${currentSysDisplayName}]`}</span>
+              </h3>
+              <button 
+                className="sovereign-modal-close-btn" 
+                onClick={() => setIsAddEntityModalOpen(false)}
+                type="button"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateEntity} className="sovereign-modal-form">
+              <div className="sovereign-form-group">
+                <label className="sovereign-form-label">
+                  {isRtl ? 'اسم الجهة / البنك / القطاع بالعربية *' : 'Entity Name (Arabic) *'}
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder={isRtl ? 'مثال: بنك اليمن والكويت أو مصلحة الضرائب' : 'e.g. Yemen Kuwait Bank'}
+                  value={newEntityNameAr}
+                  onChange={(e) => setNewEntityNameAr(e.target.value)}
+                  className="sovereign-form-input"
+                  autoFocus
+                />
+              </div>
+
+              <div className="sovereign-form-group">
+                <label className="sovereign-form-label">
+                  {isRtl ? 'اسم الجهة بالإنجليزية' : 'Entity Name (English)'}
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Yemen Kuwait Bank"
+                  value={newEntityNameEn}
+                  onChange={(e) => setNewEntityNameEn(e.target.value)}
+                  className="sovereign-form-input"
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div className="sovereign-form-group">
+                  <label className="sovereign-form-label">
+                    {isRtl ? 'رمز الجهة (Code)' : 'Entity Code'}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="INT_YKB"
+                    value={newEntityCode}
+                    onChange={(e) => setNewEntityCode(e.target.value.toUpperCase())}
+                    className="sovereign-form-input"
+                  />
+                </div>
+
+                <div className="sovereign-form-group">
+                  <label className="sovereign-form-label">
+                    {isRtl ? 'الأيقونة' : 'Icon'}
+                  </label>
+                  <select
+                    value={newEntityIcon}
+                    onChange={(e) => setNewEntityIcon(e.target.value)}
+                    className="sovereign-form-select"
+                  >
+                    <option value="Building2">{isRtl ? 'بنوك / مؤسسات (Building2)' : 'Building2'}</option>
+                    <option value="Store">{isRtl ? 'متاجر وتجار (Store)' : 'Store'}</option>
+                    <option value="Scale">{isRtl ? 'حسابات و ERP (Scale)' : 'Scale'}</option>
+                    <option value="ShieldAlert">{isRtl ? 'رقابة وامتثال (ShieldAlert)' : 'ShieldAlert'}</option>
+                    <option value="Globe">{isRtl ? 'بوابة عامة (Globe)' : 'Globe'}</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="sovereign-form-group">
+                <label className="sovereign-form-label">
+                  {isRtl ? 'اتجاه الربط / العمليات' : 'Integration Direction'}
+                </label>
+                <select
+                  value={newEntityDirection}
+                  onChange={(e) => setNewEntityDirection(e.target.value as any)}
+                  className="sovereign-form-select"
+                >
+                  <option value="INBOUND">{isRtl ? 'وارد (INBOUND - استقبال طلبات من الجهة)' : 'INBOUND'}</option>
+                  <option value="OUTBOUND">{isRtl ? 'صادر (OUTBOUND - إرسال طلبات للجهة)' : 'OUTBOUND'}</option>
+                  <option value="BIDIRECTIONAL">{isRtl ? 'ثنائي (BIDIRECTIONAL - تبادل متكامل)' : 'BIDIRECTIONAL'}</option>
+                </select>
+              </div>
+
+              <div className="sovereign-modal-actions">
+                <button
+                  type="button"
+                  className="sovereign-btn-cancel"
+                  onClick={() => setIsAddEntityModalOpen(false)}
+                >
+                  {isRtl ? 'إلغاء' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  className="sovereign-btn-submit"
+                >
+                  <Plus size={16} />
+                  <span>{isRtl ? 'إضافة وتعيين الجهة' : 'Create & Select Entity'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── UNIFIED FLOATING ALERT CARD (Rich, Expressive & Floating) ── */}
+      <FloatingAlertCard
+        alert={floatingAlert}
+        onClose={() => {
+          const cb = floatingAlertOnConfirmRef.current;
+          floatingAlertOnConfirmRef.current = null;
+          setFloatingAlert(null);
+          if (cb) cb();
+        }}
+      />
 
       {/* ══════════════════════════════════════════════════════════════
           TAB 1: [إضافة توثيق] - 1. IMPORT SELECTION HUB
@@ -1238,6 +1865,72 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
             onChange={handleFileSelected} 
             style={{ display: 'none' }} 
           />
+
+          {/* ── TARGET DESTINATION BAR (CLEAN & COMPACT) ── */}
+          <div className="target-assignment-strip">
+            <div className="target-strip-header">
+              <Layers size={17} className="target-strip-icon" />
+              <span className="target-strip-title">{isRtl ? 'وجهة التوثيق:' : 'Destination:'}</span>
+            </div>
+
+            <div className="target-strip-controls">
+              {/* System Selector */}
+              <div className="target-strip-field">
+                <span className="target-field-tag">{isRtl ? 'النظام:' : 'System:'}</span>
+                <div className="target-select-wrapper">
+                  <select
+                    className="target-native-select compact"
+                    value={selectedSystemKey}
+                    onChange={(e) => handleSystemChange(e.target.value)}
+                  >
+                    {Object.values(workbenchSystems).map(sys => (
+                      <option key={sys.key} value={sys.key}>
+                        {sys.name} {sys.code ? `(${sys.code})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="target-select-chevron" size={14} />
+                </div>
+                <button
+                  type="button"
+                  className="target-btn-add-mini"
+                  onClick={() => setIsAddSystemModalOpen(true)}
+                  title={isRtl ? 'إضافة نظام جديد' : 'Add New System'}
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+
+              <span className="target-strip-divider">{isRtl ? '←' : '→'}</span>
+
+              {/* Entity Selector */}
+              <div className="target-strip-field">
+                <span className="target-field-tag">{isRtl ? 'الجهة:' : 'Entity:'}</span>
+                <div className="target-select-wrapper">
+                  <select
+                    className="target-native-select compact"
+                    value={selectedEntityId}
+                    onChange={(e) => setSelectedEntityId(e.target.value)}
+                  >
+                    {currentSysObj && Object.values(currentSysObj.integrations || {}).map(int => (
+                      <option key={int.entityId} value={int.entityId}>
+                        {int.name} {int.code ? `(${int.code})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="target-select-chevron" size={14} />
+                </div>
+                <button
+                  type="button"
+                  className="target-btn-add-mini"
+                  onClick={() => setIsAddEntityModalOpen(true)}
+                  title={isRtl ? 'إضافة جهة جديدة' : 'Add New Entity'}
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+            </div>
+          </div>
 
           {/* Format Cards Grid */}
           <div className="format-cards-grid">
@@ -1311,7 +2004,21 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
               </div>
             </div>
 
-            {/* 6. Manual Entry */}
+            {/* 6. PDF Document */}
+            <div 
+              className="format-selection-card"
+              onClick={(e) => triggerFilePicker('pdf', e)}
+              role="button"
+              tabIndex={0}
+              title="استيراد وثيقة PDF مباشرة وعرضها بنفس الجودة"
+            >
+              <div className="format-file-visual">
+                <FileText size={42} style={{ color: '#ef4444' }} />
+                <span className="format-file-ext" style={{ color: '#ef4444' }}>PDF</span>
+              </div>
+            </div>
+
+            {/* 7. Manual Entry */}
             <div 
               className="format-selection-card is-manual"
               onClick={handleStartNewDoc}
@@ -1475,16 +2182,48 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
                   )}
                 </div>
 
-                <div className="studio-card-body-editor">
-                  <textarea 
-                    className="studio-code-textarea"
-                    value={sourceCode}
-                    onChange={handleCodeChange}
-                    placeholder="اكتب أو الصق كود الـ API هنا..."
-                    dir="ltr"
-                    spellCheck={false}
-                  />
-                </div>
+                <ErrorBoundary
+                  fallbackTitle="تعذر تشغيل محرر الكود: خطأ في معالجة النص"
+                  fallbackMessage="واجه محرر الكود تعارضاً أثناء قراءة النص المدخل. تفاصيل الخطأ التقني المكتشف:"
+                >
+                  {syntaxError && (
+                    <div style={{
+                      margin: '0.65rem 0.85rem 0.25rem 0.85rem',
+                      padding: '0.65rem 0.85rem',
+                      background: 'rgba(239, 68, 68, 0.15)',
+                      border: '1px solid #ef4444',
+                      borderRadius: '8px',
+                      color: '#fca5a5',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '0.5rem',
+                      boxShadow: '0 4px 12px rgba(239, 68, 68, 0.15)'
+                    }}>
+                      <AlertTriangle size={16} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <strong style={{ color: '#ef4444' }}>تم رفض التعديل لوجود خطأ في الصياغة (Syntax Error):</strong>
+                        <div style={{ fontFamily: 'monospace', fontSize: '0.76rem', color: '#fca5a5', marginTop: '3px', wordBreak: 'break-all' }}>
+                          {syntaxError}
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#fda4af', marginTop: '3px' }}>
+                          تم تعليق التحديث والحفظ التلقائي لمنع قبول أو عرض أي بيانات وهمية.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="studio-card-body-editor">
+                    <textarea 
+                      className="studio-code-textarea"
+                      value={sourceCode}
+                      onChange={handleCodeChange}
+                      placeholder="اكتب أو الصق كود الـ API هنا..."
+                      dir="ltr"
+                      spellCheck={false}
+                    />
+                  </div>
+                </ErrorBoundary>
               </div>
             )}
 
@@ -1529,18 +2268,90 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
                   )}
                 </div>
 
-                {/* Full Detailed Spec Viewer inside the panel */}
-                <div className="studio-card-body-scroll spec-viewer-contained">
-                  {endpointPreview ? (
-                    <SpecViewer 
-                      key={activeDoc.documentId} 
-                      endpoint={endpointPreview} 
-                      highlightedField={highlightedField} 
-                    />
-                  ) : (
-                    <div className="empty-state-notice">جاري تجهيز بيانات المعاينة...</div>
+                {/* Content: Either Full Document Renderer or Interactive ApiDocumentationView */}
+                <ErrorBoundary
+                  fallbackTitle="تعذر عرض معاينة البوابة: خطأ في مواصفة الـ API"
+                  fallbackMessage="واجه محرك المعاينة خطأ أثناء تحليل مواصفة المسارات والحقول المحددة:"
+                >
+                  {syntaxError && (
+                    <div style={{
+                      padding: '0.55rem 0.85rem',
+                      background: 'rgba(239, 68, 68, 0.12)',
+                      borderBottom: '1px solid rgba(239, 68, 68, 0.3)',
+                      color: '#f87171',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem'
+                    }}>
+                      <AlertTriangle size={15} color="#ef4444" style={{ flexShrink: 0 }} />
+                      <span>المعاينة مجمدة: يوجد خطأ في صياغة الكود يمنع تحديث المواصفة.</span>
+                    </div>
                   )}
-                </div>
+
+                  <div className="studio-card-body-scroll spec-viewer-contained" style={pdfBlobUrl ? { height: '100%', padding: 0 } : undefined}>
+                    {pdfBlobUrl ? (
+                      <iframe 
+                        src={pdfBlobUrl} 
+                        title="معاينة وثيقة PDF" 
+                        style={{ width: '100%', height: '100%', minHeight: '850px', border: 'none' }} 
+                      />
+                    ) : webViewMode === 'doc' ? (
+                      <div className="pdf-paper-sheet" style={{ margin: '1rem auto' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => setWebViewMode('portal')}
+                            style={{
+                              padding: '0.35rem 0.75rem',
+                              borderRadius: '6px',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              background: '#0ea5e9',
+                              color: '#ffffff',
+                              border: 'none',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            العودة إلى بوابة الـ API التفاعلية ←
+                          </button>
+                        </div>
+                        <MarkdownDocumentRenderer content={sourceCode || activeDoc?.rawSource || ''} />
+                      </div>
+                    ) : workbenchEndpoints.length > 0 ? (
+                      <ApiDocumentationView
+                        endpoints={workbenchEndpoints}
+                        activeEndpointIndex={selectedEndpointIndex}
+                        onSelectEndpoint={setSelectedEndpointIndex}
+                        systemName={activeDoc?.serviceName || 'Ultimate Pay Platform'}
+                        rawSource={sourceCode || activeDoc?.rawSource}
+                        highlightedField={highlightedField}
+                        initialTab="endpoints"
+                        extraControls={
+                          <button
+                            type="button"
+                            onClick={() => setWebViewMode('doc')}
+                            style={{
+                              padding: '0.25rem 0.65rem',
+                              borderRadius: '6px',
+                              fontSize: '0.74rem',
+                              fontWeight: 600,
+                              background: 'rgba(255, 255, 255, 0.05)',
+                              color: 'var(--text-muted, #cbd5e1)',
+                              border: '1px solid var(--border, rgba(255, 255, 255, 0.12))',
+                              cursor: 'pointer'
+                            }}
+                            title="عرض وثيقة الـ Markdown بالكامل"
+                          >
+                            المستند الكامل (PDF Spec)
+                          </button>
+                        }
+                      />
+                    ) : (
+                      <div className="empty-state-notice">لا توجد بيانات صالحة للعرض</div>
+                    )}
+                  </div>
+                </ErrorBoundary>
               </div>
             )}
 
@@ -1566,6 +2377,16 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
                 <div className="studio-floating-actions">
                   <button 
                     className="studio-icon-btn"
+                    onClick={() => window.print()}
+                    title="طباعة أو تصدير الوثيقة كـ PDF"
+                    aria-label="طباعة وتصدير PDF"
+                    style={{ color: '#0ea5e9' }}
+                  >
+                    <Printer size={14} />
+                  </button>
+
+                  <button 
+                    className="studio-icon-btn"
                     onClick={() => handleToggleColumnFullscreen('pdf')}
                     title={fullscreenTarget === 'pdf' ? (prevFullscreenTarget === 'all' ? 'العودة للشاشات الثلاث (Esc)' : 'تصغير (Esc)') : 'ملء شاشة الـ PDF'}
                     aria-label="ملء شاشة الـ PDF"
@@ -1585,7 +2406,108 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
                   )}
                 </div>
 
-              <div className="studio-card-body-scroll studio-pdf-scroll">
+                {/* Screen 3 View Mode Toolbar */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '6px 14px',
+                  background: 'var(--bg-card, #ffffff)',
+                  borderBottom: '1px solid var(--border-color, #e2e8f0)',
+                  fontSize: '0.78rem',
+                  flexWrap: 'wrap',
+                  gap: '8px'
+                }}>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => setPdfViewMode('full_doc')}
+                      style={{
+                        padding: '3px 10px',
+                        borderRadius: '4px',
+                        fontSize: '0.74rem',
+                        fontWeight: pdfViewMode === 'full_doc' ? 700 : 500,
+                        backgroundColor: pdfViewMode === 'full_doc' ? '#0ea5e9' : 'transparent',
+                        color: pdfViewMode === 'full_doc' ? '#ffffff' : '#64748b',
+                        border: pdfViewMode === 'full_doc' ? '1px solid #0ea5e9' : '1px solid #cbd5e1',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      الوثيقة الكاملة (Full Documentation)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPdfViewMode('gov_summary')}
+                      style={{
+                        padding: '3px 10px',
+                        borderRadius: '4px',
+                        fontSize: '0.74rem',
+                        fontWeight: pdfViewMode === 'gov_summary' ? 700 : 500,
+                        backgroundColor: pdfViewMode === 'gov_summary' ? '#0ea5e9' : 'transparent',
+                        color: pdfViewMode === 'gov_summary' ? '#ffffff' : '#64748b',
+                        border: pdfViewMode === 'gov_summary' ? '1px solid #0ea5e9' : '1px solid #cbd5e1',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      ملخص الحوكمة (Governance Card)
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '3px 10px',
+                      borderRadius: '4px',
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                      backgroundColor: '#f0fdf4',
+                      color: '#15803d',
+                      border: '1px solid #bbf7d0',
+                      cursor: 'pointer'
+                    }}
+                    title="طباعة الوثيقة كملف PDF مطابق لـ document.pdf"
+                  >
+                    <Printer size={12} />
+                    <span>طباعة / تصدير PDF</span>
+                  </button>
+                </div>
+
+              <ErrorBoundary
+                fallbackTitle="تعذر إعداد وثيقة الـ PDF: خطأ في بنية التوثيق"
+                fallbackMessage="واجه محرك إعداد الوثيقة خطأ أثناء معالجة جداول التوثيق والترويسات الرسمية:"
+              >
+                {syntaxError && (
+                  <div style={{
+                    padding: '0.55rem 0.85rem',
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    borderBottom: '1px solid rgba(239, 68, 68, 0.3)',
+                    color: '#f87171',
+                    fontSize: '0.8rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}>
+                    <AlertTriangle size={15} color="#ef4444" style={{ flexShrink: 0 }} />
+                    <span>عرض الوثيقة مجمد: يلزم تصحيح أخطاء الكود لعرض التوثيق الفعلي.</span>
+                  </div>
+                )}
+
+              <div className="studio-card-body-scroll studio-pdf-scroll" style={pdfBlobUrl ? { height: '100%', padding: 0 } : undefined}>
+                {pdfBlobUrl ? (
+                  <iframe 
+                    src={pdfBlobUrl} 
+                    title={activeDoc.serviceName || 'وثيقة PDF معتمدة'} 
+                    style={{ width: '100%', height: '100%', minHeight: '850px', border: 'none' }} 
+                  />
+                ) : pdfViewMode === 'full_doc' ? (
+                  <div className="pdf-paper-sheet" style={{ padding: '2.5rem 2.8rem' }}>
+                    <MarkdownDocumentRenderer content={sourceCode || activeDoc?.rawSource || ''} />
+                  </div>
+                ) : (
                 <div className="pdf-paper-sheet">
                   <div className="pdf-header-row">
                     <div>
@@ -1600,73 +2522,240 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
 
                   <hr className="pdf-divider" />
 
+                  {/* ── Document Metadata ── */}
                   <div className="pdf-meta-grid">
                     <div><strong>اسم الخدمة:</strong> {activeDoc.serviceName}</div>
                     <div><strong>كود الخدمة:</strong> <span dir="ltr">{activeDoc.serviceCode}</span></div>
                     <div><strong>البروتوكول:</strong> {activeDoc.channel.protocol}</div>
                     <div><strong>طريقة الاستدعاء:</strong> <span dir="ltr">{activeDoc.channel.method}</span></div>
                     <div style={{ gridColumn: 'span 2' }}>
-                      <strong>المسار المعتمد:</strong> <span className="code-font" dir="ltr">{activeDoc.channel.endpointPath}</span>
+                      <strong>المسار الأساسي:</strong> <span className="code-font" dir="ltr">{activeDoc.channel.endpointPath}</span>
                     </div>
+                    {activeDoc.baseUrl && (
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <strong>Base URL:</strong> <span className="code-font" dir="ltr" style={{ color: '#0ea5e9', fontSize: '0.72rem' }}>{activeDoc.baseUrl}</span>
+                      </div>
+                    )}
+                    {activeDoc.overviewText && (
+                      <div style={{ gridColumn: 'span 2', fontSize: '0.74rem', color: 'var(--text-dim, #475569)', lineHeight: 1.6, marginTop: '0.25rem', padding: '0.5rem', background: 'rgba(0,0,0,0.03)', borderRadius: '4px', borderRight: '3px solid #10b981' }}>
+                        {activeDoc.overviewText.substring(0, 300)}{activeDoc.overviewText.length > 300 ? '...' : ''}
+                      </div>
+                    )}
                   </div>
 
-                  <h3 className="pdf-section-heading">أولاً: مواصفات حقول الطلب (Request Parameters)</h3>
+                  {/* ── ALL Endpoints Overview (for multi-endpoint files) ── */}
+                  {activeDoc.allEndpoints && activeDoc.allEndpoints.length > 0 && (
+                    <>
+                      <h3 className="pdf-section-heading">
+                        أولاً: نقاط النهاية (API Endpoints) — {activeDoc.allEndpoints.length} endpoint{activeDoc.allEndpoints.length > 1 ? 's' : ''} (انقر على أي نقطة لمعاينتها)
+                      </h3>
+                      <div className="pdf-table-wrapper">
+                        <table className="pdf-formal-table">
+                          <thead>
+                            <tr>
+                              <th style={{ width: '8%', whiteSpace: 'nowrap' }}>#</th>
+                              <th style={{ width: '12%', whiteSpace: 'nowrap' }}>الطريقة</th>
+                              <th style={{ width: '40%' }}>المسار (Path)</th>
+                              <th style={{ width: '40%' }}>الوصف</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {activeDoc.allEndpoints.map((ep, i) => (
+                              <tr 
+                                key={i}
+                                onClick={() => setSelectedEndpointIndex(i)}
+                                style={{
+                                  cursor: 'pointer',
+                                  backgroundColor: selectedEndpointIndex === i ? 'rgba(14, 165, 233, 0.12)' : undefined,
+                                  borderRight: selectedEndpointIndex === i ? '3px solid #0ea5e9' : undefined
+                                }}
+                                title="انقر لمعاينة هذه النقطة في شاشة العرض وتفاصيلها أدناه"
+                              >
+                                <td style={{ textAlign: 'center', fontWeight: 700, fontSize: '0.68rem', color: selectedEndpointIndex === i ? '#0284c7' : '#64748b' }}>
+                                  {selectedEndpointIndex === i ? '▶ ' : ''}{i + 1}
+                                </td>
+                                <td>
+                                  <span style={{
+                                    display: 'inline-block',
+                                    padding: '0.1rem 0.4rem',
+                                    borderRadius: '3px',
+                                    fontSize: '0.65rem',
+                                    fontWeight: 800,
+                                    backgroundColor: ep.method === 'GET' ? '#eff6ff' : ep.method === 'POST' ? '#f0fdf4' : ep.method === 'DELETE' ? '#fef2f2' : '#fefce8',
+                                    color: ep.method === 'GET' ? '#1d4ed8' : ep.method === 'POST' ? '#15803d' : ep.method === 'DELETE' ? '#b91c1c' : '#92400e',
+                                    border: `1px solid ${ep.method === 'GET' ? '#bfdbfe' : ep.method === 'POST' ? '#bbf7d0' : ep.method === 'DELETE' ? '#fecaca' : '#fde68a'}`
+                                  }}>
+                                    {ep.method}
+                                  </span>
+                                </td>
+                                <td><code className="code-font" dir="ltr" style={{ fontSize: '0.68rem', color: '#0f766e', fontWeight: selectedEndpointIndex === i ? 700 : 400 }}>{ep.path}</code></td>
+                                <td style={{ fontSize: '0.68rem', color: '#334155', fontWeight: selectedEndpointIndex === i ? 600 : 400 }}>{ep.summary}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+
+                  {/* ── Real Request Fields for selected endpoint ── */}
+                  <h3 className="pdf-section-heading">
+                    {activeDoc.allEndpoints && activeDoc.allEndpoints.length > 0 ? 'ثانياً' : 'أولاً'}: مواصفات حقول الطلب (Request Parameters) {activeDoc.allEndpoints && activeDoc.allEndpoints.length > 1 ? `— ${activeDoc.allEndpoints[selectedEndpointIndex]?.summary || ''}` : ''}
+                  </h3>
                   <div className="pdf-table-wrapper">
                     <table className="pdf-formal-table">
                       <thead>
                         <tr>
-                          <th style={{ width: '30%' }}>اسم الحقل</th>
-                          <th style={{ width: '20%', whiteSpace: 'nowrap' }}>النوع</th>
-                          <th style={{ width: '18%', whiteSpace: 'nowrap' }}>الإلزام</th>
-                          <th style={{ width: '32%' }}>القيمة الحية / الوصف</th>
+                          <th style={{ width: '28%' }}>اسم الحقل</th>
+                          <th style={{ width: '16%', whiteSpace: 'nowrap' }}>النوع</th>
+                          <th style={{ width: '14%', whiteSpace: 'nowrap' }}>الإلزام</th>
+                          <th style={{ width: '42%' }}>القيمة / الوصف</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {renderPdfTableRows(activeDoc.requestTree, 0, highlightedField)}
+                        {activeDoc.allEndpoints?.[selectedEndpointIndex]?.requestFields && activeDoc.allEndpoints[selectedEndpointIndex].requestFields!.length > 0 ? (
+                          activeDoc.allEndpoints[selectedEndpointIndex].requestFields!.map((rf, rIdx) => (
+                            <tr key={rIdx}>
+                              <td className="code-font" dir="ltr" style={{ fontWeight: 700, color: '#0284c7' }}>
+                                {rf.name}
+                              </td>
+                              <td><span className="pdf-type-badge">{rf.type}</span></td>
+                              <td>
+                                <span className={`pdf-req-badge ${rf.required ? 'is-mandatory' : 'is-optional'}`}>
+                                  {rf.required ? 'إلزامي' : 'اختياري'}
+                                </span>
+                              </td>
+                              <td style={{ fontSize: '0.70rem' }}>
+                                {rf.example ? `القيمة: ${rf.example}` : (rf.description || (rf.length ? `طول: ${rf.length}` : '—'))}
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          renderPdfTableRows(activeDoc.requestTree, 0, highlightedField)
+                        )}
                       </tbody>
                     </table>
                   </div>
 
-                  <h3 className="pdf-section-heading">ثانياً: ترويسات الأمان والمصادقة (Headers)</h3>
-                  <div className="pdf-table-wrapper">
-                    <table className="pdf-formal-table">
-                      <thead>
-                        <tr>
-                          <th style={{ width: '35%' }}>المفتاح</th>
-                          <th style={{ width: '25%', whiteSpace: 'nowrap' }}>النوع</th>
-                          <th style={{ width: '40%' }}>الوصف</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {activeDoc.headers.map((h, i) => (
-                          <tr key={i}>
-                            <td className="code-font" dir="ltr" style={{ fontSize: '0.70rem' }}>{h.semantics.name}</td>
-                            <td style={{ whiteSpace: 'nowrap', fontSize: '0.68rem' }}>{h.semantics.dataType}</td>
-                            <td style={{ fontSize: '0.68rem' }}>{h.semantics.description}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  {/* ── Real Response Fields for selected endpoint (if available) ── */}
+                  {activeDoc.allEndpoints?.[selectedEndpointIndex]?.responseFields && activeDoc.allEndpoints[selectedEndpointIndex].responseFields!.length > 0 && (
+                    <>
+                      <h3 className="pdf-section-heading">
+                        مواصفات حقول الاستجابة (Response Parameters) — {activeDoc.allEndpoints[selectedEndpointIndex].summary}
+                      </h3>
+                      <div className="pdf-table-wrapper">
+                        <table className="pdf-formal-table">
+                          <thead>
+                            <tr>
+                              <th style={{ width: '28%' }}>اسم الحقل</th>
+                              <th style={{ width: '18%', whiteSpace: 'nowrap' }}>النوع</th>
+                              <th style={{ width: '54%' }}>الوصف</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {activeDoc.allEndpoints[selectedEndpointIndex].responseFields!.map((rf, rIdx) => (
+                              <tr key={rIdx}>
+                                <td className="code-font" dir="ltr" style={{ fontWeight: 700, color: '#16a34a' }}>
+                                  {rf.name}
+                                </td>
+                                <td><span className="pdf-type-badge">{rf.type}</span></td>
+                                <td style={{ fontSize: '0.70rem' }}>{rf.description || '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
 
+                  {/* ── Real Imported Headers (from file, not hardcoded) ── */}
+                  {activeDoc.importedHeaders && activeDoc.importedHeaders.length > 0 && (
+                    <>
+                      <h3 className="pdf-section-heading">
+                        {activeDoc.allEndpoints && activeDoc.allEndpoints.length > 0 ? 'ثالثاً' : 'ثانياً'}: ترويسات الأمان المطلوبة (Required Security Headers)
+                      </h3>
+                      <div className="pdf-table-wrapper">
+                        <table className="pdf-formal-table">
+                          <thead>
+                            <tr>
+                              <th style={{ width: '28%' }}>المفتاح (Header)</th>
+                              <th style={{ width: '42%' }}>الوصف</th>
+                              <th style={{ width: '30%' }}>مثال</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {activeDoc.importedHeaders.map((h, i) => (
+                              <tr key={i}>
+                                <td className="code-font" dir="ltr" style={{ fontSize: '0.70rem', fontWeight: 700, color: /sign|secret|key|auth|nonce/i.test(h.name) ? '#b45309' : '#0f172a' }}>
+                                  {h.name}
+                                  {/sign|secret|key|auth|nonce/i.test(h.name) && (
+                                    <span style={{ fontSize: '0.55rem', marginRight: '4px', color: '#dc2626', backgroundColor: '#fef2f2', padding: '0.05rem 0.3rem', borderRadius: '2px', border: '1px solid #fca5a5' }}>سري</span>
+                                  )}
+                                </td>
+                                <td style={{ fontSize: '0.68rem', color: '#334155' }}>{h.description}</td>
+                                <td><code className="code-font" dir="ltr" style={{ fontSize: '0.63rem', color: '#059669', backgroundColor: '#ecfdf5', padding: '0.1rem 0.3rem', borderRadius: '3px', border: '1px solid #a7f3d0', wordBreak: 'break-all' }}>
+                                  {h.example ? (h.example.length > 35 ? h.example.substring(0, 35) + '...' : h.example) : '—'}
+                                </code></td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Fallback: show UAST headers if no importedHeaders */}
+                  {(!activeDoc.importedHeaders || activeDoc.importedHeaders.length === 0) && activeDoc.headers && activeDoc.headers.length > 0 && (
+                    <>
+                      <h3 className="pdf-section-heading">ثانياً: ترويسات الأمان والمصادقة (Headers)</h3>
+                      <div className="pdf-table-wrapper">
+                        <table className="pdf-formal-table">
+                          <thead>
+                            <tr>
+                              <th style={{ width: '35%' }}>المفتاح</th>
+                              <th style={{ width: '25%', whiteSpace: 'nowrap' }}>النوع</th>
+                              <th style={{ width: '40%' }}>الوصف</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {activeDoc.headers.map((h, i) => (
+                              <tr key={i}>
+                                <td className="code-font" dir="ltr" style={{ fontSize: '0.70rem' }}>{h.semantics.name}</td>
+                                <td style={{ whiteSpace: 'nowrap', fontSize: '0.68rem' }}>{h.semantics.dataType}</td>
+                                <td style={{ fontSize: '0.68rem' }}>{h.semantics.description}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+
+                  {/* ── Real Error Codes ── */}
                   {(activeDoc.errorCodes || []).length > 0 && (
                     <>
-                      <h3 className="pdf-section-heading">ثالثاً: مصفوفة أكواد الأخطاء والإجراءات (Error Matrix)</h3>
+                      <h3 className="pdf-section-heading">
+                        {activeDoc.allEndpoints && activeDoc.allEndpoints.length > 0
+                          ? (activeDoc.importedHeaders && activeDoc.importedHeaders.length > 0 ? 'رابعاً' : 'ثالثاً')
+                          : (activeDoc.importedHeaders && activeDoc.importedHeaders.length > 0 ? 'ثالثاً' : 'ثانياً')
+                        }: مصفوفة أكواد الأخطاء والإجراءات (Error Matrix)
+                        {activeDoc.errorCodes!.length > 12 && <span style={{ fontSize: '0.72rem', fontWeight: 400, color: '#64748b', marginRight: '0.5rem' }}>— يُعرض أول 12 من {activeDoc.errorCodes!.length}</span>}
+                      </h3>
                       <div className="pdf-table-wrapper">
                         <table className="pdf-formal-table">
                           <thead>
                             <tr>
                               <th>كود الخطأ</th>
                               <th>الرسالة التوضيحية</th>
-                              <th>الإجراء التصحيحي المطلوب</th>
+                              <th>الإجراء التصحيحي</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {activeDoc.errorCodes.map((err, i) => (
+                            {activeDoc.errorCodes!.slice(0, 12).map((err, i) => (
                               <tr key={i}>
-                                <td className="code-font" dir="ltr">{err.code}</td>
-                                <td>{err.message}</td>
-                                <td>{err.action}</td>
+                                <td className="code-font" dir="ltr" style={{ fontSize: '0.65rem', color: '#dc2626', fontWeight: 700 }}>{err.code}</td>
+                                <td style={{ fontSize: '0.67rem' }}>{err.message}</td>
+                                <td style={{ fontSize: '0.67rem', color: '#0369a1' }}>{err.action}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -1687,13 +2776,15 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
                       </div>
                     </div>
                     <div className="pdf-security-notice">
-                      هذه الوثيقة صادرة عن البنك المركزي / المنظومة الوطنية وتعتبر مرجعاً ملزماً لكافة المطورين.
+                      هذه الوثيقة صادرة عن المنظومة الوطنية وتعتبر مرجعاً ملزماً لكافة المطورين.
                     </div>
                   </div>
                 </div>
+                )}
                 {/* Permanent Bottom Safety Bar - stays visible during all scrolling */}
                 <div className="preview-permanent-bottom-safe-bar" />
               </div>
+              </ErrorBoundary>
             </div>
             )}
 
@@ -1758,54 +2849,126 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
           <div className={`studio-preview-column ${draftPdfFullscreen ? 'is-fullscreen' : ''}`}>
             {selectedDraft ? (
               <div className="preview-side-wrapper">
-                <div className="studio-card-header">
-                  <span className="studio-pane-pill">{selectedDraft.serviceCode} - {selectedDraft.serviceName}</span>
-                  <button 
-                    className="studio-icon-btn"
-                    onClick={() => setDraftPdfFullscreen(prev => !prev)}
-                    title="تكبير المعاينة"
-                    aria-label="تكبير المعاينة"
-                  >
-                    {draftPdfFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-                  </button>
-                </div>
-
-                <div className="studio-card-body-scroll studio-pdf-scroll">
-                  <div className="pdf-paper-sheet">
-                    <div className="pdf-header-row">
-                      <div>
-                        <h1 className="pdf-org-title">الجمهورية اليمنية</h1>
-                        <h2 className="pdf-doc-title">المنظومة الوطنية لحوكمة وتوثيق الـ APIs المصرفية</h2>
-                      </div>
-                      <div className="pdf-stamp-badge">
-                        <span>مسودة عمل</span>
-                        <span className="stamp-sub">Draft Version</span>
-                      </div>
-                    </div>
-                    <hr className="pdf-divider" />
-                    <div className="pdf-meta-grid">
-                      <div><strong>اسم الخدمة:</strong> {selectedDraft.serviceName}</div>
-                      <div><strong>كود الخدمة:</strong> <span dir="ltr">{selectedDraft.serviceCode}</span></div>
-                      <div><strong>طريقة الاستدعاء:</strong> <span dir="ltr">{selectedDraft.channel.method}</span></div>
-                      <div><strong>المسار:</strong> <span className="code-font" dir="ltr">{selectedDraft.channel.endpointPath}</span></div>
-                    </div>
-                    <h3 className="pdf-section-heading">مواصفات حقول الطلب (Request Parameters)</h3>
-                    <div className="pdf-table-wrapper">
-                      <table className="pdf-formal-table">
-                        <thead>
-                          <tr>
-                            <th style={{ width: '30%' }}>اسم الحقل</th>
-                            <th style={{ width: '20%', whiteSpace: 'nowrap' }}>النوع</th>
-                            <th style={{ width: '18%', whiteSpace: 'nowrap' }}>الإلزام</th>
-                            <th style={{ width: '32%' }}>القيمة الحية / الوصف</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {renderPdfTableRows(selectedDraft.requestTree)}
-                        </tbody>
-                      </table>
+                <div className="studio-card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className="studio-pane-pill">{selectedDraft.serviceCode} - {selectedDraft.serviceName}</span>
+                    <div style={{ display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.15)', padding: '2px', borderRadius: '5px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setDraftViewMode('full_doc')}
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: '3px',
+                          fontSize: '0.72rem',
+                          fontWeight: draftViewMode === 'full_doc' ? 700 : 500,
+                          backgroundColor: draftViewMode === 'full_doc' ? '#10b981' : 'transparent',
+                          color: draftViewMode === 'full_doc' ? '#ffffff' : '#94a3b8',
+                          border: 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        المستند الكامل (PDF Spec)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDraftViewMode('gov_summary')}
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: '3px',
+                          fontSize: '0.72rem',
+                          fontWeight: draftViewMode === 'gov_summary' ? 700 : 500,
+                          backgroundColor: draftViewMode === 'gov_summary' ? '#0ea5e9' : 'transparent',
+                          color: draftViewMode === 'gov_summary' ? '#ffffff' : '#94a3b8',
+                          border: 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        بطاقة الحوكمة
+                      </button>
                     </div>
                   </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        backgroundColor: '#f0fdf4',
+                        color: '#15803d',
+                        border: '1px solid #bbf7d0',
+                        cursor: 'pointer'
+                      }}
+                      title="طباعة المسودة كـ PDF"
+                    >
+                      <Printer size={12} />
+                      <span>طباعة PDF</span>
+                    </button>
+                    <button 
+                      className="studio-icon-btn"
+                      onClick={() => setDraftPdfFullscreen(prev => !prev)}
+                      title="تكبير المعاينة"
+                      aria-label="تكبير المعاينة"
+                    >
+                      {draftPdfFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="studio-card-body-scroll studio-pdf-scroll" style={(selectedDraft.rawFormat === 'pdf' && pdfBlobUrl) ? { height: '100%', padding: 0 } : undefined}>
+                  {(selectedDraft.rawFormat === 'pdf' && pdfBlobUrl) ? (
+                    <iframe 
+                      src={pdfBlobUrl} 
+                      title={selectedDraft.serviceName || 'وثيقة PDF معتمدة'} 
+                      style={{ width: '100%', height: '100%', minHeight: '850px', border: 'none' }} 
+                    />
+                  ) : (draftViewMode === 'full_doc' || selectedDraft.rawFormat === 'markdown' || (selectedDraft.rawSource && selectedDraft.rawSource.startsWith('#'))) ? (
+                    <div className="pdf-paper-sheet" style={{ padding: '2.5rem 2.8rem' }}>
+                      <MarkdownDocumentRenderer content={selectedDraft.rawSource || ''} />
+                    </div>
+                  ) : (
+                    <div className="pdf-paper-sheet">
+                      <div className="pdf-header-row">
+                        <div>
+                          <h1 className="pdf-org-title">الجمهورية اليمنية</h1>
+                          <h2 className="pdf-doc-title">المنظومة الوطنية لحوكمة وتوثيق الـ APIs المصرفية</h2>
+                        </div>
+                        <div className="pdf-stamp-badge">
+                          <span>مسودة عمل</span>
+                          <span className="stamp-sub">Draft Version</span>
+                        </div>
+                      </div>
+                      <hr className="pdf-divider" />
+                      <div className="pdf-meta-grid">
+                        <div><strong>اسم الخدمة:</strong> {selectedDraft.serviceName}</div>
+                        <div><strong>كود الخدمة:</strong> <span dir="ltr">{selectedDraft.serviceCode}</span></div>
+                        <div><strong>طريقة الاستدعاء:</strong> <span dir="ltr">{selectedDraft.channel.method}</span></div>
+                        <div><strong>المسار:</strong> <span className="code-font" dir="ltr">{selectedDraft.channel.endpointPath}</span></div>
+                      </div>
+                      <h3 className="pdf-section-heading">مواصفات حقول الطلب (Request Parameters)</h3>
+                      <div className="pdf-table-wrapper">
+                        <table className="pdf-formal-table">
+                          <thead>
+                            <tr>
+                              <th style={{ width: '30%' }}>اسم الحقل</th>
+                              <th style={{ width: '20%', whiteSpace: 'nowrap' }}>النوع</th>
+                              <th style={{ width: '18%', whiteSpace: 'nowrap' }}>الإلزام</th>
+                              <th style={{ width: '32%' }}>القيمة الحية / الوصف</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {renderPdfTableRows(selectedDraft.requestTree)}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* THE PROMINENT RESUME BUTTON (Directly Below PDF Preview) */}
@@ -1877,54 +3040,126 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
           <div className={`studio-preview-column ${subPdfFullscreen ? 'is-fullscreen' : ''}`}>
             {selectedSubmission ? (
               <div className="preview-side-wrapper">
-                {/* Floating Action Controls */}
-                <div className="studio-floating-actions">
-                  <button 
-                    className="studio-icon-btn"
-                    onClick={() => setSubPdfFullscreen(prev => !prev)}
-                    title="تكبير المعاينة"
-                    aria-label="تكبير المعاينة"
-                  >
-                    {subPdfFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                  </button>
-                </div>
-
-                <div className="studio-card-body-scroll studio-pdf-scroll">
-                  <div className="pdf-paper-sheet">
-                    <div className="pdf-header-row">
-                      <div>
-                        <h1 className="pdf-org-title">الجمهورية اليمنية</h1>
-                        <h2 className="pdf-doc-title">المنظومة الوطنية لحوكمة وتوثيق الـ APIs المصرفية</h2>
-                      </div>
-                      <div className="pdf-stamp-badge">
-                        <span>{selectedSubmission.status === 'PUBLISHED' ? 'معتمد رسمياً' : 'قيد المراجعة'}</span>
-                        <span className="stamp-sub">Under Governance</span>
-                      </div>
-                    </div>
-                    <hr className="pdf-divider" />
-                    <div className="pdf-meta-grid">
-                      <div><strong>اسم الخدمة:</strong> {selectedSubmission.serviceName}</div>
-                      <div><strong>كود الخدمة:</strong> <span dir="ltr">{selectedSubmission.serviceCode}</span></div>
-                      <div><strong>الحالة:</strong> {selectedSubmission.status === 'PUBLISHED' ? 'منشور ومعتمد' : 'بانتظار المشرف'}</div>
-                      <div><strong>المسار:</strong> <span className="code-font" dir="ltr">{selectedSubmission.channel.endpointPath}</span></div>
-                    </div>
-                    <h3 className="pdf-section-heading">مواصفات حقول الطلب (Request Parameters)</h3>
-                    <div className="pdf-table-wrapper">
-                      <table className="pdf-formal-table">
-                        <thead>
-                          <tr>
-                            <th style={{ width: '30%' }}>اسم الحقل</th>
-                            <th style={{ width: '20%', whiteSpace: 'nowrap' }}>النوع</th>
-                            <th style={{ width: '18%', whiteSpace: 'nowrap' }}>الإلزام</th>
-                            <th style={{ width: '32%' }}>القيمة الحية / الوصف</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {renderPdfTableRows(selectedSubmission.requestTree)}
-                        </tbody>
-                      </table>
+                <div className="studio-card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className="studio-pane-pill">{selectedSubmission.serviceCode} - {selectedSubmission.serviceName}</span>
+                    <div style={{ display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.15)', padding: '2px', borderRadius: '5px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setSubViewMode('full_doc')}
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: '3px',
+                          fontSize: '0.72rem',
+                          fontWeight: subViewMode === 'full_doc' ? 700 : 500,
+                          backgroundColor: subViewMode === 'full_doc' ? '#10b981' : 'transparent',
+                          color: subViewMode === 'full_doc' ? '#ffffff' : '#94a3b8',
+                          border: 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        المستند الكامل (PDF Spec)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSubViewMode('gov_summary')}
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: '3px',
+                          fontSize: '0.72rem',
+                          fontWeight: subViewMode === 'gov_summary' ? 700 : 500,
+                          backgroundColor: subViewMode === 'gov_summary' ? '#0ea5e9' : 'transparent',
+                          color: subViewMode === 'gov_summary' ? '#ffffff' : '#94a3b8',
+                          border: 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        بطاقة الحوكمة
+                      </button>
                     </div>
                   </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        backgroundColor: '#f0fdf4',
+                        color: '#15803d',
+                        border: '1px solid #bbf7d0',
+                        cursor: 'pointer'
+                      }}
+                      title="طباعة الوثيقة كـ PDF"
+                    >
+                      <Printer size={12} />
+                      <span>طباعة PDF</span>
+                    </button>
+                    <button 
+                      className="studio-icon-btn"
+                      onClick={() => setSubPdfFullscreen(prev => !prev)}
+                      title="تكبير المعاينة"
+                      aria-label="تكبير المعاينة"
+                    >
+                      {subPdfFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="studio-card-body-scroll studio-pdf-scroll" style={(selectedSubmission.rawFormat === 'pdf' && pdfBlobUrl) ? { height: '100%', padding: 0 } : undefined}>
+                  {(selectedSubmission.rawFormat === 'pdf' && pdfBlobUrl) ? (
+                    <iframe 
+                      src={pdfBlobUrl} 
+                      title={selectedSubmission.serviceName || 'وثيقة PDF معتمدة'} 
+                      style={{ width: '100%', height: '100%', minHeight: '850px', border: 'none' }} 
+                    />
+                  ) : (subViewMode === 'full_doc' || selectedSubmission.rawFormat === 'markdown' || (selectedSubmission.rawSource && selectedSubmission.rawSource.startsWith('#'))) ? (
+                    <div className="pdf-paper-sheet" style={{ padding: '2.5rem 2.8rem' }}>
+                      <MarkdownDocumentRenderer content={selectedSubmission.rawSource || ''} />
+                    </div>
+                  ) : (
+                    <div className="pdf-paper-sheet">
+                      <div className="pdf-header-row">
+                        <div>
+                          <h1 className="pdf-org-title">الجمهورية اليمنية</h1>
+                          <h2 className="pdf-doc-title">المنظومة الوطنية لحوكمة وتوثيق الـ APIs المصرفية</h2>
+                        </div>
+                        <div className="pdf-stamp-badge">
+                          <span>{selectedSubmission.status === 'PUBLISHED' ? 'معتمد رسمياً' : 'قيد المراجعة'}</span>
+                          <span className="stamp-sub">Under Governance</span>
+                        </div>
+                      </div>
+                      <hr className="pdf-divider" />
+                      <div className="pdf-meta-grid">
+                        <div><strong>اسم الخدمة:</strong> {selectedSubmission.serviceName}</div>
+                        <div><strong>كود الخدمة:</strong> <span dir="ltr">{selectedSubmission.serviceCode}</span></div>
+                        <div><strong>الحالة:</strong> {selectedSubmission.status === 'PUBLISHED' ? 'منشور ومعتمد' : 'بانتظار المشرف'}</div>
+                        <div><strong>المسار:</strong> <span className="code-font" dir="ltr">{selectedSubmission.channel.endpointPath}</span></div>
+                      </div>
+                      <h3 className="pdf-section-heading">مواصفات حقول الطلب (Request Parameters)</h3>
+                      <div className="pdf-table-wrapper">
+                        <table className="pdf-formal-table">
+                          <thead>
+                            <tr>
+                              <th style={{ width: '30%' }}>اسم الحقل</th>
+                              <th style={{ width: '20%', whiteSpace: 'nowrap' }}>النوع</th>
+                              <th style={{ width: '18%', whiteSpace: 'nowrap' }}>الإلزام</th>
+                              <th style={{ width: '32%' }}>القيمة الحية / الوصف</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {renderPdfTableRows(selectedSubmission.requestTree)}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Permanent Bottom Safety Bar - stays visible during all scrolling */}
@@ -1961,13 +3196,13 @@ function renderPdfTableRows(node: IUastNode, depth = 0, highlightedField?: strin
         <td>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', paddingRight: `${depth * 8}px` }}>
             {depth > 0 && <span style={{ color: '#94a3b8', fontSize: '0.65rem' }}>└─</span>}
-            <code className="code-font" dir="ltr" style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.72rem' }}>
+            <code className="code-font" dir="ltr" style={{ fontWeight: 600, color: 'var(--text-main, #0f172a)', fontSize: '0.72rem' }}>
               {node.semantics.name}
             </code>
           </span>
         </td>
         <td style={{ whiteSpace: 'nowrap' }}>
-          <span className="mono" style={{ fontSize: '0.68rem', color: '#475569', fontWeight: 600 }}>
+          <span className="mono" style={{ fontSize: '0.68rem', color: 'var(--text-dim, #475569)', fontWeight: 600 }}>
             {node.semantics.dataType}
           </span>
         </td>

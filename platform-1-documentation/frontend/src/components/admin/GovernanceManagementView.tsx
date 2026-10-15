@@ -373,7 +373,7 @@ export const GovernanceManagementView: React.FC<GovernanceManagementViewProps> =
                           </span>
                           {getStatusBadge(selectedRequest.status)}
                         </div>
-                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main, #ffffff)', margin: 0 }}>
                           {selectedRequest.actionDescriptionAr}
                         </h3>
                       </div>
@@ -410,7 +410,7 @@ export const GovernanceManagementView: React.FC<GovernanceManagementViewProps> =
                               <span style={{ fontSize: '0.7rem', fontWeight: 700, color: isCompleted ? '#34d399' : isCurrent ? '#38bdf8' : '#64748b' }}>
                                 {stage.stageOrder}.
                               </span>
-                              <span style={{ fontSize: '0.74rem', fontWeight: 600, color: isCompleted ? '#34d399' : isCurrent ? '#ffffff' : 'var(--text-dim, #94a3b8)' }}>
+                              <span style={{ fontSize: '0.74rem', fontWeight: 600, color: isCompleted ? '#34d399' : isCurrent ? 'var(--text-main, #ffffff)' : 'var(--text-dim, #94a3b8)' }}>
                                 {stage.stageNameAr}
                               </span>
                               {priorDecision && (
@@ -500,7 +500,7 @@ export const GovernanceManagementView: React.FC<GovernanceManagementViewProps> =
                             <div key={rIdx} style={{ padding: '0.5rem 0.75rem', borderRadius: '5px', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.74rem' }}>
                               <div>
                                 <span style={{ fontWeight: 700, color: '#34d399' }}>{record.stageNameAr}: </span>
-                                <span style={{ color: '#ffffff' }}>{record.approverName} ({record.approverGroup})</span>
+                                <span style={{ color: 'var(--text-main, #ffffff)' }}>{record.approverName} ({record.approverGroup})</span>
                                 {record.notes && <span style={{ color: 'var(--text-dim, #94a3b8)', marginInlineStart: '0.5rem' }}>— {record.notes}</span>}
                               </div>
                               <span style={{ color: '#64748b', fontSize: '0.68rem' }}>{new Date(record.decidedAt).toLocaleString('ar-EG')}</span>
@@ -610,7 +610,7 @@ export const GovernanceManagementView: React.FC<GovernanceManagementViewProps> =
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <span style={{ fontSize: '0.72rem', color: 'var(--text-dim, #94a3b8)', fontFamily: 'monospace' }}>#{req.id}</span>
-                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ffffff' }}>{req.actionDescriptionAr}</span>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main, #ffffff)' }}>{req.actionDescriptionAr}</span>
                       </div>
                       {getStatusBadge(req.status)}
                     </div>
@@ -653,7 +653,7 @@ export const GovernanceManagementView: React.FC<GovernanceManagementViewProps> =
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ fontSize: '0.86rem', fontWeight: 700, color: '#ffffff' }}>{pol.resourceNameAr}</span>
+                        <span style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-main, #ffffff)' }}>{pol.resourceNameAr}</span>
                         <code style={{ fontSize: '0.7rem', color: '#38bdf8', background: 'rgba(0, 0, 0, 0.25)', padding: '0.1rem 0.35rem', borderRadius: '3px' }}>{pol.resourceKey}</code>
                         {pol.isProtectedCore && (
                           <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.35rem', borderRadius: '3px', background: 'rgba(245, 158, 11, 0.12)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.25)', fontWeight: 600 }}>
@@ -706,8 +706,8 @@ export const GovernanceManagementView: React.FC<GovernanceManagementViewProps> =
       {/* --- APPROVE CONFIRMATION MODAL --- */}
       {showApproveConfirm && selectedRequest && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0, 0, 0, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ width: '440px', background: '#0f172a', border: '1px solid rgba(255, 255, 255, 0.12)', borderRadius: '8px', padding: '1.25rem', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
-            <h4 style={{ margin: '0 0 0.35rem', fontSize: '0.92rem', color: '#ffffff', fontWeight: 700 }}>
+          <div style={{ width: '440px', background: 'var(--bg-card, #0f172a)', border: '1px solid var(--border, rgba(255, 255, 255, 0.12))', borderRadius: '8px', padding: '1.25rem', boxShadow: 'var(--shadow-card, 0 10px 25px rgba(0,0,0,0.5))' }}>
+            <h4 style={{ margin: '0 0 0.35rem', fontSize: '0.92rem', color: 'var(--text-main, #ffffff)', fontWeight: 700 }}>
               {isRtl ? 'تأكيد اعتماد الطلب' : 'Confirm Approval'}
             </h4>
             <p style={{ margin: '0 0 0.85rem', fontSize: '0.74rem', color: 'var(--text-dim, #94a3b8)' }}>
@@ -725,10 +725,10 @@ export const GovernanceManagementView: React.FC<GovernanceManagementViewProps> =
                 rows={2}
                 style={{
                   width: '100%',
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  background: 'var(--bg-input, rgba(255, 255, 255, 0.04))',
+                  border: '1px solid var(--border, rgba(255, 255, 255, 0.1))',
                   borderRadius: '5px',
-                  color: '#ffffff',
+                  color: 'var(--text-main, #ffffff)',
                   padding: '0.5rem',
                   fontSize: '0.76rem',
                   resize: 'none'
@@ -759,7 +759,7 @@ export const GovernanceManagementView: React.FC<GovernanceManagementViewProps> =
       {/* --- REJECT CONFIRMATION MODAL --- */}
       {showRejectConfirm && selectedRequest && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0, 0, 0, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ width: '440px', background: '#0f172a', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '8px', padding: '1.25rem', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
+          <div style={{ width: '440px', background: 'var(--bg-card, #0f172a)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '8px', padding: '1.25rem', boxShadow: 'var(--shadow-card, 0 10px 25px rgba(0,0,0,0.5))' }}>
             <h4 style={{ margin: '0 0 0.35rem', fontSize: '0.92rem', color: '#f87171', fontWeight: 700 }}>
               {isRtl ? 'تأكيد رفض الطلب' : 'Confirm Rejection'}
             </h4>
@@ -778,10 +778,10 @@ export const GovernanceManagementView: React.FC<GovernanceManagementViewProps> =
                 rows={2}
                 style={{
                   width: '100%',
-                  background: 'rgba(255, 255, 255, 0.04)',
+                  background: 'var(--bg-input, rgba(255, 255, 255, 0.04))',
                   border: '1px solid rgba(239, 68, 68, 0.3)',
                   borderRadius: '5px',
-                  color: '#ffffff',
+                  color: 'var(--text-main, #ffffff)',
                   padding: '0.5rem',
                   fontSize: '0.76rem',
                   resize: 'none'
@@ -812,11 +812,11 @@ export const GovernanceManagementView: React.FC<GovernanceManagementViewProps> =
       {/* --- EDIT POLICY MODAL --- */}
       {editingPolicy && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ width: '580px', maxHeight: '85vh', overflowY: 'auto', background: '#0f172a', border: '1px solid rgba(139, 92, 246, 0.35)', borderRadius: '14px', padding: '1.5rem', boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '0.75rem' }}>
+          <div style={{ width: '580px', maxHeight: '85vh', overflowY: 'auto', background: 'var(--bg-card, #0f172a)', border: '1px solid rgba(139, 92, 246, 0.35)', borderRadius: '14px', padding: '1.5rem', boxShadow: 'var(--shadow-dropdown, 0 20px 40px rgba(0,0,0,0.6))' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border, rgba(255, 255, 255, 0.08))', paddingBottom: '0.75rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Sliders size={18} style={{ color: '#a855f7' }} />
-                <h4 style={{ margin: 0, fontSize: '1rem', color: '#ffffff', fontWeight: 800 }}>
+                <h4 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-main, #ffffff)', fontWeight: 800 }}>
                   تخصيص مسار الاعتماد: {editingPolicy.resourceNameAr}
                 </h4>
               </div>
@@ -958,10 +958,10 @@ export const GovernanceManagementView: React.FC<GovernanceManagementViewProps> =
                         placeholder="اسم المرحلة بالعربية"
                         style={{
                           flex: 1,
-                          background: 'rgba(15, 23, 42, 0.6)',
-                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          background: 'var(--bg-input, rgba(15, 23, 42, 0.6))',
+                          border: '1px solid var(--border, rgba(255, 255, 255, 0.1))',
                           borderRadius: '6px',
-                          color: '#ffffff',
+                          color: 'var(--text-main, #ffffff)',
                           padding: '0.4rem 0.6rem',
                           fontSize: '0.75rem'
                         }}

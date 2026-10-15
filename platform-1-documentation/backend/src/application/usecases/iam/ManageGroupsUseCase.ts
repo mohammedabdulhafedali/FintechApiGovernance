@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { IUserGroupRepository } from '../../../domain/repositories/IUserGroupRepository.js';
 import { IAuditLogRepository } from '../../../domain/repositories/IAuditLogRepository.js';
+import { IUserRepository } from '../../../domain/repositories/IUserRepository.js';
 import { UserGroup } from '../../../domain/entities/UserGroup.js';
 
 export interface CreateGroupInput {
@@ -21,7 +22,8 @@ export interface UpdateGroupInput {
 export class ManageGroupsUseCase {
   constructor(
     private readonly userGroupRepository: IUserGroupRepository,
-    private readonly auditLogRepository: IAuditLogRepository
+    private readonly auditLogRepository: IAuditLogRepository,
+    private readonly userRepository?: IUserRepository
   ) {}
 
   /**
@@ -87,11 +89,26 @@ export class ManageGroupsUseCase {
     const group = await this.userGroupRepository.findById(groupId);
     if (!group) throw new Error('المجموعة/الدور غير موجود.');
 
+    const isSuperAdminGroup = group.id === 'grp_super_admin' || group.key === 'ADMIN_GROUP' || (group.permissions || []).includes('*');
+
+    if (isSuperAdminGroup) {
+      if (data.status === 'INACTIVE') {
+        throw new Error('لا يمكن تعطيل دور مدير النظام السيادي للحفاظ على استقرار المنظومة.');
+      }
+      if (data.permissions !== undefined && (!data.permissions.includes('*') || data.permissions.length === 0)) {
+        throw new Error('صلاحيات دور مدير النظام السيادي مجمدة ومحمية بالكامل (* ولا يمكن تجزئتها أو حجبها).');
+      }
+    }
+
     if (data.name !== undefined) group.name = data.name.trim();
     if (data.description !== undefined) group.description = data.description.trim();
-    if (data.status !== undefined) group.status = data.status;
+    if (data.status !== undefined && !isSuperAdminGroup) group.status = data.status;
     if (data.permissions !== undefined) {
-      group.permissions = this.normalizeCascadedPermissions(data.permissions);
+      if (isSuperAdminGroup) {
+        group.permissions = ['*'];
+      } else {
+        group.permissions = this.normalizeCascadedPermissions(data.permissions);
+      }
     }
     group.updatedAt = new Date().toISOString();
 
@@ -119,13 +136,26 @@ export class ManageGroupsUseCase {
 
   async deleteGroup(groupId: string, actorUsername: string): Promise<boolean> {
     const group = await this.userGroupRepository.findById(groupId);
-    if (!group) return false;
-
-    if (group.isSystemDefault) {
-      throw new Error('لا يمكن حذف المجموعات الافتراضية للنظام.');
+    if (!group) {
+      throw new Error('المجموعة/الدور المراد حذفه غير موجود في المنظومة.');
     }
 
-    await this.userGroupRepository.delete(groupId);
+    if (group.isSystemDefault || group.key === 'ADMIN_GROUP') {
+      throw new Error('لا يمكن حذف المجموعات الافتراضية السيادية للنظام.');
+    }
+
+    if (this.userRepository) {
+      const allUsers = await this.userRepository.findAll();
+      const linkedUsers = allUsers.filter(u => u.groupId === group.id || u.groupId === group.key);
+      if (linkedUsers.length > 0) {
+        throw new Error(`لا يمكن حذف الدور [${group.name}] لوجود (${linkedUsers.length}) مستخدمين مسندين إليه حالياً. يرجى نقل المستخدمين لدور آخر أولاً.`);
+      }
+    }
+
+    const deleted = await this.userGroupRepository.delete(group.id);
+    if (!deleted) {
+      throw new Error('تعذر حذف الدور من قاعدة البيانات.');
+    }
 
     await this.auditLogRepository.record({
       userId: actorUsername,
@@ -133,7 +163,7 @@ export class ManageGroupsUseCase {
       action: 'iam:group:delete',
       resource: `group:${group.key}`,
       status: 'SUCCESS',
-      details: `حذف مجموعة المستخدمين [${group.name}]`
+      details: `حذف الدور/المجموعة [${group.name}] (Key: ${group.key})`
     });
 
     return true;

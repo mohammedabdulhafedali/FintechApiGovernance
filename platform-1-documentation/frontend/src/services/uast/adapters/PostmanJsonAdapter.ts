@@ -1,5 +1,5 @@
 import { IFormatAdapter } from './IFormatAdapter';
-import { UastDocument, IUastNode, HttpMethod } from '../types';
+import { UastDocument, IUastNode, HttpMethod, AllEndpointEntry } from '../types';
 import { RawJsonAdapter } from './RawJsonAdapter';
 
 export class PostmanJsonAdapter implements IFormatAdapter {
@@ -100,11 +100,29 @@ export class PostmanJsonAdapter implements IFormatAdapter {
       })).requestTree;
     }
 
+    // Build allEndpoints from all requests in collection
+    const allRequests = this.findAllRequests(postmanObj.item || []);
+    const allEndpoints: AllEndpointEntry[] = allRequests.map(item => {
+      const r = item.request;
+      let epPath = '/api/v1/resource';
+      if (typeof r.url === 'string') {
+        try { epPath = new URL(r.url).pathname; } catch { epPath = r.url.startsWith('/') ? r.url : `/${r.url}`; }
+      } else if (r.url?.path && Array.isArray(r.url.path)) {
+        epPath = '/' + r.url.path.join('/');
+      }
+      return {
+        method: ((r.method || 'POST').toUpperCase()) as HttpMethod,
+        path: epPath,
+        summary: item.name || epPath,
+        description: item.description || undefined
+      };
+    });
+
     return {
       documentId: defaultMeta?.documentId || `doc_pm_${Date.now()}`,
-      serviceCode: defaultMeta?.serviceCode || 'SVC_POSTMAN',
-      serviceName: firstReqItem.name || title,
-      serviceNameEn: firstReqItem.name || title,
+      serviceCode: defaultMeta?.serviceCode || title.toUpperCase().replace(/[^A-Z0-9_]/g, '_').substring(0, 30) || 'SVC_POSTMAN',
+      serviceName: title,
+      serviceNameEn: title,
       semver: '1.0.0',
       lifecycleStage: 'ACTIVE',
       channel: {
@@ -124,7 +142,8 @@ export class PostmanJsonAdapter implements IFormatAdapter {
       rawSource: rawContent,
       rawFormat: 'postman',
       updatedAt: new Date().toISOString(),
-      status: defaultMeta?.status || 'PRIVATE_DRAFT'
+      status: defaultMeta?.status || 'PRIVATE_DRAFT',
+      allEndpoints
     };
   }
 
@@ -137,5 +156,16 @@ export class PostmanJsonAdapter implements IFormatAdapter {
       }
     }
     return null;
+  }
+
+  private findAllRequests(items: any[]): any[] {
+    const results: any[] = [];
+    for (const item of items) {
+      if (item.request) results.push(item);
+      if (item.item && Array.isArray(item.item)) {
+        results.push(...this.findAllRequests(item.item));
+      }
+    }
+    return results;
   }
 }

@@ -148,6 +148,10 @@ export class ManageUsersUseCase {
       throw new Error(`المستخدم غير موجود.`);
     }
 
+    if (user.username.toLowerCase() === 'admin' || user.id === 'usr_admin_01' || user.groupId === 'grp_super_admin') {
+      throw new Error('صلاحيات المسؤول السيادي للنظام مجمدة بالكامل على الشامل (* ولا تقبل الاستثناءات أو الحجب).');
+    }
+
     user.overrides = {
       grantedPermissions: Array.from(new Set(overrides.grantedPermissions || [])),
       revokedPermissions: Array.from(new Set(overrides.revokedPermissions || []))
@@ -253,6 +257,10 @@ export class ManageUsersUseCase {
       throw new Error(`المستخدم غير موجود.`);
     }
 
+    if ((user.username.toLowerCase() === 'admin' || user.id === 'usr_admin_01') && newGroupId !== 'grp_super_admin') {
+      throw new Error('لا يمكن تغيير دور المسؤول الرئيسي السيادي للنظام عن دور مدير النظام.');
+    }
+
     const newGroup = await this.userGroupRepository.findById(newGroupId);
     if (!newGroup) {
       throw new Error(`المجموعة الجديدة غير موجودة.`);
@@ -298,6 +306,14 @@ export class ManageUsersUseCase {
     const user = await this.userRepository.findById(userId);
     if (!user) throw new Error(`المستخدم غير موجود.`);
 
+    if ((user.username.toLowerCase() === 'admin' || user.id === 'usr_admin_01' || user.groupId === 'grp_super_admin') && status === 'SUSPENDED') {
+      throw new Error('لا يمكن تجميد أو إيقاف حساب المسؤول الرئيسي السيادي للنظام.');
+    }
+
+    if (user.username.toLowerCase() === actorUsername.toLowerCase() && status === 'SUSPENDED') {
+      throw new Error('لا يمكنك تجميد حسابك الشخصي النشط حالياً.');
+    }
+
     user.status = status;
     user.updatedAt = new Date().toISOString();
     await this.userRepository.update(user);
@@ -313,4 +329,36 @@ export class ManageUsersUseCase {
 
     return true;
   }
+
+  async deleteUser(userId: string, actorUsername: string): Promise<boolean> {
+    const user = await this.userRepository.findById(userId);
+    if (!user) {
+      throw new Error('المستخدم المراد حذفه غير موجود في المنظومة.');
+    }
+
+    if (user.username === 'admin' || user.id === 'usr_admin') {
+      throw new Error('لا يمكن حذف حساب المسؤول الرئيسي السيادي للنظام.');
+    }
+
+    if (user.username.toLowerCase() === actorUsername.toLowerCase()) {
+      throw new Error('لا يمكنك حذف حسابك الشخصي النشط حالياً.');
+    }
+
+    const deleted = await this.userRepository.delete(user.id);
+    if (!deleted) {
+      throw new Error('تعذر حذف المستخدم من قاعدة البيانات.');
+    }
+
+    await this.auditLogRepository.record({
+      userId: actorUsername,
+      username: actorUsername,
+      action: 'iam:user:delete',
+      resource: `user:${user.username}`,
+      status: 'SUCCESS',
+      details: `حذف حساب المستخدم [${user.fullName}] (@${user.username})`
+    });
+
+    return true;
+  }
 }
+

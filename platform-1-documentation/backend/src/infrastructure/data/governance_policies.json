@@ -49,28 +49,11 @@
     "resourceKey": "iam:groups",
     "resourceNameAr": "أدوار ومجموعات الصلاحيات",
     "resourceNameEn": "IAM Groups & Roles",
-    "mode": "MULTI_STAGE_PIPELINE",
-    "isProtectedCore": true,
-    "stages": [
-      {
-        "stageOrder": 1,
-        "stageKey": "security_audit",
-        "stageNameAr": "تدقيق أمني ومطابقة الصلاحيات",
-        "stageNameEn": "Security Audit & Permissions Check",
-        "requiredPermission": "governance:approve:security",
-        "minApprovers": 1
-      },
-      {
-        "stageOrder": 2,
-        "stageKey": "executive_approval",
-        "stageNameAr": "الاعتماد السيادي لمدير النظام",
-        "stageNameEn": "Executive IAM Authorization",
-        "requiredPermission": "iam:manage",
-        "minApprovers": 1
-      }
-    ],
-    "updatedAt": "2026-10-13T17:23:26.346Z",
-    "updatedBy": "system"
+    "mode": "DIRECT",
+    "isProtectedCore": false,
+    "stages": [],
+    "updatedAt": "2026-10-15T09:17:00.000Z",
+    "updatedBy": "admin"
   },
   {
     "resourceKey": "iam:users",

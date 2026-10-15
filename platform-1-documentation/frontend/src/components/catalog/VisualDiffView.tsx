@@ -18,6 +18,7 @@ import { UastDocument, VersionDiffReport } from '../../services/uast/types';
 import { astDiffEngine } from '../../services/uast/diffEngine';
 import { uastDraftService } from '../../services/uast/draftService';
 import { useLanguage } from '../../i18n';
+import { FloatingAlertCard, FloatingAlertState } from '../common/FloatingAlertCard';
 
 interface VisualDiffViewProps {
   currentDocument: UastDocument;
@@ -33,6 +34,7 @@ export const VisualDiffView: React.FC<VisualDiffViewProps> = ({
   const { isRtl } = useLanguage();
   const [checkerNote, setCheckerNote] = useState('');
   const [actionDoneMsg, setActionDoneMsg] = useState<string | null>(null);
+  const [floatingAlert, setFloatingAlert] = useState<FloatingAlertState | null>(null);
 
   // 1. Resolve Baseline Document (Previous Approved Version)
   const baselineDoc = useMemo<UastDocument>(() => {
@@ -74,20 +76,40 @@ export const VisualDiffView: React.FC<VisualDiffViewProps> = ({
         });
       }
     } catch (e: any) {
-      alert(`خطأ في الاعتماد: ${e.message}`);
+      setFloatingAlert({
+        isOpen: true,
+        type: 'error',
+        title: 'فشل اعتماد الإصدار في الكتالوج',
+        message: `تعذر إتمام عملية الاعتماد وتجميد النسخة في السجل الرسمي: ${e.message}`,
+        codeSnippet: e.message,
+        confirmText: 'إغلاق ومراجعة التوثيق'
+      });
     }
   };
 
   const handleRequestChanges = async () => {
     if (!checkerNote.trim()) {
-      alert('يرجى كتابة ملاحظة أو توجيه للموظف يوضح سبب التعديل.');
+      setFloatingAlert({
+        isOpen: true,
+        type: 'warning',
+        title: 'ملاحظة التوجيه الرقابي مطلوبة',
+        message: 'يرجى كتابة سبب طلب التعديل أو الملاحظة التوجيهية في الحقل المخصص لتبرير إعادة المسودة للمطور.',
+        confirmText: 'حسناً، سأكتب الملاحظة'
+      });
       return;
     }
     try {
       await uastDraftService.requestChanges(currentDocument.documentId, checkerNote);
       setActionDoneMsg('تمت إعادة المسودة للموظف مع الملاحظات الرقابية بنجاح ↩️');
     } catch (e: any) {
-      alert(`خطأ: ${e.message}`);
+      setFloatingAlert({
+        isOpen: true,
+        type: 'error',
+        title: 'فشل إرسال طلب التعديل',
+        message: `تعذر إعادة المسودة للمطور: ${e.message}`,
+        codeSnippet: e.message,
+        confirmText: 'إغلاق'
+      });
     }
   };
 
@@ -256,6 +278,12 @@ export const VisualDiffView: React.FC<VisualDiffViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Floating Alert Modal */}
+      <FloatingAlertCard
+        alert={floatingAlert}
+        onClose={() => setFloatingAlert(null)}
+      />
     </div>
   );
 };

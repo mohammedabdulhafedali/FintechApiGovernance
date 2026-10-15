@@ -4,6 +4,17 @@ import { UserGroup } from '../../domain/entities/UserGroup.js';
 
 export class PermissionEvaluator implements IPermissionEvaluator {
   calculateEffectivePermissions(user: User, group: UserGroup): string[] {
+    // Sovereign admin permissions are frozen and permanently locked to wildcard (*)
+    if (
+      user.username.toLowerCase() === 'admin' ||
+      user.id === 'usr_admin_01' ||
+      group.id === 'grp_super_admin' ||
+      group.key === 'ADMIN_GROUP' ||
+      (group.permissions || []).includes('*')
+    ) {
+      return ['*'];
+    }
+
     const groupPerms = new Set(group.permissions || []);
     const granted = new Set(user.overrides?.grantedPermissions || []);
     const revoked = new Set(user.overrides?.revokedPermissions || []);

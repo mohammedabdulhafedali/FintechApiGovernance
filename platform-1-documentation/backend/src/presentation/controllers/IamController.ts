@@ -81,6 +81,18 @@ export class IamController {
     }
   };
 
+  deleteUser = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const id = String(req.params.id);
+      const actor = req.user?.username || 'system';
+      await this.manageUsersUseCase.deleteUser(id, actor);
+      res.status(200).json({ success: true, message: 'تم حذف حساب المستخدم بنجاح' });
+    } catch (err: any) {
+      res.status(400).json({ success: false, message: err.message });
+    }
+  };
+
+
   // --- Groups ---
   getGroups = async (_req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {

@@ -2,13 +2,14 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Save, 
   ArrowRight, 
-  CheckSquare, 
-  Square, 
-  ShieldCheck, 
   Layers, 
   Check, 
-  X,
-  AlertCircle
+  X, 
+  AlertCircle,
+  Trash2,
+  AlertTriangle,
+  Lock,
+  ShieldCheck
 } from 'lucide-react';
 import { ScreenResourceDefinition, ScreenActionType, UserGroup } from '../../types/auth';
 import { iamService } from '../../services/iamService';
@@ -18,7 +19,9 @@ interface RolePermissionMatrixProps {
   initialGroup?: UserGroup | null;
   onSaveSuccess: (savedGroup: UserGroup) => void;
   onCancel: () => void;
+  onDeleteSuccess?: () => void;
   onNotify?: (title: string, message: string, type: 'success' | 'info' | 'warning' | 'error') => void;
+  assignedUsersCount?: number;
 }
 
 const ACTION_COLUMNS: { key: ScreenActionType; labelAr: string; labelEn: string }[] = [
@@ -32,13 +35,25 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
   initialGroup,
   onSaveSuccess,
   onCancel,
-  onNotify
+  onDeleteSuccess,
+  onNotify,
+  assignedUsersCount = 0
 }) => {
   const { isRtl } = useLanguage();
 
   // Screen resources loaded dynamically from backend/catalog
   const [screens, setScreens] = useState<ScreenResourceDefinition[]>([]);
   const [isLoadingScreens, setIsLoadingScreens] = useState(true);
+
+  // Deletion state
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Helper to check if group is system super admin
+  const isGroupAdmin = useCallback((grp?: UserGroup | null) => {
+    if (!grp) return false;
+    return (grp.permissions || []).includes('*') || grp.key === 'ADMIN_GROUP' || grp.id === 'grp_super_admin';
+  }, []);
 
   // Form State
   const [roleName, setRoleName] = useState(initialGroup?.name || '');
@@ -48,11 +63,45 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
   
   // Selected Permissions: Map of screenKey -> Set of action strings
   const [selectedPermissions, setSelectedPermissions] = useState<Set<string>>(() => {
-    return new Set(initialGroup?.permissions || []);
+    const initSet = new Set(initialGroup?.permissions || []);
+    if (isGroupAdmin(initialGroup)) {
+      initSet.add('*');
+    }
+    return initSet;
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+
+  // Check if a specific screen action is permitted
+  const isPermissionChecked = useCallback((screenKey: string, action: ScreenActionType) => {
+    // 1. Full Admin Wildcard
+    if (selectedPermissions.has('*')) return true;
+
+    // 2. Direct exact match
+    const directKey = `${screenKey}:${action}`;
+    if (selectedPermissions.has(directKey)) return true;
+
+    // 3. Screen Wildcard (e.g. "banking:ips:*")
+    if (selectedPermissions.has(`${screenKey}:*`)) return true;
+
+    // 4. Prefix Wildcard (e.g. "catalog:*")
+    const [prefix] = screenKey.split(':');
+    if (prefix && selectedPermissions.has(`${prefix}:*`)) return true;
+
+    // 5. Cross-domain mapping for legacy catalog permissions
+    if (screenKey.startsWith('catalog:') && action === 'create') {
+      if (selectedPermissions.has('catalog:system:create') || selectedPermissions.has('catalog:endpoint:create')) return true;
+    }
+    if (screenKey.startsWith('catalog:') && action === 'delete') {
+      if (selectedPermissions.has('catalog:system:delete') || selectedPermissions.has('catalog:endpoint:delete')) return true;
+    }
+    if (screenKey.startsWith('catalog:') && action === 'read') {
+      if (selectedPermissions.has('catalog:spec:export') || selectedPermissions.has('catalog:system:create') || selectedPermissions.has('catalog:endpoint:create')) return true;
+    }
+
+    return false;
+  }, [selectedPermissions]);
 
   // Fetch dynamic screens catalog
   useEffect(() => {
@@ -63,6 +112,13 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
         if (isMounted) {
           setScreens(res);
           setIsLoadingScreens(false);
+          if (isGroupAdmin(initialGroup)) {
+            const allSet = new Set<string>(['*']);
+            res.forEach(s => {
+              s.supportedActions.forEach(act => allSet.add(`${s.key}:${act}`));
+            });
+            setSelectedPermissions(allSet);
+          }
         }
       })
       .catch(() => {
@@ -70,24 +126,72 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
       });
 
     return () => { isMounted = false; };
-  }, []);
+  }, [initialGroup, isGroupAdmin]);
 
-  // Update form if initialGroup changes
+  // Update form if initialGroup or screens change
   useEffect(() => {
     if (initialGroup) {
       setRoleName(initialGroup.name || '');
       setRoleKey(initialGroup.key || '');
       setRoleDesc(initialGroup.description || '');
       setIsActive(initialGroup.status !== 'INACTIVE');
-      setSelectedPermissions(new Set(initialGroup.permissions || []));
+
+      const isFullAdmin = isGroupAdmin(initialGroup);
+
+      if (isFullAdmin) {
+        const fullPerms = new Set<string>(['*']);
+        if (screens.length > 0) {
+          screens.forEach(s => {
+            s.supportedActions.forEach(act => fullPerms.add(`${s.key}:${act}`));
+          });
+        }
+        setSelectedPermissions(fullPerms);
+      } else {
+        const nextSet = new Set(initialGroup.permissions || []);
+        if (screens.length > 0) {
+          screens.forEach(s => {
+            s.supportedActions.forEach(act => {
+              if (
+                nextSet.has(`${s.key}:${act}`) ||
+                nextSet.has(`${s.key}:*`) ||
+                (s.key.startsWith('catalog:') && act === 'create' && (nextSet.has('catalog:system:create') || nextSet.has('catalog:endpoint:create'))) ||
+                (s.key.startsWith('catalog:') && act === 'delete' && (nextSet.has('catalog:system:delete') || nextSet.has('catalog:endpoint:delete'))) ||
+                (s.key.startsWith('catalog:') && act === 'read' && (nextSet.has('catalog:spec:export') || nextSet.has('catalog:system:create') || nextSet.has('catalog:endpoint:create')))
+              ) {
+                nextSet.add(`${s.key}:${act}`);
+                if (act !== 'read' && s.supportedActions.includes('read')) {
+                  nextSet.add(`${s.key}:read`);
+                }
+              }
+            });
+          });
+        }
+        setSelectedPermissions(nextSet);
+      }
       setHasChanges(false);
     }
-  }, [initialGroup]);
+  }, [initialGroup, screens, isGroupAdmin]);
 
   // Total available permissions count
   const totalAvailablePermissions = useMemo(() => {
     return screens.reduce((acc, s) => acc + s.supportedActions.length, 0);
   }, [screens]);
+
+  // Effective granted permissions count
+  const effectiveCount = useMemo(() => {
+    if (selectedPermissions.has('*') || isGroupAdmin(initialGroup)) {
+      return totalAvailablePermissions;
+    }
+    let count = 0;
+    screens.forEach(s => {
+      s.supportedActions.forEach(act => {
+        if (isPermissionChecked(s.key, act)) {
+          count++;
+        }
+      });
+    });
+    return count;
+  }, [selectedPermissions, screens, initialGroup, totalAvailablePermissions, isPermissionChecked, isGroupAdmin]);
 
   /**
    * معالجة النقر على مربع اختيار الصلاحية
@@ -95,12 +199,33 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
    * 1. تفعيل (إنشاء أو تعديل أو حذف) يفعل تلقائياً (قراءة) لنفس الشاشة.
    * 2. إلغاء (قراءة) يلغي تلقائياً باقي العمليات لنفس الشاشة.
    */
+  const isSovereignFrozen = isGroupAdmin(initialGroup);
+
   const handleTogglePermission = useCallback((screenKey: string, action: ScreenActionType) => {
+    if (isSovereignFrozen) {
+      onNotify?.(
+        isRtl ? 'صلاحيات سيادية مجمدة' : 'Sovereign Permissions Frozen',
+        isRtl ? 'صلاحيات دور مدير النظام مجمدة ومحمية بالكامل (*) ولا يمكن تعديلها.' : 'Admin role permissions are permanently frozen and immutable.',
+        'warning'
+      );
+      return;
+    }
+
     setSelectedPermissions(prev => {
       const next = new Set(prev);
       const permKey = `${screenKey}:${action}`;
 
-      if (next.has(permKey)) {
+      // Materialize full set if '*' was present
+      if (next.has('*')) {
+        next.delete('*');
+        screens.forEach(s => {
+          s.supportedActions.forEach(act => next.add(`${s.key}:${act}`));
+        });
+      }
+
+      const currentlyChecked = next.has(permKey);
+
+      if (currentlyChecked) {
         // Uncheck
         next.delete(permKey);
         // إذا ألغى القراءة، نلغي الإنشاء والتعديل والحذف تلقائياً
@@ -121,12 +246,21 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
       setHasChanges(true);
       return next;
     });
-  }, []);
+  }, [screens, isSovereignFrozen, onNotify, isRtl]);
 
   // تحديد كامل العمليات المدعومة لشاشة معينة
   const handleToggleAllForScreen = useCallback((screen: ScreenResourceDefinition) => {
+    if (isSovereignFrozen) return;
+
     setSelectedPermissions(prev => {
       const next = new Set(prev);
+      if (next.has('*')) {
+        next.delete('*');
+        screens.forEach(s => {
+          s.supportedActions.forEach(act => next.add(`${s.key}:${act}`));
+        });
+      }
+
       const allChecked = screen.supportedActions.every(act => next.has(`${screen.key}:${act}`));
 
       if (allChecked) {
@@ -140,12 +274,21 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
       setHasChanges(true);
       return next;
     });
-  }, []);
+  }, [screens, isSovereignFrozen]);
 
   // تحديد عمود كامل (مثلاً: قراءة للكل)
   const handleToggleColumn = useCallback((action: ScreenActionType) => {
+    if (isSovereignFrozen) return;
+
     setSelectedPermissions(prev => {
       const next = new Set(prev);
+      if (next.has('*')) {
+        next.delete('*');
+        screens.forEach(s => {
+          s.supportedActions.forEach(act => next.add(`${s.key}:${act}`));
+        });
+      }
+
       const applicableScreens = screens.filter(s => s.supportedActions.includes(action));
       const allChecked = applicableScreens.every(s => next.has(`${s.key}:${action}`));
 
@@ -200,28 +343,6 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
     return Array.from(map.values());
   }, [screens]);
 
-  // تحديد / إلغاء تحديد كافة صلاحيات نظام كامل
-  const handleToggleSystem = useCallback((groupScreens: ScreenResourceDefinition[]) => {
-    setSelectedPermissions(prev => {
-      const next = new Set(prev);
-      const allChecked = groupScreens.every(s =>
-        s.supportedActions.every(act => next.has(`${s.key}:${act}`))
-      );
-
-      if (allChecked) {
-        groupScreens.forEach(s => {
-          s.supportedActions.forEach(act => next.delete(`${s.key}:${act}`));
-        });
-      } else {
-        groupScreens.forEach(s => {
-          s.supportedActions.forEach(act => next.add(`${s.key}:${act}`));
-        });
-      }
-
-      setHasChanges(true);
-      return next;
-    });
-  }, []);
 
   // حفظ الدور / المجموعة
   const handleSave = async (e?: React.FormEvent) => {
@@ -240,7 +361,19 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
     setIsSubmitting(true);
     try {
       let saved: UserGroup;
-      const permArray = Array.from(selectedPermissions);
+      let permArray = Array.from(selectedPermissions);
+
+      // Preserve full wildcard for admin role or when 100% permissions are selected
+      if (
+        selectedPermissions.has('*') ||
+        (screens.length > 0 && effectiveCount >= totalAvailablePermissions) ||
+        calculatedKey === 'ADMIN_GROUP' ||
+        initialGroup?.key === 'ADMIN_GROUP'
+      ) {
+        if (!permArray.includes('*')) {
+          permArray.push('*');
+        }
+      }
 
       if (initialGroup?.id) {
         // Update existing group
@@ -279,15 +412,80 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
     }
   };
 
+  // Enterprise Role Deletion Protection Checks
+  const isDeleteDisabled = Boolean(
+    initialGroup?.isSystemDefault ||
+    initialGroup?.key === 'ADMIN_GROUP' ||
+    assignedUsersCount > 0
+  );
+
+  const deleteDisabledReason = initialGroup?.isSystemDefault || initialGroup?.key === 'ADMIN_GROUP'
+    ? (isRtl ? 'دور سيادي افتراضي للنظام غير قابل للحذف' : 'System default sovereign role cannot be deleted')
+    : assignedUsersCount > 0
+      ? (isRtl ? `لا يمكن حذف الدور: يوجد (${assignedUsersCount}) مستخدم مسند إليه حالياً` : `Cannot delete: ${assignedUsersCount} users assigned`)
+      : (isRtl ? 'حذف الدور من المنظومة' : 'Delete Role');
+
+  const handleInitiateDelete = () => {
+    if (!initialGroup?.id) return;
+    if (initialGroup.isSystemDefault || initialGroup.key === 'ADMIN_GROUP') {
+      onNotify?.(
+        isRtl ? 'إجراء محظور سيادياً' : 'Protected Role',
+        isRtl ? 'لا يمكن حذف الأدوار الافتراضية والسيادية للنظام للحفاظ على استقرار المنظومة.' : 'System default roles are protected from deletion.',
+        'warning'
+      );
+      return;
+    }
+
+    if (assignedUsersCount > 0) {
+      onNotify?.(
+        isRtl ? 'تعذر حذف الدور' : 'Cannot Delete Role',
+        isRtl 
+          ? `لا يمكن حذف هذا الدور لوجود (${assignedUsersCount}) مستخدمين مسندين إليه حالياً. يرجى نقل المستخدمين لدور آخر أولاً.`
+          : `Cannot delete role with ${assignedUsersCount} active assigned users. Reassign users first.`,
+        'error'
+      );
+      return;
+    }
+
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!initialGroup?.id) return;
+    setIsDeleting(true);
+    try {
+      await iamService.deleteGroup(initialGroup.id);
+      onNotify?.(
+        isRtl ? 'تم الحذف بنجاح' : 'Deleted Successfully',
+        isRtl ? `تم حذف الدور [${initialGroup.name}] وتوثيق ذلك في سجل التدقيق الأمني` : `Role [${initialGroup.name}] deleted successfully`,
+        'success'
+      );
+      setIsDeleteModalOpen(false);
+      if (onDeleteSuccess) {
+        onDeleteSuccess();
+      } else {
+        onCancel();
+      }
+    } catch (err: any) {
+      onNotify?.(
+        isRtl ? 'فشل الحذف' : 'Delete Failed',
+        err.message || (isRtl ? 'حدث خطأ أثناء محاولة حذف الدور' : 'Failed to delete role'),
+        'error'
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div 
       style={{
         background: 'var(--bg-card, #111827)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
+        border: '1px solid var(--border)',
         borderRadius: '16px',
         padding: '1.75rem',
         direction: isRtl ? 'rtl' : 'ltr',
-        boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.5)'
+        boxShadow: 'var(--shadow-card)'
       }}
     >
       {/* ── 1. TOP ACTION BAR (كما في أعلى الصورة: زر حفظ بارز وزر تراجع) ── */}
@@ -298,7 +496,7 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
           alignItems: 'center',
           marginBottom: '1.5rem',
           paddingBottom: '1.25rem',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)'
+          borderBottom: '1px solid var(--border)'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -306,11 +504,11 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
             type="button"
             onClick={onCancel}
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
+              background: 'var(--overlay-subtle)',
+              border: '1px solid var(--border)',
               borderRadius: '8px',
               padding: '0.5rem 0.85rem',
-              color: '#9ca3af',
+              color: 'var(--text-muted, #9ca3af)',
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
@@ -323,51 +521,103 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
             <span>{isRtl ? 'رجوع' : 'Back'}</span>
           </button>
           
-          <div>
-            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#f9fafb' }}>
-              {initialGroup ? (isRtl ? `تعديل الدور: ${initialGroup.name}` : `Edit Role: ${initialGroup.name}`) : (isRtl ? 'إنشاء دور وصلاحيات جديدة' : 'Create New Role & Matrix')}
+          {initialGroup && (
+            <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main, #f9fafb)' }}>
+              {isRtl ? `تعديل الدور: ${initialGroup.name}` : `Edit Role: ${initialGroup.name}`}
             </h2>
-            <span style={{ fontSize: '0.76rem', color: '#9ca3af' }}>
-              {isRtl ? 'مصفوفة التحكم الديناميكية بالصلاحيات المصرفية وفق مبادئ SOLID' : 'Dynamic Role-Based Access Control Matrix (SOLID Architecture)'}
+          )}
+
+          {/* عداد الصلاحيات الممنوحة مدمج بأعلى الصفحة بدون أخذ مساحة رأسية إضافية */}
+          <div 
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              background: 'var(--overlay-subtle)',
+              border: '1px solid var(--border)',
+              padding: '0.35rem 0.8rem',
+              borderRadius: '8px',
+              fontSize: '0.82rem'
+            }}
+          >
+            <span style={{ color: 'var(--text-main, #d1d5db)', fontWeight: 700 }}>{isRtl ? 'الصلاحيات' : 'Permissions'}</span>
+            <span style={{ color: '#10b981', fontWeight: 800 }}>
+              ({effectiveCount} / {totalAvailablePermissions} {isRtl ? 'صلاحية ممنوحة' : 'granted'})
             </span>
           </div>
         </div>
 
-        {/* زر الحفظ الأخضر الرئيسي (مطابق لموضع وزر حفظ في الصورة) */}
-        <button
-          type="button"
-          onClick={() => handleSave()}
-          disabled={isSubmitting}
-          style={{
-            background: '#10b981',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '0.65rem 1.6rem',
-            fontSize: '0.92rem',
-            fontWeight: 800,
-            cursor: isSubmitting ? 'not-allowed' : 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            boxShadow: hasChanges ? '0 0 15px rgba(16, 185, 129, 0.4)' : '0 4px 12px rgba(16, 185, 129, 0.25)',
-            transition: 'all 0.2s',
-            opacity: isSubmitting ? 0.7 : 1
-          }}
-        >
-          <Save size={16} />
-          <span>{isSubmitting ? (isRtl ? 'جاري الحفظ...' : 'Saving...') : (isRtl ? 'حفظ' : 'Save')}</span>
-        </button>
+        {/* زر الحذف وزر الحفظ الأخضر الرئيسي */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          {initialGroup?.id && (
+            <button
+              type="button"
+              onClick={handleInitiateDelete}
+              disabled={isSubmitting || isDeleting || isDeleteDisabled}
+              title={deleteDisabledReason}
+              style={{
+                background: isDeleteDisabled ? 'rgba(255, 255, 255, 0.03)' : 'rgba(239, 68, 68, 0.1)',
+                color: isDeleteDisabled ? '#6b7280' : '#f87171',
+                border: `1px solid ${isDeleteDisabled ? 'rgba(255, 255, 255, 0.08)' : 'rgba(239, 68, 68, 0.3)'}`,
+                borderRadius: '8px',
+                padding: '0.65rem 1.15rem',
+                fontSize: '0.88rem',
+                fontWeight: 700,
+                cursor: isDeleteDisabled ? 'not-allowed' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                transition: 'all 0.2s',
+                opacity: isDeleteDisabled ? 0.6 : 1
+              }}
+            >
+              <Trash2 size={16} />
+              <span>{isRtl ? 'حذف الدور' : 'Delete Role'}</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => handleSave()}
+            disabled={isSubmitting || isDeleting || isSovereignFrozen}
+            title={isSovereignFrozen ? (isRtl ? 'صلاحيات هذا الدور السيادي مجمدة ومحمية بالكامل (*)' : 'Sovereign role permissions are permanently frozen (*)') : undefined}
+            style={{
+              background: isSovereignFrozen ? 'rgba(16, 185, 129, 0.15)' : '#10b981',
+              color: isSovereignFrozen ? '#34d399' : '#ffffff',
+              border: isSovereignFrozen ? '1px solid rgba(16, 185, 129, 0.4)' : 'none',
+              borderRadius: '8px',
+              padding: '0.65rem 1.6rem',
+              fontSize: '0.92rem',
+              fontWeight: 800,
+              cursor: (isSubmitting || isDeleting || isSovereignFrozen) ? 'not-allowed' : 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              boxShadow: isSovereignFrozen ? 'none' : hasChanges ? '0 0 15px rgba(16, 185, 129, 0.4)' : '0 4px 12px rgba(16, 185, 129, 0.25)',
+              transition: 'all 0.2s',
+              opacity: (isSubmitting || isDeleting) ? 0.7 : 1
+            }}
+          >
+            {isSovereignFrozen ? <Lock size={16} /> : <Save size={16} />}
+            <span>
+              {isSubmitting
+                ? (isRtl ? 'جاري الحفظ...' : 'Saving...')
+                : isSovereignFrozen
+                ? (isRtl ? 'الصلاحيات مجمدة سيادياً (*)' : 'Sovereign Frozen (*)')
+                : (isRtl ? 'حفظ' : 'Save')}
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* ── 2. METADATA SECTION (الاسم + الحالة كما في الصورة) ── */}
       <div 
         style={{
-          background: 'rgba(255, 255, 255, 0.02)',
-          border: '1px solid rgba(255, 255, 255, 0.06)',
+          background: 'var(--overlay-subtle)',
+          border: '1px solid var(--border)',
           borderRadius: '12px',
           padding: '1.25rem 1.5rem',
-          marginBottom: '1.75rem',
+          marginBottom: '1.25rem',
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
           gap: '1.25rem',
@@ -376,7 +626,7 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
       >
         {/* حقل الاسم */}
         <div>
-          <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, marginBottom: '0.45rem', color: '#e5e7eb' }}>
+          <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, marginBottom: '0.45rem', color: 'var(--text-muted, #e5e7eb)' }}>
             {isRtl ? 'الاسم' : 'Name'} <span style={{ color: '#ef4444' }}>*</span>
           </label>
           <input
@@ -392,9 +642,9 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
               width: '100%',
               padding: '0.65rem 0.95rem',
               borderRadius: '8px',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              background: 'rgba(0, 0, 0, 0.3)',
-              color: '#ffffff',
+              border: '1px solid var(--border)',
+              background: 'var(--bg-input)',
+              color: 'var(--text-main, #ffffff)',
               fontSize: '0.9rem',
               outline: 'none'
             }}
@@ -403,7 +653,7 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
 
         {/* حقل رمز الدور (Key) */}
         <div>
-          <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, marginBottom: '0.45rem', color: '#e5e7eb' }}>
+          <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, marginBottom: '0.45rem', color: 'var(--text-muted, #e5e7eb)' }}>
             {isRtl ? 'رمز النظام (Role Key)' : 'Role Key'}
           </label>
           <input
@@ -419,9 +669,9 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
               width: '100%',
               padding: '0.65rem 0.95rem',
               borderRadius: '8px',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              background: initialGroup ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.3)',
-              color: initialGroup ? '#9ca3af' : '#ffffff',
+              border: '1px solid var(--border)',
+              background: initialGroup ? 'var(--overlay-subtle)' : 'var(--bg-input)',
+              color: initialGroup ? 'var(--text-dim, #9ca3af)' : 'var(--text-main, #ffffff)',
               fontSize: '0.86rem',
               outline: 'none',
               cursor: initialGroup ? 'not-allowed' : 'text'
@@ -468,94 +718,141 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
         </div>
       </div>
 
-      {/* ── 3. SECTION TAB / HEADER (تبويب "الصلاحيات" كما في الصورة) ── */}
-      <div 
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '1rem',
-          paddingBottom: '0.5rem',
-          borderBottom: '2px solid rgba(16, 185, 129, 0.3)'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span 
+
+      {/* ── 3.5 SOVEREIGN FROZEN BANNER ── */}
+      {isSovereignFrozen && (
+        <div
+          style={{
+            background: 'linear-gradient(90deg, rgba(16, 185, 129, 0.12) 0%, rgba(59, 130, 246, 0.08) 100%)',
+            border: '1px solid rgba(16, 185, 129, 0.35)',
+            borderRadius: '12px',
+            padding: '1.1rem 1.35rem',
+            marginBottom: '1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem',
+            boxShadow: '0 4px 18px rgba(16, 185, 129, 0.08)'
+          }}
+        >
+          <div
             style={{
-              background: 'rgba(255, 255, 255, 0.08)',
-              padding: '0.35rem 0.85rem',
-              borderRadius: '6px',
-              fontWeight: 800,
-              fontSize: '0.92rem',
-              color: '#ffffff',
-              letterSpacing: '0.5px'
+              width: '42px',
+              height: '42px',
+              borderRadius: '10px',
+              background: 'rgba(16, 185, 129, 0.2)',
+              border: '1px solid rgba(16, 185, 129, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#10b981',
+              flexShrink: 0
             }}
           >
-            {isRtl ? 'الصلاحيات' : 'Permissions'}
-          </span>
-          <span style={{ fontSize: '0.78rem', color: '#9ca3af' }}>
-            ({selectedPermissions.size} / {totalAvailablePermissions} {isRtl ? 'صلاحية ممنوحة' : 'granted'})
-          </span>
+            <ShieldCheck size={24} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 800, fontSize: '0.94rem', color: '#34d399', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span>{isRtl ? 'صلاحيات سيادية مجمدة ومحمية بالكامل (*)' : 'Sovereign Permissions Frozen & Protected (*)'}</span>
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '0.15rem 0.55rem',
+                  borderRadius: '12px',
+                  background: 'rgba(16, 185, 129, 0.2)',
+                  color: '#10b981',
+                  border: '1px solid rgba(16, 185, 129, 0.35)'
+                }}
+              >
+                {isRtl ? 'غير قابلة للتعديل' : 'Immutable'}
+              </span>
+            </div>
+            <div style={{ fontSize: '0.82rem', color: 'var(--text-dim, #9ca3af)', lineHeight: 1.55 }}>
+              {isRtl
+                ? 'يتمتع دور مدير النظام بالصلاحية الشاملة الكاملة (*) الدائمة لكافة الشاشات والعمليات. تم قفل وتجميد تعديل الصلاحيات لحماية استقرار المنظومة وضمان عدم تجزئة السيادة أو الإغلاق العرضي.'
+                : 'The Admin role possesses permanent full wildcard (*) permissions. All permissions are permanently frozen and protected from modification.'}
+            </div>
+          </div>
         </div>
-
-        {/* إحصائيات وتنبيه التبعية الذكي */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: '#10b981' }}>
-          <ShieldCheck size={14} />
-          <span>{isRtl ? 'الاعتمادية المتسلسلة نشطة: أي تعديل يمنح القراءة تلقائياً' : 'Cascading rules active'}</span>
-        </div>
-      </div>
+      )}
 
       {/* ── 4. PERMISSION MATRIX TABLE (مطابق لهيكل ومصفوفة الصورة) ── */}
       <div 
         style={{
-          background: 'rgba(0, 0, 0, 0.25)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
           borderRadius: '12px',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          boxShadow: 'var(--shadow-card)'
         }}
       >
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left' }}>
           <thead>
-            <tr style={{ background: 'rgba(255, 255, 255, 0.04)', borderBottom: '2px solid rgba(16, 185, 129, 0.4)' }}>
+            <tr style={{ background: 'var(--table-header-bg)', borderBottom: '2px solid rgba(16, 185, 129, 0.4)' }}>
               {/* عمود اسم الشاشة */}
-              <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.88rem', fontWeight: 800, color: '#f3f4f6' }}>
+              <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-main, #f3f4f6)' }}>
                 {isRtl ? 'اسم الشاشة' : 'Screen Name'}
               </th>
 
               {/* أعمدة العمليات الأربعة: قراءة | انشاء | تعديل | حذف */}
-              {ACTION_COLUMNS.map((col) => (
-                <th 
-                  key={col.key} 
-                  style={{ 
-                    padding: '0.9rem 1rem', 
-                    fontSize: '0.85rem', 
-                    fontWeight: 700, 
-                    color: '#e5e7eb',
-                    textAlign: 'center',
-                    width: '120px'
-                  }}
-                >
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem' }}>
-                    <span>{isRtl ? col.labelAr : col.labelEn}</span>
-                    <button
-                      type="button"
-                      title={isRtl ? `تحديد/إلغاء عمود ${col.labelAr} للكل` : `Toggle all ${col.labelEn}`}
-                      onClick={() => handleToggleColumn(col.key)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#9ca3af',
-                        fontSize: '0.68rem',
-                        cursor: 'pointer',
-                        padding: 0,
-                        textDecoration: 'underline'
-                      }}
-                    >
-                      {isRtl ? 'تحديد الكل' : 'All'}
-                    </button>
-                  </div>
-                </th>
-              ))}
+              {ACTION_COLUMNS.map((col) => {
+                const applicableScreens = screens.filter(s => s.supportedActions.includes(col.key));
+                const isAllChecked = applicableScreens.length > 0 && applicableScreens.every(s => isPermissionChecked(s.key, col.key));
+                const isSomeChecked = !isAllChecked && applicableScreens.some(s => isPermissionChecked(s.key, col.key));
+
+                return (
+                  <th 
+                    key={col.key} 
+                    style={{ 
+                      padding: '0.75rem 1rem', 
+                      fontSize: '0.85rem', 
+                      fontWeight: 700, 
+                      color: 'var(--text-muted, #e5e7eb)',
+                      textAlign: 'center',
+                      width: '120px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.35rem' }}>
+                      <span>{isRtl ? col.labelAr : col.labelEn}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleColumn(col.key)}
+                        disabled={isSovereignFrozen}
+                        title={
+                          isSovereignFrozen
+                            ? (isRtl ? 'صلاحيات سيادية مجمدة ومحمية بالكامل (*)' : 'Sovereign permissions frozen (*)')
+                            : isAllChecked 
+                              ? (isRtl ? `إلغاء تحديد كل ${col.labelAr}` : `Deselect all ${col.labelEn}`)
+                              : (isRtl ? `تحديد كل ${col.labelAr}` : `Select all ${col.labelEn}`)
+                        }
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '6px',
+                          background: isAllChecked 
+                            ? 'rgba(16, 185, 129, 0.2)' 
+                            : isSomeChecked 
+                              ? 'rgba(16, 185, 129, 0.1)' 
+                              : 'rgba(0, 0, 0, 0.35)',
+                          border: `1.5px solid ${isAllChecked ? '#10b981' : isSomeChecked ? 'rgba(16, 185, 129, 0.5)' : 'rgba(255, 255, 255, 0.25)'}`,
+                          cursor: isSovereignFrozen ? 'not-allowed' : 'pointer',
+                          opacity: isSovereignFrozen ? 0.75 : 1,
+                          transition: 'all 0.15s ease',
+                          padding: 0
+                        }}
+                      >
+                        {isAllChecked && <Check size={15} color="#10b981" strokeWidth={3} />}
+                        {!isAllChecked && isSomeChecked && (
+                          <div style={{ width: '10px', height: '2px', background: '#34d399', borderRadius: '1px' }} />
+                        )}
+                      </button>
+                    </div>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
 
@@ -582,43 +879,19 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
               </tr>
             ) : (
               groupedScreens.map((grp) => {
-                const allGroupChecked = grp.screens.every(s =>
-                  s.supportedActions.every(act => selectedPermissions.has(`${s.key}:${act}`))
-                );
-
                 return (
                   <React.Fragment key={grp.systemKey}>
                     {/* رأس قسم النظام المصرفي الديناميكي */}
                     <tr style={{ background: 'rgba(16, 185, 129, 0.08)', borderBottom: '1px solid rgba(16, 185, 129, 0.2)' }}>
                       <td colSpan={5} style={{ padding: '0.65rem 1.25rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                            <Layers size={16} color="#34d399" />
-                            <span style={{ fontWeight: 800, fontSize: '0.88rem', color: '#34d399' }}>
-                              {isRtl ? grp.systemName : (grp.systemNameEn || grp.systemName)}
-                            </span>
-                            <span style={{ fontSize: '0.74rem', color: '#9ca3af', padding: '0.1rem 0.45rem', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)' }}>
-                              {grp.screens.length} {isRtl ? 'شاشة / خدمة' : 'screens'}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleSystem(grp.screens)}
-                            style={{
-                              background: allGroupChecked ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.06)',
-                              border: `1px solid ${allGroupChecked ? 'rgba(16, 185, 129, 0.5)' : 'rgba(255, 255, 255, 0.12)'}`,
-                              borderRadius: '4px',
-                              padding: '0.2rem 0.65rem',
-                              color: allGroupChecked ? '#34d399' : '#d1d5db',
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            {allGroupChecked 
-                              ? (isRtl ? 'إلغاء تحديد النظام بالكامل' : 'Deselect System') 
-                              : (isRtl ? 'تحديد كافة صلاحيات النظام' : 'Select All System')}
-                          </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                          <Layers size={16} color="#34d399" />
+                          <span style={{ fontWeight: 800, fontSize: '0.88rem', color: '#34d399' }}>
+                            {isRtl ? grp.systemName : (grp.systemNameEn || grp.systemName)}
+                          </span>
+                          <span style={{ fontSize: '0.74rem', color: '#9ca3af', padding: '0.1rem 0.45rem', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)' }}>
+                            {grp.screens.length} {isRtl ? 'شاشة / خدمة' : 'screens'}
+                          </span>
                         </div>
                       </td>
                     </tr>
@@ -626,14 +899,14 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
                     {/* صفوف شاشات وخدمات هذا النظام */}
                     {grp.screens.map((screen, idx) => {
                       const isEven = idx % 2 === 0;
-                      const allScreenChecked = screen.supportedActions.every(act => selectedPermissions.has(`${screen.key}:${act}`));
+                      const allScreenChecked = screen.supportedActions.every(act => isPermissionChecked(screen.key, act));
 
                       return (
                         <tr 
                           key={screen.key}
                           style={{
-                            background: isEven ? 'rgba(255, 255, 255, 0.015)' : 'rgba(255, 255, 255, 0.04)',
-                            borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                            background: isEven ? 'var(--table-row-alt)' : 'var(--table-row-hover)',
+                            borderBottom: '1px solid var(--border-subtle)',
                             transition: 'background 0.15s'
                           }}
                         >
@@ -641,10 +914,10 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
                           <td style={{ padding: '0.85rem 1.25rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                               <div>
-                                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#f9fafb' }}>
+                                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-main, #f9fafb)' }}>
                                   {screen.name}
                                 </div>
-                                <div style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: '0.15rem' }}>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-dim, #9ca3af)', marginTop: '0.15rem' }}>
                                   {screen.nameAr}
                                 </div>
                               </div>
@@ -653,14 +926,16 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleToggleAllForScreen(screen)}
+                                disabled={isSovereignFrozen}
                                 style={{
-                                  background: allScreenChecked ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.05)',
-                                  border: `1px solid ${allScreenChecked ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255, 255, 255, 0.1)'}`,
+                                  background: allScreenChecked ? 'rgba(16, 185, 129, 0.12)' : 'var(--overlay-subtle)',
+                                  border: `1px solid ${allScreenChecked ? 'rgba(16, 185, 129, 0.3)' : 'var(--border)'}`,
                                   borderRadius: '4px',
                                   padding: '0.2rem 0.5rem',
-                                  color: allScreenChecked ? '#34d399' : '#9ca3af',
+                                  color: allScreenChecked ? '#34d399' : 'var(--text-muted, #9ca3af)',
                                   fontSize: '0.68rem',
-                                  cursor: 'pointer'
+                                  cursor: isSovereignFrozen ? 'not-allowed' : 'pointer',
+                                  opacity: isSovereignFrozen ? 0.75 : 1
                                 }}
                               >
                                 {allScreenChecked ? (isRtl ? 'إلغاء الشاشة' : 'Deselect') : (isRtl ? 'كامل الشاشة' : 'Select All')}
@@ -671,7 +946,7 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
                           {/* أعمدة العمليات الأربعة (قراءة | انشاء | تعديل | حذف) */}
                           {ACTION_COLUMNS.map((col) => {
                             const isSupported = screen.supportedActions.includes(col.key);
-                            const isChecked = selectedPermissions.has(`${screen.key}:${col.key}`);
+                            const isChecked = isPermissionChecked(screen.key, col.key);
 
                             return (
                               <td 
@@ -684,6 +959,7 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
                               >
                                 {isSupported ? (
                                   <label
+                                    title={isSovereignFrozen ? (isRtl ? 'صلاحية سيادية مجمدة ومحمية بالكامل (*)' : 'Sovereign permission frozen (*)') : undefined}
                                     style={{
                                       display: 'inline-flex',
                                       alignItems: 'center',
@@ -691,14 +967,16 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
                                       width: '28px',
                                       height: '28px',
                                       borderRadius: '6px',
-                                      background: isChecked ? 'rgba(16, 185, 129, 0.15)' : 'rgba(0, 0, 0, 0.3)',
-                                      border: `1px solid ${isChecked ? '#10b981' : 'rgba(255, 255, 255, 0.18)'}`,
-                                      cursor: 'pointer',
+                                      background: isChecked ? 'rgba(16, 185, 129, 0.15)' : 'var(--overlay-subtle)',
+                                      border: `1px solid ${isChecked ? '#10b981' : 'var(--border)'}`,
+                                      cursor: isSovereignFrozen ? 'not-allowed' : 'pointer',
+                                      opacity: isSovereignFrozen ? 0.85 : 1,
                                       transition: 'all 0.15s'
                                     }}
                                   >
                                     <input
                                       type="checkbox"
+                                      disabled={isSovereignFrozen}
                                       checked={isChecked}
                                       onChange={() => handleTogglePermission(screen.key, col.key)}
                                       style={{ display: 'none' }}
@@ -745,20 +1023,46 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
       >
         <div>
           {isRtl
-            ? `مجموع الصلاحيات المسجلة بالدور: ${selectedPermissions.size} من أصل ${totalAvailablePermissions}`
-            : `Assigned permissions: ${selectedPermissions.size} of ${totalAvailablePermissions}`}
+            ? `مجموع الصلاحيات المسجلة بالدور: ${effectiveCount} من أصل ${totalAvailablePermissions}`
+            : `Assigned permissions: ${effectiveCount} of ${totalAvailablePermissions}`}
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          {initialGroup?.id && (
+            <button
+              type="button"
+              onClick={handleInitiateDelete}
+              disabled={isSubmitting || isDeleting || isDeleteDisabled}
+              title={deleteDisabledReason}
+              style={{
+                padding: '0.5rem 1rem',
+                borderRadius: '6px',
+                border: `1px solid ${isDeleteDisabled ? 'rgba(255, 255, 255, 0.08)' : 'rgba(239, 68, 68, 0.25)'}`,
+                background: isDeleteDisabled ? 'none' : 'rgba(239, 68, 68, 0.08)',
+                color: isDeleteDisabled ? '#6b7280' : '#f87171',
+                cursor: isDeleteDisabled ? 'not-allowed' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                fontSize: '0.82rem',
+                fontWeight: 600
+              }}
+            >
+              <Trash2 size={14} />
+              <span>{isRtl ? 'حذف الدور' : 'Delete'}</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onCancel}
+            disabled={isDeleting}
             style={{
               padding: '0.5rem 1rem',
               borderRadius: '6px',
               border: '1px solid rgba(255, 255, 255, 0.15)',
               background: 'none',
               color: '#9ca3af',
-              cursor: 'pointer'
+              cursor: isDeleting ? 'not-allowed' : 'pointer'
             }}
           >
             {isRtl ? 'إلغاء' : 'Cancel'}
@@ -766,7 +1070,7 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
           <button
             type="button"
             onClick={() => handleSave()}
-            disabled={isSubmitting}
+            disabled={isSubmitting || isDeleting}
             style={{
               padding: '0.5rem 1.4rem',
               borderRadius: '6px',
@@ -774,13 +1078,144 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
               background: '#10b981',
               color: '#ffffff',
               fontWeight: 700,
-              cursor: isSubmitting ? 'not-allowed' : 'pointer'
+              cursor: (isSubmitting || isDeleting) ? 'not-allowed' : 'pointer'
             }}
           >
             {isRtl ? 'حفظ الصلاحيات' : 'Save Permissions'}
           </button>
         </div>
       </div>
+
+      {/* ── Enterprise Delete Confirmation Modal ── */}
+      {isDeleteModalOpen && initialGroup && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '1rem',
+            direction: isRtl ? 'rtl' : 'ltr'
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--bg-card, #1f2937)',
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              borderRadius: '16px',
+              padding: '1.75rem',
+              maxWidth: '480px',
+              width: '100%',
+              boxShadow: 'var(--shadow-dropdown)'
+            }}
+          >
+            {/* Header with Danger Icon */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '1.25rem' }}>
+              <div
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '10px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ef4444',
+                  flexShrink: 0
+                }}
+              >
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main, #f9fafb)' }}>
+                  {isRtl ? 'تأكيد حذف الدور من المنظومة' : 'Confirm Role Deletion'}
+                </h3>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-dim, #9ca3af)' }}>
+                  {isRtl ? 'إجراء رقابي سيادي لا يمكن التراجع عنه' : 'Irreversible Action'}
+                </span>
+              </div>
+            </div>
+
+            {/* Description Body */}
+            <div style={{ marginBottom: '1.5rem', color: 'var(--text-muted, #d1d5db)', fontSize: '0.88rem', lineHeight: '1.6' }}>
+              <p style={{ margin: '0 0 0.75rem 0' }}>
+                {isRtl
+                  ? `أنت على وشك حذف الدور المصرفي `
+                  : `You are about to permanently delete the role `}
+                <strong style={{ color: 'var(--text-main, #ffffff)', background: 'var(--overlay-hover)', padding: '0.15rem 0.4rem', borderRadius: '4px' }}>
+                  {initialGroup.name}
+                </strong>
+                <span style={{ fontFamily: 'monospace', color: 'var(--text-dim, #9ca3af)', margin: '0 0.35rem' }}>({initialGroup.key})</span>.
+              </p>
+              
+              <div
+                style={{
+                  background: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  borderRadius: '8px',
+                  padding: '0.75rem 1rem',
+                  fontSize: '0.82rem',
+                  color: '#fca5a5'
+                }}
+              >
+                {isRtl
+                  ? 'سيتم حذف مصفوفة الصلاحيات المرتبطة بهذا الدور بالكامل، وتوثيق عملية الحذف في سجل التدقيق الأمني (Audit Trail).'
+                  : 'All permission matrix mappings will be purged, and this event will be permanently recorded in the sovereign audit trail.'}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(false)}
+                disabled={isDeleting}
+                style={{
+                  padding: '0.6rem 1.25rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  background: 'var(--overlay-subtle)',
+                  color: 'var(--text-muted, #d1d5db)',
+                  fontSize: '0.86rem',
+                  fontWeight: 600,
+                  cursor: isDeleting ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {isRtl ? 'إلغاء وتراجع' : 'Cancel'}
+              </button>
+              
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                style={{
+                  padding: '0.6rem 1.4rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: '#ef4444',
+                  color: '#ffffff',
+                  fontSize: '0.86rem',
+                  fontWeight: 800,
+                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  boxShadow: '0 4px 12px rgba(239, 68, 68, 0.35)',
+                  opacity: isDeleting ? 0.75 : 1
+                }}
+              >
+                <Trash2 size={16} />
+                <span>{isDeleting ? (isRtl ? 'جاري الحذف...' : 'Deleting...') : (isRtl ? 'تأكيد الحذف نهائياً' : 'Delete Role')}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

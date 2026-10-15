@@ -16,34 +16,21 @@ export class RawJsonAdapter implements IFormatAdapter {
     let parsedData: any;
     try {
       parsedData = JSON.parse(rawContent);
-    } catch {
-      // Lenient recovery for live typing (trailing commas, unclosed braces)
-      try {
-        let cleaned = rawContent.trim();
-        cleaned = cleaned.replace(/,\s*([}\]])/g, '$1');
-        const openBraces = (cleaned.match(/\{/g) || []).length;
-        const closeBraces = (cleaned.match(/\}/g) || []).length;
-        if (openBraces > closeBraces) {
-          cleaned += '}'.repeat(openBraces - closeBraces);
-        }
-        const openBrackets = (cleaned.match(/\[/g) || []).length;
-        const closeBrackets = (cleaned.match(/\]/g) || []).length;
-        if (openBrackets > closeBrackets) {
-          cleaned += ']'.repeat(openBrackets - closeBrackets);
-        }
-        parsedData = JSON.parse(cleaned);
-      } catch (err: any) {
-        throw new Error(`Invalid JSON syntax: ${err.message}`);
-      }
+    } catch (err: any) {
+      throw new Error(`صيغة JSON غير صالحة: ${err.message}`);
+    }
+
+    if (parsedData === null || parsedData === undefined || typeof parsedData !== 'object') {
+      throw new Error('محتوى JSON غير صالح: يجب أن يكون كائن (Object) أو مصفوفة (Array).');
     }
 
     // Dynamic metadata extraction from the JSON content if provided
-    const serviceCode = (typeof parsedData?.serviceCode === 'string' && parsedData.serviceCode) || defaultMeta?.serviceCode || 'SERVICE_CUSTOM';
-    const serviceName = (typeof parsedData?.serviceName === 'string' && parsedData.serviceName) || defaultMeta?.serviceName || 'خدمة مخصصة (Custom API Service)';
+    const serviceCode = (typeof parsedData?.serviceCode === 'string' && parsedData.serviceCode) || defaultMeta?.serviceCode || 'CUSTOM_API';
+    const serviceName = (typeof parsedData?.serviceName === 'string' && parsedData.serviceName) || defaultMeta?.serviceName || 'Custom API Service';
     const serviceNameEn = (typeof parsedData?.serviceNameEn === 'string' && parsedData.serviceNameEn) || defaultMeta?.serviceNameEn || 'Custom API Service';
     const semver = (typeof parsedData?.version === 'string' && parsedData.version) || (typeof parsedData?.semver === 'string' && parsedData.semver) || defaultMeta?.semver || '1.0.0';
     
-    const endpointPath = parsedData?.channel?.endpointPath || parsedData?.endpointPath || parsedData?.path || defaultMeta?.channel?.endpointPath || '/api/v1/custom/endpoint';
+    const endpointPath = parsedData?.channel?.endpointPath || parsedData?.endpointPath || parsedData?.path || defaultMeta?.channel?.endpointPath || '/api/v1/endpoint';
     const method = ((parsedData?.channel?.method || parsedData?.method || defaultMeta?.channel?.method || 'POST')).toUpperCase() as any;
     const protocol = ((parsedData?.channel?.protocol || parsedData?.protocol || defaultMeta?.channel?.protocol || 'REST')).toUpperCase() as any;
 
@@ -70,36 +57,13 @@ export class RawJsonAdapter implements IFormatAdapter {
         protocol,
         method,
         endpointPath,
-        environments: defaultMeta?.channel?.environments || {
-          sandbox: 'https://sandbox.api.fintech.local',
-          production: 'https://api.fintech.local'
-        }
+        environments: defaultMeta?.channel?.environments || {}
       },
-      headers: defaultMeta?.headers || [
-        {
-          nodeId: 'h_auth',
-          structure: { kind: 'HEADER', path: '$.headers.Authorization', order: 1 },
-          semantics: { name: 'Authorization', dataType: 'STRING', description: 'Bearer Token for API authorization' },
-          constraints: { required: true },
-          governance: { securityLevel: 'CONFIDENTIAL_MASKED', reviewStatus: 'APPROVED', exampleValue: 'Bearer eyJhbGci...' },
-          children: []
-        },
-        {
-          nodeId: 'h_idem',
-          structure: { kind: 'HEADER', path: '$.headers.X-Idempotency-Key', order: 2 },
-          semantics: { name: 'X-Idempotency-Key', dataType: 'UUID', description: 'Unique transaction request UUID' },
-          constraints: { required: true, regexPattern: '^[0-9a-fA-F-]{36}$' },
-          governance: { securityLevel: 'INTERNAL', reviewStatus: 'APPROVED', exampleValue: 'c83890a1-43e2-4df4-8d9e-10821d3f9b88' },
-          children: []
-        }
-      ],
+      headers: defaultMeta?.headers || [],
       requestTree: rootNode,
       response200Tree: defaultMeta?.response200Tree,
       response422Tree: defaultMeta?.response422Tree,
-      errorCodes: defaultMeta?.errorCodes || [
-        { code: 'VALIDATION_ERROR_422', message: 'قيمة أحد الحقول غير مطابقة للشروط الرقابية', action: 'مراجعة قيود الحقل وإعادة الإرسال' },
-        { code: 'UNAUTHORIZED_401', message: 'انتهت صلاحية رمز التفويض الأمني', action: 'تجديد رمز الـ OAuth وإعادة المحاولة' }
-      ],
+      errorCodes: defaultMeta?.errorCodes || [],
       rawSource: rawContent,
       rawFormat: 'json',
       updatedAt: new Date().toISOString(),

@@ -26,8 +26,7 @@ export const LoginView: React.FC = () => {
     try {
       await login(identifier.trim(), password);
     } catch (err: any) {
-      // Production standard exact message requested
-      setErrorMsg(isRtl ? 'اسم المستخدم أو كلمة المرور غير صحيحة' : 'Invalid username or password');
+      setErrorMsg(err.message || (isRtl ? 'اسم المستخدم أو كلمة المرور غير صحيحة' : 'Invalid username or password'));
     } finally {
       setIsSubmitting(false);
     }
@@ -121,9 +120,9 @@ export const LoginView: React.FC = () => {
                   padding: '0.75rem 2.5rem',
                   fontSize: '0.9rem',
                   borderRadius: '10px',
-                  border: errorMsg ? '1px solid #ef4444' : '1px solid rgba(255, 255, 255, 0.12)',
-                  background: 'rgba(0, 0, 0, 0.25)',
-                  color: '#ffffff',
+                  border: errorMsg ? '1px solid #ef4444' : '1px solid var(--border, rgba(255, 255, 255, 0.12))',
+                  background: 'var(--bg-input, rgba(0, 0, 0, 0.25))',
+                  color: 'var(--text-main, #ffffff)',
                   outline: 'none',
                   transition: 'border-color 0.2s'
                 }}
@@ -176,9 +175,9 @@ export const LoginView: React.FC = () => {
                   padding: '0.75rem 2.5rem',
                   fontSize: '0.9rem',
                   borderRadius: '10px',
-                  border: errorMsg ? '1px solid #ef4444' : '1px solid rgba(255, 255, 255, 0.12)',
-                  background: 'rgba(0, 0, 0, 0.25)',
-                  color: '#ffffff',
+                  border: errorMsg ? '1px solid #ef4444' : '1px solid var(--border, rgba(255, 255, 255, 0.12))',
+                  background: 'var(--bg-input, rgba(0, 0, 0, 0.25))',
+                  color: 'var(--text-main, #ffffff)',
                   outline: 'none',
                   transition: 'border-color 0.2s'
                 }}

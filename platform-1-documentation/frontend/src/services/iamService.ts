@@ -123,6 +123,18 @@ export class IamService {
     }
   }
 
+  public async deleteUser(userId: string): Promise<void> {
+    const response = await fetch(`${IAM_BASE_URL}/users/${userId}`, {
+      method: 'DELETE',
+      headers: authService.getAuthHeaders()
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'فشل حذف المستخدم');
+    }
+  }
+
+
   // --- Screen Resources Catalog (Dynamic Matrix from Live Systems Only) ---
   public async getScreenResources(): Promise<ScreenResourceDefinition[]> {
     try {
@@ -214,6 +226,9 @@ export class IamService {
     const data = await response.json();
     if (!response.ok || !data.success) {
       throw new Error(data.message || 'فشل حذف المجموعة');
+    }
+    if (data.isStaged) {
+      throw new Error(data.message || 'تم إرسال الإجراء لمسار الحوكمة للاعتماد.');
     }
   }
 

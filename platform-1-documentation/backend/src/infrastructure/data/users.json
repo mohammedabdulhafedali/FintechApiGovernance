@@ -13,61 +13,6 @@
       "revokedPermissions": []
     },
     "createdAt": "2026-01-01T00:00:00.000Z",
-    "updatedAt": "2026-01-01T00:00:00.000Z"
-  },
-  {
-    "id": "usr_architect_01",
-    "username": "architect",
-    "email": "architect@gov.fintech",
-    "fullName": "مهندس API",
-    "passwordHash": "b8c85dd33a0a2c5c1983465490a51acf279e7cd7a93b8ffa8c37e8bffbcffbd373fcb258822d6dd32f2dfdad77cb8c8f7e2ab4467888c25154fac258dbfbe850",
-    "passwordSalt": "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d",
-    "groupId": "grp_architects",
-    "status": "ACTIVE",
-    "overrides": {
-      "grantedPermissions": [],
-      "revokedPermissions": []
-    },
-    "createdAt": "2026-01-01T00:00:00.000Z",
-    "updatedAt": "2026-01-01T00:00:00.000Z"
-  },
-  {
-    "id": "usr_viewer_01",
-    "username": "viewer",
-    "email": "viewer@gov.fintech",
-    "fullName": "مستعرض",
-    "passwordHash": "2ab0c32a2ee5eca0c67633f606e8f2fd9a11915ccf5a0174e0e4d8a4e84c5f4490c2453224d6377f363d7ab56c37b458f8ec523282505edb579b90b72eed409e",
-    "passwordSalt": "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d",
-    "groupId": "grp_viewers",
-    "status": "ACTIVE",
-    "overrides": {
-      "grantedPermissions": [],
-      "revokedPermissions": []
-    },
-    "createdAt": "2026-01-01T00:00:00.000Z",
-    "updatedAt": "2026-01-01T00:00:00.000Z"
-  },
-  {
-    "id": "usr_partner_01",
-    "username": "partner_bank",
-    "email": "partner@bank.fintech",
-    "fullName": "مسؤول بنك اليمن والكويت (شريك خارجي)",
-    "passwordHash": "2ab0c32a2ee5eca0c67633f606e8f2fd9a11915ccf5a0174e0e4d8a4e84c5f4490c2453224d6377f363d7ab56c37b458f8ec523282505edb579b90b72eed409e",
-    "passwordSalt": "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d",
-    "groupId": "grp_external_partners",
-    "status": "ACTIVE",
-    "userType": "EXTERNAL",
-    "organizationId": "banking",
-    "organizationName": "بنك اليمن والكويت",
-    "accessScope": {
-      "allowedEntityIds": ["banking"],
-      "allowedSystemIds": ["collection"]
-    },
-    "overrides": {
-      "grantedPermissions": [],
-      "revokedPermissions": []
-    },
-    "createdAt": "2026-10-13T17:00:00.000Z",
-    "updatedAt": "2026-10-13T17:00:00.000Z"
+    "updatedAt": "2026-10-15T06:58:22.609Z"
   }
 ]

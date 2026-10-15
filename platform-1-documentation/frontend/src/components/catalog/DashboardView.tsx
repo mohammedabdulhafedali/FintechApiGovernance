@@ -187,7 +187,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', fontWeight: 600 }}>
               {isRtl ? 'إجمالي الأنظمة المركزية' : 'Total Core Systems'}
             </span>
-            <strong style={{ fontSize: '1.4rem', color: '#ffffff', fontWeight: 800 }}>
+            <strong style={{ fontSize: '1.4rem', color: 'var(--text-main, #ffffff)', fontWeight: 800 }}>
               {systemEntries.length}
             </strong>
           </div>
@@ -215,7 +215,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', fontWeight: 600 }}>
               {isRtl ? 'روابط التكامل النشطة' : 'Active Integrations'}
             </span>
-            <strong style={{ fontSize: '1.4rem', color: '#ffffff', fontWeight: 800 }}>
+            <strong style={{ fontSize: '1.4rem', color: 'var(--text-main, #ffffff)', fontWeight: 800 }}>
               {systemEntries.reduce((acc, [, s]) => acc + Object.keys(s.integrations || {}).length, 0)}
             </strong>
           </div>
@@ -243,7 +243,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', fontWeight: 600 }}>
               {isRtl ? 'إجمالي مسارات الـ API' : 'Total API Endpoints'}
             </span>
-            <strong style={{ fontSize: '1.4rem', color: '#ffffff', fontWeight: 800 }}>
+            <strong style={{ fontSize: '1.4rem', color: 'var(--text-main, #ffffff)', fontWeight: 800 }}>
               {systemEntries.reduce((acc, [, s]) => {
                 const totalInSys = Object.values(s.integrations || {}).reduce(
                   (sAcc, intItem) => sAcc + (intItem.endpoints ? intItem.endpoints.length : 0), 0
@@ -282,7 +282,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <strong style={{ fontSize: '1rem', color: '#ffffff', fontWeight: 800 }}>
+                    <strong style={{ fontSize: '1rem', color: 'var(--text-main, #ffffff)', fontWeight: 800 }}>
                       {localizedName}
                     </strong>
                     <span style={{
@@ -353,7 +353,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <form className="sector-card sector-inline-form-card" onSubmit={handleCreateSystemInline}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
                 <ShieldPlus size={18} style={{ color: 'var(--emerald)' }} />
-                <strong style={{ fontSize: '0.92rem', color: '#ffffff' }}>
+                <strong style={{ fontSize: '0.92rem', color: 'var(--text-main, #ffffff)' }}>
                   {isRtl ? 'إضافة نظام برمجي جديد' : 'Add New Core System'}
                 </strong>
               </div>

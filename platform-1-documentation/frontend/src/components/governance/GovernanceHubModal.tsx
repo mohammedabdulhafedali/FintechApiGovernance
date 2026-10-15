@@ -236,7 +236,7 @@ export const GovernanceHubModal: React.FC<GovernanceHubModalProps> = ({
             <ShieldCheck size={22} />
           </div>
           <div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main, #ffffff)', letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               مركز الحوكمة ومسارات الاعتماد السيادية
               <span style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
                 Four-Eyes Control v2026
@@ -359,7 +359,7 @@ export const GovernanceHubModal: React.FC<GovernanceHubModalProps> = ({
               }}
             >
               <div style={{ padding: '0.85rem 1rem', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#ffffff' }}>المهام المعلقة للاعتماد</span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-main, #ffffff)' }}>المهام المعلقة للاعتماد</span>
                 <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{inboxItems.length} طلبات</span>
               </div>
 
@@ -438,7 +438,7 @@ export const GovernanceHubModal: React.FC<GovernanceHubModalProps> = ({
                           </span>
                           {getStatusBadge(selectedRequest.status)}
                         </div>
-                        <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+                        <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main, #ffffff)', margin: 0 }}>
                           {selectedRequest.actionDescriptionAr}
                         </h2>
                       </div>
@@ -504,7 +504,7 @@ export const GovernanceHubModal: React.FC<GovernanceHubModalProps> = ({
 
                   {/* Side-by-Side Visual Diff Viewer */}
                   <div style={{ flex: 1, padding: '1.25rem', overflowY: 'auto' }}>
-                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ffffff', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-main, #ffffff)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                       <FileCheck2 size={16} style={{ color: '#10b981' }} />
                       فحص الفروقات والتعديلات المقترحة (Visual Delta Diff):
                     </div>
@@ -567,7 +567,7 @@ export const GovernanceHubModal: React.FC<GovernanceHubModalProps> = ({
                     {/* Audit Trail of Previous Approvers */}
                     {selectedRequest.approvalTrail.length > 0 && (
                       <div style={{ marginTop: '1.25rem' }}>
-                        <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#ffffff', marginBottom: '0.5rem' }}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-main, #ffffff)', marginBottom: '0.5rem' }}>
                           سجل التوقيعات والقرارات السابقة في هذا الطلب:
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
@@ -575,7 +575,7 @@ export const GovernanceHubModal: React.FC<GovernanceHubModalProps> = ({
                             <div key={rIdx} style={{ padding: '0.65rem 0.85rem', borderRadius: '8px', background: 'rgba(30, 41, 59, 0.5)', border: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <div>
                                 <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#34d399' }}>{record.stageNameAr}: </span>
-                                <span style={{ fontSize: '0.76rem', color: '#ffffff' }}>{record.approverName} ({record.approverGroup})</span>
+                                <span style={{ fontSize: '0.76rem', color: 'var(--text-main, #ffffff)' }}>{record.approverName} ({record.approverGroup})</span>
                                 {record.notes && <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '0.15rem' }}>ملاحظات: {record.notes}</div>}
                               </div>
                               <div style={{ textAlign: 'left' }}>
@@ -674,7 +674,7 @@ export const GovernanceHubModal: React.FC<GovernanceHubModalProps> = ({
           <div style={{ flex: 1, background: 'rgba(15, 23, 42, 0.65)', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.08)', padding: '1.25rem', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#ffffff' }}>سجل العمليات التي قمت بإدخالها</h3>
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-main, #ffffff)' }}>سجل العمليات التي قمت بإدخالها</h3>
                 <p style={{ margin: '0.2rem 0 0', fontSize: '0.75rem', color: '#94a3b8' }}>تتبع حالة ومسارات الاعتماد لطلباتك المقترحة في النظام</p>
               </div>
               <span style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 700 }}>{myRequests.length} طلبات مسجلة</span>
@@ -693,7 +693,7 @@ export const GovernanceHubModal: React.FC<GovernanceHubModalProps> = ({
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#94a3b8' }}>#{req.id}</span>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#ffffff' }}>{req.actionDescriptionAr}</span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-main, #ffffff)' }}>{req.actionDescriptionAr}</span>
                       </div>
                       {getStatusBadge(req.status)}
                     </div>
@@ -721,7 +721,7 @@ export const GovernanceHubModal: React.FC<GovernanceHubModalProps> = ({
           <div style={{ flex: 1, background: 'rgba(15, 23, 42, 0.65)', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.08)', padding: '1.25rem', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#ffffff' }}>مصفوفة مسارات وسياسات الاعتماد المؤسسية (Dynamic Policy Engine)</h3>
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-main, #ffffff)' }}>مصفوفة مسارات وسياسات الاعتماد المؤسسية (Dynamic Policy Engine)</h3>
                 <p style={{ margin: '0.2rem 0 0', fontSize: '0.75rem', color: '#94a3b8' }}>
                   تحكم ديناميكي كامل في مسار كل شاشة وعملية: مباشر، افتراضي (مدخل ومراجع)، أو مسار متعدد المراحل
                 </p>
@@ -737,7 +737,7 @@ export const GovernanceHubModal: React.FC<GovernanceHubModalProps> = ({
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ fontSize: '0.92rem', fontWeight: 800, color: '#ffffff' }}>{pol.resourceNameAr}</span>
+                        <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-main, #ffffff)' }}>{pol.resourceNameAr}</span>
                         <code style={{ fontSize: '0.7rem', color: '#38bdf8', background: 'rgba(0, 0, 0, 0.3)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>{pol.resourceKey}</code>
                         {pol.isProtectedCore && (
                           <span style={{ fontSize: '0.68rem', padding: '0.1rem 0.45rem', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)', fontWeight: 700 }}>
@@ -794,13 +794,13 @@ export const GovernanceHubModal: React.FC<GovernanceHubModalProps> = ({
       {/* --- APPROVE CONFIRMATION MODAL --- */}
       {showApproveConfirm && selectedRequest && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ width: '480px', background: '#0f172a', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '14px', padding: '1.5rem', boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
+          <div style={{ width: '480px', background: 'var(--bg-card, #0f172a)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '14px', padding: '1.5rem', boxShadow: 'var(--shadow-dropdown, 0 20px 40px rgba(0,0,0,0.6))' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '1rem' }}>
               <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
                 <CheckCircle2 size={20} />
               </div>
               <div>
-                <h4 style={{ margin: 0, fontSize: '1rem', color: '#ffffff', fontWeight: 800 }}>تأكيد اعتماد المرحلة</h4>
+                <h4 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-main, #ffffff)', fontWeight: 800 }}>تأكيد اعتماد المرحلة</h4>
                 <p style={{ margin: 0, fontSize: '0.74rem', color: '#94a3b8' }}>سيتم تسجيل توقيعك وبصمتك الرقمية في سجل التدقيق المصرفي</p>
               </div>
             </div>
@@ -816,10 +816,10 @@ export const GovernanceHubModal: React.FC<GovernanceHubModalProps> = ({
                 rows={3}
                 style={{
                   width: '100%',
-                  background: 'rgba(30, 41, 59, 0.8)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  background: 'var(--bg-input, rgba(30, 41, 59, 0.8))',
+                  border: '1px solid var(--border, rgba(255, 255, 255, 0.1))',
                   borderRadius: '8px',
-                  color: '#ffffff',
+                  color: 'var(--text-main, #ffffff)',
                   padding: '0.65rem',
                   fontSize: '0.8rem',
                   resize: 'none'
@@ -850,13 +850,13 @@ export const GovernanceHubModal: React.FC<GovernanceHubModalProps> = ({
       {/* --- REJECT CONFIRMATION MODAL --- */}
       {showRejectConfirm && selectedRequest && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ width: '480px', background: '#0f172a', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '14px', padding: '1.5rem', boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
+          <div style={{ width: '480px', background: 'var(--bg-card, #0f172a)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '14px', padding: '1.5rem', boxShadow: 'var(--shadow-dropdown, 0 20px 40px rgba(0,0,0,0.6))' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '1rem' }}>
               <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444' }}>
                 <XCircle size={20} />
               </div>
               <div>
-                <h4 style={{ margin: 0, fontSize: '1rem', color: '#ffffff', fontWeight: 800 }}>تأكيد رفض الطلب</h4>
+                <h4 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-main, #ffffff)', fontWeight: 800 }}>تأكيد رفض الطلب</h4>
                 <p style={{ margin: 0, fontSize: '0.74rem', color: '#94a3b8' }}>إلغاء العملية وإشعار المُدخل بسبب الرفض الموثق</p>
               </div>
             </div>
@@ -872,10 +872,10 @@ export const GovernanceHubModal: React.FC<GovernanceHubModalProps> = ({
                 rows={3}
                 style={{
                   width: '100%',
-                  background: 'rgba(30, 41, 59, 0.8)',
+                  background: 'var(--bg-input, rgba(30, 41, 59, 0.8))',
                   border: '1px solid rgba(239, 68, 68, 0.3)',
                   borderRadius: '8px',
-                  color: '#ffffff',
+                  color: 'var(--text-main, #ffffff)',
                   padding: '0.65rem',
                   fontSize: '0.8rem',
                   resize: 'none'
@@ -906,11 +906,11 @@ export const GovernanceHubModal: React.FC<GovernanceHubModalProps> = ({
       {/* --- EDIT POLICY MODAL --- */}
       {editingPolicy && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ width: '580px', maxHeight: '85vh', overflowY: 'auto', background: '#0f172a', border: '1px solid rgba(139, 92, 246, 0.35)', borderRadius: '14px', padding: '1.5rem', boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '0.75rem' }}>
+          <div style={{ width: '580px', maxHeight: '85vh', overflowY: 'auto', background: 'var(--bg-card, #0f172a)', border: '1px solid rgba(139, 92, 246, 0.35)', borderRadius: '14px', padding: '1.5rem', boxShadow: 'var(--shadow-dropdown, 0 20px 40px rgba(0,0,0,0.6))' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border, rgba(255, 255, 255, 0.08))', paddingBottom: '0.75rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Sliders size={18} style={{ color: '#a855f7' }} />
-                <h4 style={{ margin: 0, fontSize: '1rem', color: '#ffffff', fontWeight: 800 }}>
+                <h4 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-main, #ffffff)', fontWeight: 800 }}>
                   تخصيص مسار الاعتماد: {editingPolicy.resourceNameAr}
                 </h4>
               </div>
@@ -1052,10 +1052,10 @@ export const GovernanceHubModal: React.FC<GovernanceHubModalProps> = ({
                         placeholder="اسم المرحلة بالعربية"
                         style={{
                           flex: 1,
-                          background: 'rgba(15, 23, 42, 0.6)',
-                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          background: 'var(--bg-input, rgba(15, 23, 42, 0.6))',
+                          border: '1px solid var(--border, rgba(255, 255, 255, 0.1))',
                           borderRadius: '6px',
-                          color: '#ffffff',
+                          color: 'var(--text-main, #ffffff)',
                           padding: '0.4rem 0.6rem',
                           fontSize: '0.75rem'
                         }}

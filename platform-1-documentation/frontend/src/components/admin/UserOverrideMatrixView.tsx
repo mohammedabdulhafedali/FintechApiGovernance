@@ -64,8 +64,13 @@ export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
   }, [userGroup]);
 
   const isGroupFullAdmin = useMemo(() => {
-    return groupPermsSet.has('*');
-  }, [groupPermsSet]);
+    return (
+      groupPermsSet.has('*') ||
+      userGroup?.key === 'ADMIN_GROUP' ||
+      userGroup?.id === 'grp_super_admin' ||
+      user.username === 'admin'
+    );
+  }, [groupPermsSet, userGroup, user]);
 
   // Load screen resources dynamically
   useEffect(() => {
@@ -153,6 +158,15 @@ export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
    * - إذا كانت ممنوحة كاستثناء -> النقر يلغي الاستثناء ويعيدها لغير ممنوحة.
    */
   const handleCellClick = useCallback((screenKey: string, action: ScreenActionType) => {
+    if (isGroupFullAdmin) {
+      onNotify?.(
+        isRtl ? 'صلاحيات سيادية مجمدة' : 'Sovereign Permissions Frozen',
+        isRtl ? 'صلاحيات المسؤول السيادي مجمدة وشاملة (*) ولا يمكن حجبها أو استثناؤها لضمان استقرار المنظومة.' : 'Admin permissions are permanently frozen (*).',
+        'warning'
+      );
+      return;
+    }
+
     const permKey = `${screenKey}:${action}`;
     const currentState = getCellState(screenKey, action);
 
@@ -203,17 +217,26 @@ export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
       });
       return prevGranted;
     });
-  }, [getCellState]);
+  }, [getCellState, isGroupFullAdmin, onNotify, isRtl]);
 
   // استعادة الوضع الافتراضي لمجموعة المستخدم وإلغاء كافة الاستثناءات
   const handleResetAllOverrides = useCallback(() => {
+    if (isGroupFullAdmin) return;
     setGrantedSet(new Set());
     setRevokedSet(new Set());
     setHasChanges(true);
-  }, []);
+  }, [isGroupFullAdmin]);
 
   // حفظ الاستثناءات
   const handleSave = async () => {
+    if (isGroupFullAdmin) {
+      onNotify?.(
+        isRtl ? 'صلاحيات سيادية مجمدة' : 'Sovereign Permissions Frozen',
+        isRtl ? 'صلاحيات المسؤول السيادي مجمدة وشاملة (*) ومحمية دائماً.' : 'Admin permissions are permanently frozen (*).',
+        'info'
+      );
+      return;
+    }
     setIsSubmitting(true);
     try {
       const overrides: UserOverrides = {
@@ -247,34 +270,36 @@ export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
       style={{
         width: '100%',
         background: 'var(--bg-card, #111827)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
+        border: '1px solid var(--border)',
         borderRadius: '16px',
         padding: '1.75rem',
         direction: isRtl ? 'rtl' : 'ltr',
-        boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.5)'
+        boxShadow: 'var(--shadow-card)'
       }}
     >
-      {/* ── 1. TOP HEADER & SAVE BAR (صفحة رسمية كاملة مع زر رجوع وزر حفظ في الأعلى) ── */}
+      {/* ── 1. TOP ACTION & STATUS BAR (شريط واحد نظيف وأنيق خالي من الحشو) ── */}
       <div 
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '1.5rem',
-          paddingBottom: '1.25rem',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)'
+          marginBottom: '1.25rem',
+          paddingBottom: '1rem',
+          borderBottom: '1px solid var(--border)',
+          flexWrap: 'wrap',
+          gap: '1rem'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
           <button
             type="button"
             onClick={onClose}
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
+              background: 'var(--overlay-subtle)',
+              border: '1px solid var(--border)',
               borderRadius: '8px',
               padding: '0.5rem 0.85rem',
-              color: '#9ca3af',
+              color: 'var(--text-muted, #9ca3af)',
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
@@ -284,57 +309,74 @@ export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
             }}
           >
             <ArrowRight size={15} style={{ transform: isRtl ? 'none' : 'rotate(180deg)' }} />
-            <span>{isRtl ? 'رجوع للمستخدمين' : 'Back to Users'}</span>
+            <span>{isRtl ? 'رجوع' : 'Back'}</span>
           </button>
 
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#ffffff' }}>
-                {isRtl ? `تخصيص مصفوفة الصلاحيات الفردية: ${user.fullName}` : `User Overrides Matrix: ${user.fullName}`}
-              </h2>
-              {user.userType === 'EXTERNAL' ? (
-                <span
-                  style={{
-                    padding: '0.2rem 0.55rem',
-                    borderRadius: '6px',
-                    background: 'rgba(168, 85, 247, 0.18)',
-                    color: '#c084fc',
-                    border: '1px solid rgba(168, 85, 247, 0.35)',
-                    fontWeight: 700,
-                    fontSize: '0.74rem'
-                  }}
-                >
-                  {isRtl ? 'شريك خارجي' : 'External Partner'}
-                </span>
-              ) : (
-                <span
-                  style={{
-                    padding: '0.2rem 0.55rem',
-                    borderRadius: '6px',
-                    background: 'rgba(59, 130, 246, 0.15)',
-                    color: '#60a5fa',
-                    border: '1px solid rgba(59, 130, 246, 0.3)',
-                    fontWeight: 700,
-                    fontSize: '0.74rem'
-                  }}
-                >
-                  {isRtl ? 'مستخدم داخلي' : 'Internal User'}
-                </span>
-              )}
-            </div>
-            <div style={{ fontSize: '0.78rem', color: '#9ca3af', marginTop: '0.25rem' }}>
-              {isRtl ? `اسم المستخدم: ${user.username} | الدور: ` : `Username: ${user.username} | Role: `}
-              <span style={{ color: '#60a5fa', fontWeight: 700 }}>
-                [{user.groupName || userGroup?.name || (isRtl ? 'غير محدد' : 'Unassigned')}]
-              </span>
-              {user.userType === 'EXTERNAL' && (
-                <span style={{ marginInlineStart: '0.75rem', color: '#c084fc' }}>
-                  | {isRtl ? 'الجهة السيادية:' : 'Organization:'} <b>{user.organizationName || user.organizationId}</b>
-                  {' • '}
-                  {isRtl ? 'نطاق الأنظمة:' : 'Systems:'} <b>[{user.accessScope?.allowedSystemIds?.join(', ') || '*'}]</b>
-                </span>
-              )}
-            </div>
+          <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main, #f9fafb)' }}>
+            {isRtl ? `تخصيص الصلاحيات: ${user.fullName || user.username}` : `User Permissions: ${user.fullName || user.username}`}
+          </h2>
+
+          {/* شارة الدور */}
+          <div 
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              background: 'var(--overlay-subtle)',
+              border: '1px solid var(--border)',
+              padding: '0.35rem 0.8rem',
+              borderRadius: '8px',
+              fontSize: '0.82rem'
+            }}
+          >
+            <span style={{ color: 'var(--text-muted, #9ca3af)' }}>{isRtl ? 'الدور:' : 'Role:'}</span>
+            <span style={{ color: 'var(--primary, #60a5fa)', fontWeight: 700 }}>
+              {user.groupName || userGroup?.name || (isRtl ? 'غير محدد' : 'Unassigned')}
+            </span>
+          </div>
+
+          {/* شريك خارجي إذا وجد فقط */}
+          {user.userType === 'EXTERNAL' && (
+            <span
+              style={{
+                padding: '0.35rem 0.65rem',
+                borderRadius: '8px',
+                background: 'rgba(168, 85, 247, 0.15)',
+                color: '#c084fc',
+                border: '1px solid rgba(168, 85, 247, 0.3)',
+                fontWeight: 600,
+                fontSize: '0.78rem'
+              }}
+            >
+              {user.organizationName || user.organizationId || (isRtl ? 'شريك خارجي' : 'External Partner')}
+            </span>
+          )}
+
+          {/* الدليل اللوني مدمج بشكل أنيق وبسيط */}
+          <div 
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.85rem',
+              background: 'var(--overlay-subtle)',
+              border: '1px solid var(--border)',
+              padding: '0.35rem 0.85rem',
+              borderRadius: '8px',
+              fontSize: '0.78rem'
+            }}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#93c5fd' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3b82f6', display: 'inline-block' }} />
+              {isRtl ? 'موروثة' : 'Inherited'}
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#34d399' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+              {isRtl ? 'ممنوحة' : 'Granted'}
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#f87171' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
+              {isRtl ? 'محجوبة' : 'Denied'}
+            </span>
           </div>
         </div>
 
@@ -342,114 +384,140 @@ export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
           <button
             type="button"
             onClick={handleResetAllOverrides}
-            title={isRtl ? 'إلغاء كافة الاستثناءات والعودة لأصل الدور' : 'Reset all overrides to role default'}
+            disabled={isGroupFullAdmin}
+            title={
+              isGroupFullAdmin
+                ? (isRtl ? 'صلاحيات المسؤول السيادي مجمدة وشاملة (*)' : 'Sovereign admin permissions are frozen (*)')
+                : (isRtl ? 'إلغاء كافة الاستثناءات والعودة لأصل الدور' : 'Reset all overrides to role default')
+            }
             style={{
               padding: '0.6rem 0.95rem',
               borderRadius: '8px',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              background: 'rgba(255, 255, 255, 0.05)',
-              color: '#9ca3af',
+              border: '1px solid var(--border)',
+              background: 'var(--overlay-subtle)',
+              color: 'var(--text-muted, #9ca3af)',
               fontSize: '0.82rem',
-              cursor: 'pointer',
+              cursor: isGroupFullAdmin ? 'not-allowed' : 'pointer',
+              opacity: isGroupFullAdmin ? 0.45 : 1,
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '0.4rem'
+              gap: '0.4rem',
+              transition: 'all 0.2s'
             }}
           >
             <RotateCcw size={14} />
             <span>{isRtl ? 'استعادة أصل الدور' : 'Reset to Role'}</span>
           </button>
 
-          {/* زر الحفظ الأخضر الرئيسي (في أعلى الصفحة تماماً كما في الشكل الرسمي) */}
           <button
             type="button"
             onClick={handleSave}
-            disabled={isSubmitting}
+            disabled={isSubmitting || isGroupFullAdmin}
+            title={
+              isGroupFullAdmin
+                ? (isRtl ? 'صلاحيات المسؤول السيادي مجمدة ومحمية بالكامل (*)' : 'Sovereign admin permissions are frozen (*)')
+                : undefined
+            }
             style={{
-              background: '#10b981',
-              color: '#ffffff',
-              border: 'none',
+              background: isGroupFullAdmin ? 'rgba(16, 185, 129, 0.15)' : '#10b981',
+              color: isGroupFullAdmin ? '#34d399' : '#ffffff',
+              border: isGroupFullAdmin ? '1px solid rgba(16, 185, 129, 0.4)' : 'none',
               borderRadius: '8px',
               padding: '0.65rem 1.6rem',
               fontSize: '0.92rem',
               fontWeight: 800,
-              cursor: isSubmitting ? 'not-allowed' : 'pointer',
+              cursor: (isSubmitting || isGroupFullAdmin) ? 'not-allowed' : 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.5rem',
-              boxShadow: hasChanges ? '0 0 15px rgba(16, 185, 129, 0.4)' : '0 4px 12px rgba(16, 185, 129, 0.25)',
+              boxShadow: isGroupFullAdmin ? 'none' : hasChanges ? '0 0 15px rgba(16, 185, 129, 0.4)' : '0 4px 12px rgba(16, 185, 129, 0.25)',
               transition: 'all 0.2s',
               opacity: isSubmitting ? 0.7 : 1
             }}
           >
-            <Save size={16} />
-            <span>{isSubmitting ? (isRtl ? 'جاري الحفظ...' : 'Saving...') : (isRtl ? 'حفظ' : 'Save')}</span>
+            {isGroupFullAdmin ? <Lock size={16} /> : <Save size={16} />}
+            <span>
+              {isSubmitting
+                ? (isRtl ? 'جاري الحفظ...' : 'Saving...')
+                : isGroupFullAdmin
+                ? (isRtl ? 'الصلاحيات مجمدة سيادياً (*)' : 'Sovereign Frozen (*)')
+                : (isRtl ? 'حفظ' : 'Save')}
+            </span>
           </button>
         </div>
       </div>
 
-      {/* ── 2. SECTION HEADER & COLOR LEGEND (عنوان "الصلاحيات" والدليل اللوني) ── */}
-      <div 
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '1rem',
-          paddingBottom: '0.65rem',
-          borderBottom: '2px solid rgba(16, 185, 129, 0.3)'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span 
+      {/* ── 2.5 SOVEREIGN FROZEN BANNER ── */}
+      {isGroupFullAdmin && (
+        <div
+          style={{
+            background: 'linear-gradient(90deg, rgba(16, 185, 129, 0.12) 0%, rgba(59, 130, 246, 0.08) 100%)',
+            border: '1px solid rgba(16, 185, 129, 0.35)',
+            borderRadius: '12px',
+            padding: '1.1rem 1.35rem',
+            marginBottom: '1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem',
+            boxShadow: '0 4px 18px rgba(16, 185, 129, 0.08)'
+          }}
+        >
+          <div
             style={{
-              background: 'rgba(255, 255, 255, 0.08)',
-              padding: '0.35rem 0.85rem',
-              borderRadius: '6px',
-              fontWeight: 800,
-              fontSize: '0.92rem',
-              color: '#ffffff',
-              letterSpacing: '0.5px'
+              width: '42px',
+              height: '42px',
+              borderRadius: '10px',
+              background: 'rgba(16, 185, 129, 0.2)',
+              border: '1px solid rgba(16, 185, 129, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#10b981',
+              flexShrink: 0
             }}
           >
-            {isRtl ? 'الصلاحيات' : 'Permissions'}
-          </span>
-          <span style={{ fontSize: '0.78rem', color: '#9ca3af' }}>
-            {isRtl ? 'انقر على أي خلية لتعديل حالتها لهذا المستخدم' : 'Click any cell to toggle user override'}
-          </span>
+            <ShieldCheck size={24} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 800, fontSize: '0.94rem', color: '#34d399', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span>{isRtl ? 'صلاحيات المسؤول السيادي مجمدة ومحمية بالكامل (*)' : 'Sovereign Admin Permissions Frozen & Protected (*)'}</span>
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '0.15rem 0.55rem',
+                  borderRadius: '12px',
+                  background: 'rgba(16, 185, 129, 0.2)',
+                  color: '#10b981',
+                  border: '1px solid rgba(16, 185, 129, 0.35)'
+                }}
+              >
+                {isRtl ? 'غير قابلة للحجب' : 'Unrevokable'}
+              </span>
+            </div>
+            <div style={{ fontSize: '0.82rem', color: 'var(--text-dim, #9ca3af)', lineHeight: 1.55 }}>
+              {isRtl
+                ? 'حساب المسؤول الرئيسي السيادي للنظام يتمتع بالصلاحية الشاملة الكاملة (*) الدائمة. تم قفل وتجميد تعديل الصلاحيات لمنع أي استثناء أو حجب غير مقصود لضمان استقرار المنظومة.'
+                : 'The Sovereign Admin possesses permanent full wildcard (*) permissions. Overrides and revoking are permanently disabled.'}
+            </div>
+          </div>
         </div>
-
-        {/* الدليل اللوني للحالات الثلاث في الصفحة */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', fontSize: '0.78rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <span style={{ display: 'inline-block', width: '14px', height: '14px', borderRadius: '4px', background: 'rgba(59, 130, 246, 0.25)', border: '1px solid #3b82f6' }} />
-            <span style={{ color: '#93c5fd', fontWeight: 600 }}>{isRtl ? 'موروثة من الدور' : 'Inherited'}</span>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <span style={{ display: 'inline-block', width: '14px', height: '14px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.3)', border: '1px solid #10b981' }} />
-            <span style={{ color: '#34d399', fontWeight: 700 }}>{isRtl ? 'ممنوحة كاستثناء' : 'Granted Override'}</span>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <span style={{ display: 'inline-block', width: '14px', height: '14px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.3)', border: '1px solid #ef4444' }} />
-            <span style={{ color: '#f87171', fontWeight: 700 }}>{isRtl ? 'محجوبة وممنوعة' : 'Revoked Override'}</span>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* ── 3. FULL PAGE UNIFIED MATRIX TABLE (جدول الصلاحيات بعرض كامل الصفحة) ── */}
       <div 
         style={{
-          background: 'rgba(0, 0, 0, 0.25)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
           borderRadius: '12px',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          boxShadow: 'var(--shadow-card)'
         }}
       >
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left' }}>
           <thead>
-            <tr style={{ background: 'rgba(255, 255, 255, 0.04)', borderBottom: '2px solid rgba(16, 185, 129, 0.4)' }}>
-              <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.88rem', fontWeight: 800, color: '#f3f4f6' }}>
+            <tr style={{ background: 'var(--table-header-bg)', borderBottom: '2px solid rgba(16, 185, 129, 0.4)' }}>
+              <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-main, #f3f4f6)' }}>
                 {isRtl ? 'اسم الشاشة' : 'Screen Name'}
               </th>
 
@@ -460,7 +528,7 @@ export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
                     padding: '0.9rem 1rem', 
                     fontSize: '0.85rem', 
                     fontWeight: 700, 
-                    color: '#e5e7eb',
+                    color: 'var(--text-muted, #e5e7eb)',
                     textAlign: 'center',
                     width: '120px'
                   }}
@@ -539,17 +607,17 @@ export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
                         <tr 
                           key={screen.key}
                           style={{
-                            background: isEven ? 'rgba(255, 255, 255, 0.015)' : 'rgba(255, 255, 255, 0.04)',
-                            borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                            background: isEven ? 'var(--table-row-alt)' : 'var(--table-row-hover)',
+                            borderBottom: '1px solid var(--border-subtle)',
                             transition: 'background 0.15s'
                           }}
                         >
                           {/* اسم الشاشة */}
                           <td style={{ padding: '0.85rem 1.25rem' }}>
-                            <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#f9fafb' }}>
+                            <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-main, #f9fafb)' }}>
                               {screen.name}
                             </div>
-                            <div style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: '0.15rem' }}>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-dim, #9ca3af)', marginTop: '0.15rem' }}>
                               {screen.nameAr}
                             </div>
                           </td>
@@ -610,7 +678,8 @@ export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => handleCellClick(screen.key, col.key)}
-                                  title={tooltip}
+                                  disabled={isGroupFullAdmin}
+                                  title={isGroupFullAdmin ? (isRtl ? 'صلاحيات سيادية مجمدة ومحمية بالكامل (*)' : 'Sovereign permissions frozen (*)') : tooltip}
                                   style={{
                                     display: 'inline-flex',
                                     alignItems: 'center',
@@ -620,7 +689,8 @@ export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
                                     borderRadius: '6px',
                                     background: bg,
                                     border: border,
-                                    cursor: 'pointer',
+                                    cursor: isGroupFullAdmin ? 'not-allowed' : 'pointer',
+                                    opacity: isGroupFullAdmin ? 0.9 : 1,
                                     transition: 'all 0.15s'
                                   }}
                                 >

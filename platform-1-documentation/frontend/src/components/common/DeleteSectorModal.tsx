@@ -70,7 +70,7 @@ export const DeleteSectorModal: React.FC<DeleteSectorModalProps> = ({
               <AlertTriangle size={22} />
             </div>
             <div>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main, #ffffff)', margin: 0 }}>
                 {t('modals.deleteSectorTitle')}
               </h3>
               <span style={{ fontSize: '0.75rem', color: 'var(--rose)' }}>

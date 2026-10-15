@@ -8,6 +8,7 @@ import { UniversalWorkbench } from './components/catalog/UniversalWorkbench';
 import { UastDocument, IUastNode } from './services/uast/types';
 import { EndpointsRibbon } from './components/catalog/EndpointsRibbon';
 import { SpecViewer } from './components/catalog/SpecViewer';
+import { ApiDocumentationView } from './components/catalog/ApiDocumentationView';
 import { FloatingAlertCard, FloatingAlertState } from './components/common/FloatingAlertCard';
 import { DeleteSectorModal } from './components/common/DeleteSectorModal';
 import { IamManagementView } from './components/admin/IamManagementView';
@@ -15,6 +16,7 @@ import { GovernanceManagementView } from './components/admin/GovernanceManagemen
 import { AuthProvider, useAuth } from './components/auth/AuthContext';
 import { LoginView } from './components/auth/LoginView';
 import { Can } from './components/auth/Can';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 import { 
   INITIAL_SYSTEMS,
@@ -342,7 +344,7 @@ const AppContent: React.FC = () => {
   };
 
   // Bridge UAST Document to Catalog Endpoint
-  const uastDocToEndpoint = (uastDoc: UastDocument, defaultSysKey: string): Endpoint => {
+  const uastDocToEndpoint = (uastDoc: UastDocument, defaultSysKey: string, defaultEntityId?: string): Endpoint => {
     const params: Endpoint['params'] = (uastDoc.headers || []).map(h => ({
       name: h.semantics.name,
       type: h.semantics.dataType,
@@ -369,6 +371,9 @@ const AppContent: React.FC = () => {
     };
     flattenParams(uastDoc.requestTree);
 
+    const resolvedSysKey = uastDoc.systemKey || defaultSysKey;
+    const resolvedEntityId = uastDoc.entityId || defaultEntityId;
+
     return {
       id: `ep_uast_${Date.now()}`,
       method: uastDoc.channel.method,
@@ -379,7 +384,8 @@ const AppContent: React.FC = () => {
       isDraft: uastDoc.status !== 'PUBLISHED',
       statusBadge: `v${uastDoc.semver}`,
       releaseId: uastDoc.publishedVersionId,
-      systemKey: defaultSysKey,
+      systemKey: resolvedSysKey,
+      targetEntities: resolvedEntityId ? [resolvedEntityId] : undefined,
       params,
       rules: (uastDoc.errorCodes || []).map((err, i) => ({
         id: `BR_${uastDoc.serviceCode}_00${i + 1}`,
@@ -491,12 +497,41 @@ const AppContent: React.FC = () => {
           {/* VIEW 2: UNIVERSAL SOVEREIGN 3-PANE WORKBENCH & DRAFT ENGINE */}
           {(activeView === 'workbench' || activeView === 'add-api') && (
             <UniversalWorkbench
-              onPublishSuccess={(publishedDoc) => {
-                const newEp = uastDocToEndpoint(publishedDoc, activeSystemKey);
-                handleAddEndpointFromHub(activeIntegrationKey, newEp, false, activeSystemKey);
+              systems={systems}
+              activeSystemKey={activeSystemKey}
+              activeIntegrationKey={activeIntegrationKey}
+              onAddSystem={handleAddSystem}
+              onAddIntegration={(sysKey, newInt) => {
+                setSystems(prev => {
+                  const updated = { ...prev };
+                  if (updated[sysKey]) {
+                    const existingIntegrations = updated[sysKey].integrations || {};
+                    updated[sysKey] = {
+                      ...updated[sysKey],
+                      integrations: {
+                        ...existingIntegrations,
+                        [newInt.entityId]: newInt
+                      }
+                    };
+                  }
+                  return updated;
+                });
+                showFloatingAlert(
+                  isRtl ? 'تم إضافة الجهة بنجاح' : 'Entity Created Successfully',
+                  isRtl ? `تم تسجيل الجهة [${newInt.name}] تحت النظام [${systems[sysKey]?.name || sysKey}].` : `Entity [${newInt.nameEn || newInt.name}] added under system.`,
+                  'success'
+                );
+              }}
+              onPublishSuccess={(publishedDoc, targetSysKey, targetIntKey) => {
+                const finalSysKey = targetSysKey || publishedDoc.systemKey || activeSystemKey;
+                const finalIntKey = targetIntKey || publishedDoc.entityId || activeIntegrationKey;
+                const newEp = uastDocToEndpoint(publishedDoc, finalSysKey, finalIntKey);
+                handleAddEndpointFromHub(finalIntKey, newEp, false, finalSysKey);
+                const sysName = systems[finalSysKey]?.name || finalSysKey;
+                const intName = systems[finalSysKey]?.integrations?.[finalIntKey]?.name || finalIntKey;
                 showFloatingAlert(
                   isRtl ? 'تم اعتماد ونشر الـ API بنجاح' : 'API Published Successfully',
-                  isRtl ? `تم تسجيل وتجميد الإصدار v${publishedDoc.semver} في الكتالوج المعتمد.` : `Version v${publishedDoc.semver} published to catalog.`,
+                  isRtl ? `تم تسجيل وتجميد الإصدار v${publishedDoc.semver} في الكتالوج المعتمد تحت [${sysName}] ← [${intName}].` : `Version v${publishedDoc.semver} published to catalog under [${sysName}] ← [${intName}].`,
                   'success',
                   publishedDoc.channel.endpointPath
                 );
@@ -509,17 +544,14 @@ const AppContent: React.FC = () => {
           {activeView === 'sector-spec' && (
             <>
               {currentEndpoints.length > 0 ? (
-                <>
-                  <EndpointsRibbon
-                    endpoints={currentEndpoints}
-                    activeEndpointIndex={activeEndpointIndex}
-                    onSelectEndpoint={setActiveEndpointIndex}
-                    systemName={localizedSysName}
-                    integrationName={localizedIntName}
-                    onAddNewEndpoint={() => setActiveView('add-api')}
-                  />
-                  {activeEndpoint && <SpecViewer endpoint={activeEndpoint} />}
-                </>
+                <ApiDocumentationView
+                  endpoints={currentEndpoints}
+                  activeEndpointIndex={activeEndpointIndex}
+                  onSelectEndpoint={setActiveEndpointIndex}
+                  systemName={localizedSysName}
+                  integrationName={localizedIntName}
+                  onAddNewEndpoint={() => setActiveView('add-api')}
+                />
               ) : (
                 <div style={{
                   flex: 1,
@@ -591,8 +623,13 @@ const AppContent: React.FC = () => {
 
 export const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ErrorBoundary
+      fallbackTitle="تعذر استكمال العرض: خطأ تقني في معالجة الواجهة"
+      fallbackMessage="واجه التطبيق تعارضاً في معالجة أحد العناصر البرمجية. يرجى مراجعة تفاصيل الخطأ التقني الموضح أو إعادة المحاولة."
+    >
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 };

@@ -160,7 +160,8 @@ export function createApp() {
 
   const manageGroupsUseCase = new ManageGroupsUseCase(
     userGroupRepository,
-    auditLogRepository
+    auditLogRepository,
+    userRepository
   );
 
   const getAuditLogsUseCase = new GetAuditLogsUseCase(auditLogRepository);

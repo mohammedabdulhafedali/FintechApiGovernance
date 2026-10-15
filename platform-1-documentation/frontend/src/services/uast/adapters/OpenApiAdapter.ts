@@ -1,5 +1,5 @@
 import { IFormatAdapter } from './IFormatAdapter';
-import { UastDocument, IUastNode, NodeKind, DataType, SecurityLevel, HttpMethod } from '../types';
+import { UastDocument, IUastNode, NodeKind, DataType, SecurityLevel, HttpMethod, AllEndpointEntry } from '../types';
 import { RawJsonAdapter } from './RawJsonAdapter';
 import YAML from 'yaml';
 
@@ -245,6 +245,14 @@ export class OpenApiAdapter implements IFormatAdapter {
                         opObj.description || 
                         title;
 
+    // Build allEndpoints from all candidates
+    const allEndpoints: AllEndpointEntry[] = candidates.map(c => ({
+      method: c.method,
+      path: c.path,
+      summary: c.opObj.summary || c.opObj.operationId || c.path,
+      description: c.opObj.description || undefined
+    }));
+
     return {
       documentId: defaultMeta?.documentId || `doc_openapi_${Date.now()}`,
       serviceCode,
@@ -267,7 +275,9 @@ export class OpenApiAdapter implements IFormatAdapter {
       rawSource: rawContent,
       rawFormat: 'openapi',
       updatedAt: new Date().toISOString(),
-      status: defaultMeta?.status || 'PRIVATE_DRAFT'
+      status: defaultMeta?.status || 'PRIVATE_DRAFT',
+      allEndpoints,
+      baseUrl: serverUrl
     };
   }
 

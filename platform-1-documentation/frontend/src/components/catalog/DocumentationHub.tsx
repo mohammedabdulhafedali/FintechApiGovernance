@@ -33,6 +33,8 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { useLanguage } from '../../i18n';
+import { FloatingAlertCard, FloatingAlertState } from '../common/FloatingAlertCard';
+import { formatSyntaxError } from '../../utils/syntaxErrorFormatter';
 
 interface DocumentationHubProps {
   sectors: Record<string, Sector>;
@@ -61,6 +63,7 @@ export const DocumentationHub: React.FC<DocumentationHubProps> = ({
 
   // Mode Selection: 'manual' builder vs 'import' template hub
   const [activeMode, setActiveMode] = useState<'manual' | 'import'>('manual');
+  const [floatingAlert, setFloatingAlert] = useState<FloatingAlertState | null>(null);
 
   // Manual Form States: System first, then Integration (Entity)
   const [systemKey, setSystemKey] = useState<string>(() => Object.keys(systemCatalog)[0] || 'collection');
@@ -206,6 +209,81 @@ export const DocumentationHub: React.FC<DocumentationHubProps> = ({
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 1. Strict Validation: Endpoint Path
+    if (!endpointPath || !endpointPath.trim().startsWith('/')) {
+      setFloatingAlert({
+        isOpen: true,
+        type: 'error',
+        title: isEn ? 'Invalid Endpoint Path' : 'مسار نقطة النهاية غير صالح',
+        message: isEn 
+          ? 'Endpoint path must start with a leading slash "/", e.g. /v1/accounts/balance/inquire'
+          : 'يجب أن يبدأ مسار نقطة النهاية (Endpoint Path) بشرطة مائلة "/" مثل: /v1/accounts/balance/inquire',
+        codeSnippet: endpointPath || 'مسار فارغ',
+        confirmText: isEn ? 'Correct Path' : 'تصحيح المسار'
+      });
+      return;
+    }
+
+    // 2. Strict Validation: Request Body JSON (if method is not GET and content is present)
+    if (method !== 'GET' && reqBody.trim() && !reqBody.trim().startsWith('//')) {
+      try {
+        JSON.parse(reqBody);
+      } catch (err: any) {
+        const diag = formatSyntaxError(reqBody, 'json', err);
+        setFloatingAlert({
+          isOpen: true,
+          type: 'error',
+          title: isEn ? 'Invalid Request Payload JSON' : diag.title,
+          message: isEn 
+            ? `Syntax error in request payload: ${err.message}` 
+            : `تم رفض الحفظ لوجود خطأ في صياغة JSON لبيانات الطلب (Request Payload): ${diag.message}`,
+          codeSnippet: diag.snippet,
+          confirmText: isEn ? 'Fix Payload' : 'تصحيح بيانات الطلب'
+        });
+        return;
+      }
+    }
+
+    // 3. Strict Validation: Response 200 JSON
+    if (res200.trim()) {
+      try {
+        JSON.parse(res200);
+      } catch (err: any) {
+        const diag = formatSyntaxError(res200, 'json', err);
+        setFloatingAlert({
+          isOpen: true,
+          type: 'error',
+          title: isEn ? 'Invalid Response 200 JSON' : diag.title,
+          message: isEn 
+            ? `Syntax error in Response 200: ${err.message}` 
+            : `تم رفض الحفظ لوجود خطأ في صياغة JSON لاستجابة النجاح (200 OK): ${diag.message}`,
+          codeSnippet: diag.snippet,
+          confirmText: isEn ? 'Fix Response 200' : 'تصحيح استجابة 200'
+        });
+        return;
+      }
+    }
+
+    // 4. Strict Validation: Response 422 JSON
+    if (res422.trim()) {
+      try {
+        JSON.parse(res422);
+      } catch (err: any) {
+        const diag = formatSyntaxError(res422, 'json', err);
+        setFloatingAlert({
+          isOpen: true,
+          type: 'error',
+          title: isEn ? 'Invalid Response 422 JSON' : diag.title,
+          message: isEn 
+            ? `Syntax error in Response 422: ${err.message}` 
+            : `تم رفض الحفظ لوجود خطأ في صياغة JSON لاستجابة الخطأ (422): ${diag.message}`,
+          codeSnippet: diag.snippet,
+          confirmText: isEn ? 'Fix Response 422' : 'تصحيح استجابة 422'
+        });
+        return;
+      }
+    }
 
     const newEndpoint: Endpoint = {
       id: `ep_user_${Date.now()}`,
@@ -677,6 +755,35 @@ paths:
       }
     }
 
+    // 4. Markdown API Documentation extraction
+    if (trimmed.startsWith('#') || fileName.endsWith('.md') || fileName.endsWith('.markdown')) {
+      const epMatches = [...trimmed.matchAll(/###\s+(?:(?:\d+\.\d+|\d+)\s+)?([^\n]+)[\s\S]*?(?:Endpoint\s*:\s*|Method\s*:\s*)`?(GET|POST|PUT|DELETE|PATCH)\s+([/][^\s`\n]+)`?/gi)];
+      
+      const endpoints: Endpoint[] = epMatches.map((m, idx) => ({
+        id: `ep_md_${Date.now()}_${idx}`,
+        method: m[2].toUpperCase() as HttpMethod,
+        path: m[3].replace(/[`*]/g, ''),
+        shortName: m[1].replace(/[`*]/g, '').trim().toLowerCase().replace(/\s+/g, '-'),
+        desc: m[1].replace(/[`*]/g, '').trim(),
+        descEn: m[1].replace(/[`*]/g, '').trim(),
+        isDraft: true,
+        params: [
+          { name: 'Authorization', type: 'string (Bearer)', req: true, rule: 'Bearer Token Auth', tag: 'Security' }
+        ],
+        rules: [
+          { id: `BR_MD_${idx + 1}`, name: 'مطابقة مواصفة الوثيقة الرسمية', err: 'VALIDATION_FAILED_422' }
+        ],
+        payload: '{\n  "status": "SUCCESS"\n}',
+        res200: '{\n  "status": "SUCCESS"\n}',
+        res422: '{\n  "error": "BAD_REQUEST"\n}',
+        curl: `curl -X ${m[2].toUpperCase()} "https://api.ultimatepay.com${m[3].replace(/[`*]/g, '')}"`
+      }));
+
+      if (endpoints.length > 0) {
+        return { format: 'Markdown API Documentation', endpoints, sourceName: fileName || 'Markdown Doc' };
+      }
+    }
+
     return null;
   };
 
@@ -694,7 +801,42 @@ paths:
           setImportTargetSector(res.suggestedSector);
         }
       } else {
-        alert(isEn ? 'Could not parse file. Please verify it is valid JSON, YAML, or cURL.' : 'تعذر قراءة الملف. يرجى التأكد من أنه ملف JSON أو YAML أو أمر cURL صالح.');
+        const ext = file.name.split('.').pop()?.toLowerCase();
+        let formattedTitle = isEn ? 'Invalid File Specification' : 'تم رفض الملف: بنية غير مطابقة';
+        let formattedMsg = isEn 
+          ? `The file [${file.name}] could not be recognized as a valid API spec. Please ensure it follows Postman v2.1, OpenAPI 3.x, or Swagger format.`
+          : `تعذر قراءة الملف [${file.name}] كمواصفة API صالحة. يرجى التأكد من أن الملف بصيغة Postman v2.1 أو OpenAPI 3.x أو Swagger أو cURL صالحة.`;
+        let formattedSnippet = file.name;
+
+        if (ext === 'json') {
+          try {
+            JSON.parse(text);
+            formattedTitle = isEn ? 'JSON Missing API Endpoints' : 'ملف JSON لا يحتوي على مسارات API';
+            formattedMsg = isEn 
+              ? `The JSON file [${file.name}] is structurally valid, but does not contain endpoints, OpenAPI paths, or Postman items.`
+              : `ملف JSON [${file.name}] سليم نحوياً ولكنه لا يحتوي على عناصر مسارات endpoints أو مجموعة Postman أو مواصفة OpenAPI معتمدة.`;
+            formattedSnippet = text.slice(0, 240);
+          } catch (jsonErr: any) {
+            const diag = formatSyntaxError(text, 'json', jsonErr, file.name);
+            formattedTitle = diag.title;
+            formattedMsg = diag.message;
+            formattedSnippet = diag.snippet;
+          }
+        } else if (ext === 'yaml' || ext === 'yml') {
+          const diag = formatSyntaxError(text, 'yaml', new Error('مواصفة YAML تفتقر إلى مسارات paths أو بنية OpenAPI معتمدة'), file.name);
+          formattedTitle = diag.title;
+          formattedMsg = diag.message;
+          formattedSnippet = diag.snippet;
+        }
+
+        setFloatingAlert({
+          isOpen: true,
+          type: 'error',
+          title: formattedTitle,
+          message: formattedMsg,
+          codeSnippet: formattedSnippet,
+          confirmText: isEn ? 'Review File' : 'مراجعة وتصحيح الملف'
+        });
       }
     };
     reader.readAsText(file);
@@ -717,7 +859,33 @@ paths:
         setImportTargetSector(res.suggestedSector);
       }
     } else {
-      alert(isEn ? 'Could not recognize content format.' : 'لم يتم التعرف على صيغة النص المدخل. يرجى التأكد من هيكل الـ JSON أو YAML أو الـ cURL.');
+      let formattedTitle = isEn ? 'Unrecognized API Syntax' : 'تم رفض الكود: صيغة غير مطابقة';
+      let formattedMsg = isEn
+        ? 'The pasted content does not contain recognizable JSON, YAML, cURL, or Markdown API endpoint definitions.'
+        : 'النص الملصق لا يحتوي على مسارات API صالحة أو بنية JSON / YAML / cURL / Markdown معتمدة.';
+      let formattedSnippet = pastedContent.slice(0, 160) + (pastedContent.length > 160 ? '...' : '');
+
+      if (pastedContent.trim().startsWith('{') || pastedContent.trim().startsWith('[')) {
+        try {
+          JSON.parse(pastedContent);
+          formattedTitle = 'كود JSON خالي من مسارات الـ API';
+          formattedMsg = 'كود JSON الملصق سليم نحوياً ولكنه لا يحدد أي مسارات استدعاء (Endpoints / Paths) ولا يطابق هيكل مواصفات الـ API.';
+        } catch (jsonErr: any) {
+          const diag = formatSyntaxError(pastedContent, 'json', jsonErr);
+          formattedTitle = diag.title;
+          formattedMsg = diag.message;
+          formattedSnippet = diag.snippet;
+        }
+      }
+
+      setFloatingAlert({
+        isOpen: true,
+        type: 'error',
+        title: formattedTitle,
+        message: formattedMsg,
+        codeSnippet: formattedSnippet,
+        confirmText: isEn ? 'Fix Code' : 'تصحيح الكود'
+      });
     }
   };
 
@@ -759,7 +927,7 @@ paths:
             {activeMode === 'manual' ? <Route size={22} /> : <UploadCloud size={22} />}
           </div>
           <div>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#ffffff', margin: 0, lineHeight: 1.3 }}>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main, #ffffff)', margin: 0, lineHeight: 1.3 }}>
               {activeMode === 'manual' ? t('docHub.pageTitle') : t('docHub.modeImport')}
             </h2>
             <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0 }}>
@@ -1283,7 +1451,7 @@ paths:
                     <FileCode size={18} />
                   </div>
                   <div>
-                    <strong style={{ fontSize: '0.85rem', color: '#ffffff', display: 'block' }}>
+                    <strong style={{ fontSize: '0.85rem', color: 'var(--text-main, #ffffff)', display: 'block' }}>
                       {t('docHub.tplSingleJson')}
                     </strong>
                     <span style={{ fontSize: '0.72rem', color: '#94a3b8', lineHeight: 1.4, display: 'block', marginTop: '0.2rem' }}>
@@ -1309,7 +1477,7 @@ paths:
                     <Layers size={18} />
                   </div>
                   <div>
-                    <strong style={{ fontSize: '0.85rem', color: '#ffffff', display: 'block' }}>
+                    <strong style={{ fontSize: '0.85rem', color: 'var(--text-main, #ffffff)', display: 'block' }}>
                       {t('docHub.tplBulkJson')}
                     </strong>
                     <span style={{ fontSize: '0.72rem', color: '#94a3b8', lineHeight: 1.4, display: 'block', marginTop: '0.2rem' }}>
@@ -1335,7 +1503,7 @@ paths:
                     <FileText size={18} />
                   </div>
                   <div>
-                    <strong style={{ fontSize: '0.85rem', color: '#ffffff', display: 'block' }}>
+                    <strong style={{ fontSize: '0.85rem', color: 'var(--text-main, #ffffff)', display: 'block' }}>
                       {t('docHub.tplOpenApiYaml')}
                     </strong>
                     <span style={{ fontSize: '0.72rem', color: '#94a3b8', lineHeight: 1.4, display: 'block', marginTop: '0.2rem' }}>
@@ -1361,7 +1529,7 @@ paths:
                     <Terminal size={18} />
                   </div>
                   <div>
-                    <strong style={{ fontSize: '0.85rem', color: '#ffffff', display: 'block' }}>
+                    <strong style={{ fontSize: '0.85rem', color: 'var(--text-main, #ffffff)', display: 'block' }}>
                       {t('docHub.tplPostmanJson')}
                     </strong>
                     <span style={{ fontSize: '0.72rem', color: '#94a3b8', lineHeight: 1.4, display: 'block', marginTop: '0.2rem' }}>
@@ -1414,7 +1582,7 @@ paths:
                   type="file"
                   ref={fileInputRef}
                   style={{ display: 'none' }}
-                  accept=".json,.yaml,.yml,.txt"
+                  accept=".json,.yaml,.yml,.txt,.md,.markdown"
                   onChange={(e) => {
                     if (e.target.files && e.target.files[0]) {
                       processUploadedFile(e.target.files[0]);
@@ -1441,7 +1609,7 @@ paths:
                     <CloudUpload size={28} />
                   </div>
                   <div>
-                    <strong style={{ fontSize: '1rem', color: '#ffffff', display: 'block' }}>
+                    <strong style={{ fontSize: '1rem', color: 'var(--text-main, #ffffff)', display: 'block' }}>
                       {t('docHub.dropzoneTitle')}
                     </strong>
                     <span style={{ fontSize: '0.76rem', color: '#94a3b8', display: 'block', marginTop: '0.25rem' }}>
@@ -1504,7 +1672,7 @@ paths:
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                   <CheckCircle2 size={20} color="var(--emerald)" />
                   <div>
-                    <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+                    <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-main, #ffffff)', margin: 0 }}>
                       {t('docHub.detectedTitle')}
                     </h3>
                     <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
@@ -1528,12 +1696,12 @@ paths:
                 display: 'flex',
                 alignItems: 'center',
                 gap: '1rem',
-                background: '#101c2e',
+                background: 'var(--bg-input, #101c2e)',
                 padding: '0.75rem 1rem',
                 borderRadius: 'var(--radius-sm)',
                 border: '1px solid var(--border)'
               }}>
-                <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#cbd5e1', flexShrink: 0 }}>
+                <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-main, #cbd5e1)', flexShrink: 0 }}>
                   {t('docHub.detectedSectorLabel')}
                 </label>
                 <select
@@ -1560,7 +1728,7 @@ paths:
                         <span className={`method-badge method-${ep.method.toLowerCase()}`} style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>
                           {ep.method}
                         </span>
-                        <span className="mono" style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ffffff' }}>
+                        <span className="mono" style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main, #ffffff)' }}>
                           {ep.path}
                         </span>
                         <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
@@ -1610,6 +1778,12 @@ paths:
           )}
         </div>
       )}
+
+      {/* Sovereign Floating Alert Card for Documentation Hub */}
+      <FloatingAlertCard
+        alert={floatingAlert}
+        onClose={() => setFloatingAlert(null)}
+      />
 
     </div>
   );

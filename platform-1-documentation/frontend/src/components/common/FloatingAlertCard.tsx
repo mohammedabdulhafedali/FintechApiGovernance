@@ -9,6 +9,7 @@ export interface FloatingAlertState {
   message: string;
   codeSnippet?: string;
   confirmText?: string;
+  onConfirm?: () => void;
 }
 
 interface FloatingAlertCardProps {
@@ -22,6 +23,13 @@ export const FloatingAlertCard: React.FC<FloatingAlertCardProps> = ({
 }) => {
   const { t, isRtl } = useLanguage();
   if (!alert || !alert.isOpen) return null;
+
+  const handleConfirm = () => {
+    if (alert.onConfirm) {
+      alert.onConfirm();
+    }
+    onClose();
+  };
 
   const getIcon = () => {
     switch (alert.type) {
@@ -62,6 +70,8 @@ export const FloatingAlertCard: React.FC<FloatingAlertCardProps> = ({
     }
   };
 
+  const isMultiLineSnippet = alert.codeSnippet ? alert.codeSnippet.includes('\n') : false;
+
   return (
     <div className="floating-alert-overlay" onClick={onClose}>
       <div 
@@ -69,7 +79,8 @@ export const FloatingAlertCard: React.FC<FloatingAlertCardProps> = ({
         onClick={(e) => e.stopPropagation()}
         style={{
           borderTop: `4px solid ${getBorderColor()}`,
-          textAlign: isRtl ? 'right' : 'left'
+          textAlign: isRtl ? 'right' : 'left',
+          maxWidth: isMultiLineSnippet ? '560px' : '480px'
         }}
       >
         {/* Close Icon */}
@@ -113,12 +124,12 @@ export const FloatingAlertCard: React.FC<FloatingAlertCardProps> = ({
         </div>
 
         {/* Title */}
-        <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#ffffff', margin: 0, textAlign: 'center' }}>
+        <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main, #ffffff)', margin: 0, textAlign: 'center', lineHeight: 1.4 }}>
           {alert.title}
         </h3>
 
         {/* Message */}
-        <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
+        <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
           {alert.message}
         </p>
 
@@ -126,18 +137,22 @@ export const FloatingAlertCard: React.FC<FloatingAlertCardProps> = ({
         {alert.codeSnippet && (
           <div
             style={{
-              background: 'var(--bg-input)',
-              border: '1px solid var(--border)',
+              background: '#070a12',
+              border: '1px solid #1e293b',
               borderRadius: 'var(--radius-sm)',
-              padding: '0.55rem 0.95rem',
+              padding: '0.65rem 0.95rem',
               width: '100%',
               direction: 'ltr',
-              textAlign: 'center',
-              fontFamily: 'var(--font-mono)',
-              color: '#38bdf8',
-              fontSize: '0.84rem',
-              fontWeight: 700,
-              wordBreak: 'break-all'
+              textAlign: isMultiLineSnippet ? 'left' : 'center',
+              fontFamily: 'var(--font-mono, monospace)',
+              color: alert.type === 'error' ? '#fca5a5' : '#38bdf8',
+              fontSize: '0.80rem',
+              lineHeight: 1.5,
+              whiteSpace: isMultiLineSnippet ? 'pre-wrap' : 'normal',
+              maxHeight: '180px',
+              overflowY: 'auto',
+              wordBreak: 'break-all',
+              boxShadow: 'inset 0 1px 4px rgba(0,0,0,0.5)'
             }}
           >
             {alert.codeSnippet}
@@ -148,7 +163,7 @@ export const FloatingAlertCard: React.FC<FloatingAlertCardProps> = ({
         <button
           className={alert.type === 'error' ? 'btn btn-primary' : 'btn btn-emerald'}
           style={{ width: '100%', padding: '0.65rem 1.25rem', fontSize: '0.92rem', marginTop: '0.5rem' }}
-          onClick={onClose}
+          onClick={handleConfirm}
         >
           {alert.confirmText || t('common.ok')}
         </button>

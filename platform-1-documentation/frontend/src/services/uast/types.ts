@@ -1,4 +1,5 @@
 import { HttpMethod } from '../../types/schema';
+export type { HttpMethod };
 
 export type NodeKind = 'OBJECT' | 'FIELD' | 'ARRAY' | 'HEADER' | 'PARAM' | 'CONSTRAINT' | 'CHANNEL';
 
@@ -86,6 +87,24 @@ export type DocumentLifecycle = 'ACTIVE' | 'DEPRECATED' | 'RETIRED';
 
 export type DraftStatus = 'PRIVATE_DRAFT' | 'PENDING_REVIEW' | 'CHANGES_REQUESTED' | 'PUBLISHED';
 
+export interface AllEndpointEntry {
+  method: HttpMethod;
+  path: string;
+  summary: string;
+  description?: string;
+  requestFields?: Array<{ name: string; type: string; required: boolean; description?: string; example?: string; length?: string }>;
+  responseFields?: Array<{ name: string; type: string; description?: string; example?: string }>;
+  responseExample?: string;
+  requestExample?: string;
+}
+
+export interface ImportedHeader {
+  name: string;
+  description: string;
+  example?: string;
+  required: boolean;
+}
+
 export interface UastDocument {
   documentId: string;
   serviceCode: string;
@@ -107,6 +126,13 @@ export interface UastDocument {
   assignedChecker?: string;
   makerId?: string;
   publishedVersionId?: string;
+  systemKey?: string;
+  entityId?: string;
+  // Extended: full fidelity fields preserved from original file
+  allEndpoints?: AllEndpointEntry[];
+  importedHeaders?: ImportedHeader[];
+  baseUrl?: string;
+  overviewText?: string;
 }
 
 export interface VersionDiffItem {
