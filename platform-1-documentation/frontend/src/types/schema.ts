@@ -45,6 +45,7 @@ export interface Endpoint {
   channels?: ClientChannel[];
   systemKey?: string;
   targetEntities?: string[];
+  docSource?: string;
 }
 
 export type IntegrationDirection = 'INBOUND' | 'OUTBOUND' | 'BIDIRECTIONAL';
@@ -62,6 +63,9 @@ export interface SystemIntegration {
   icon?: string;
   direction?: IntegrationDirection;
   endpoints: Endpoint[];
+  rawDocSource?: string;
+  docTitle?: string;
+  docVersion?: string;
 }
 
 export interface SystemModule {

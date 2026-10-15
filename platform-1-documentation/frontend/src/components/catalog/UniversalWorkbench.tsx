@@ -1380,13 +1380,30 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
       return;
     }
 
-    const docToSubmit = {
+    let latestDoc = activeDoc;
+    try {
+      latestDoc = uastAdapterFactory.parse(sourceCode, sourceFormat, {
+        documentId: activeDoc.documentId,
+        serviceCode: activeDoc.serviceCode,
+        serviceName: activeDoc.serviceName,
+        status: 'PENDING_REVIEW',
+        channel: activeDoc.channel
+      });
+    } catch {
+      // fallback to activeDoc
+    }
+
+    const docToSubmit: UastDocument = {
       ...activeDoc,
+      ...latestDoc,
       systemKey: activeDoc.systemKey || selectedSystemKey,
       entityId: activeDoc.entityId || selectedEntityId,
       rawSource: sourceCode,
       rawFormat: sourceFormat,
-      status: 'PENDING_REVIEW' as const
+      status: 'PENDING_REVIEW' as const,
+      allEndpoints: (latestDoc?.allEndpoints && latestDoc.allEndpoints.length > 0)
+        ? latestDoc.allEndpoints
+        : (activeDoc.allEndpoints || [])
     };
     await uastDraftService.saveDraft(docToSubmit);
 
@@ -3080,6 +3097,42 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {selectedSubmission.status === 'PENDING_REVIEW' && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const approvedDoc: UastDocument = {
+                            ...selectedSubmission,
+                            status: 'PUBLISHED',
+                            publishedVersionId: `REL_${Date.now()}`,
+                            updatedAt: new Date().toISOString()
+                          };
+                          await uastDraftService.saveDraft(approvedDoc);
+                          refreshStorageLists();
+                          if (onPublishSuccess) {
+                            onPublishSuccess(approvedDoc, approvedDoc.systemKey, approvedDoc.entityId);
+                          }
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '3px 10px',
+                          borderRadius: '4px',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          backgroundColor: '#10b981',
+                          color: '#ffffff',
+                          border: 'none',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                        title="اعتماد هذه الوثيقة وتجميد كافة نقاط النهاية في الكتالوج المعتمد"
+                      >
+                        <CheckCircle2 size={13} />
+                        <span>اعتماد ونشر في الكتالوج</span>
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => window.print()}

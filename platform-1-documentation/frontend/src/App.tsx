@@ -247,7 +247,9 @@ const AppContent: React.FC = () => {
     sectorKey: string, 
     endpointsInput: Endpoint | Endpoint[], 
     isBulk = false,
-    providedSystemKey?: string
+    providedSystemKey?: string,
+    rawDocSource?: string,
+    suppressAlert = false
   ) => {
     const epList = Array.isArray(endpointsInput) ? endpointsInput : [endpointsInput];
     const targetSysKey = providedSystemKey || epList[0]?.systemKey || activeSystemKey;
@@ -272,7 +274,21 @@ const AppContent: React.FC = () => {
           sys.integrations[targetIntKey] = targetInt;
         }
 
-        const existingEndpoints = [...targetInt.endpoints];
+        if (rawDocSource) {
+          targetInt.rawDocSource = rawDocSource;
+        }
+
+        // Clean out any legacy single-block pseudo-endpoints (e.g. document title slugs)
+        const isPseudoSlug = (p: string) => {
+          const lp = (p || '').toLowerCase();
+          return lp.includes('documentation-v20') || 
+                 lp.includes('api-documentation') || 
+                 lp.endsWith('-documentation') || 
+                 lp.startsWith('/ultimate-pay');
+        };
+
+        const existingEndpoints = (targetInt.endpoints || []).filter(e => !isPseudoSlug(e.path));
+
         epList.forEach(newEp => {
           const existingIdx = existingEndpoints.findIndex(
             e => e.path.toLowerCase() === newEp.path.toLowerCase() && e.method === newEp.method
@@ -293,22 +309,24 @@ const AppContent: React.FC = () => {
     setActiveEndpointIndex(0);
     setActiveView('sector-spec');
 
-    if (isBulk) {
-      showFloatingAlert(
-        t('docHub.importSuccessTitle'),
-        t('docHub.importSuccessMsg', { count: epList.length }),
-        'success',
-        epList[0]?.path,
-        t('docHub.exploreInCatalog')
-      );
-    } else {
-      showFloatingAlert(
-        t('docHub.successTitle'),
-        t('docHub.successMsg'),
-        'success',
-        epList[0]?.path,
-        t('docHub.exploreInCatalog')
-      );
+    if (!suppressAlert) {
+      if (isBulk) {
+        showFloatingAlert(
+          t('docHub.importSuccessTitle'),
+          t('docHub.importSuccessMsg', { count: epList.length }),
+          'success',
+          epList[0]?.path,
+          t('docHub.exploreInCatalog')
+        );
+      } else {
+        showFloatingAlert(
+          t('docHub.successTitle'),
+          t('docHub.successMsg'),
+          'success',
+          epList[0]?.path,
+          t('docHub.exploreInCatalog')
+        );
+      }
     }
   };
 
@@ -343,9 +361,20 @@ const AppContent: React.FC = () => {
     );
   };
 
-  // Bridge UAST Document to Catalog Endpoint
-  const uastDocToEndpoint = (uastDoc: UastDocument, defaultSysKey: string, defaultEntityId?: string): Endpoint => {
-    const params: Endpoint['params'] = (uastDoc.headers || []).map(h => ({
+  // Bridge UAST Document to Catalog Endpoints (Supports both single endpoint & full multi-endpoint specifications)
+  const uastDocToEndpoints = (uastDoc: UastDocument, defaultSysKey: string, defaultEntityId?: string): Endpoint[] => {
+    const resolvedSysKey = uastDoc.systemKey || defaultSysKey;
+    const resolvedEntityId = uastDoc.entityId || defaultEntityId;
+    const baseUrl = uastDoc.baseUrl || uastDoc.channel?.environments?.production || 'https://tahseeltest.ultimate-pay.net/webserve';
+    const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+
+    const standardRules = (uastDoc.errorCodes || []).map((err, i) => ({
+      id: `BR_${uastDoc.serviceCode}_${String(i + 1).padStart(3, '0')}`,
+      name: err.message,
+      err: err.code
+    }));
+
+    const defaultParams: Endpoint['params'] = (uastDoc.headers || []).map(h => ({
       name: h.semantics.name,
       type: h.semantics.dataType,
       req: h.constraints.required,
@@ -356,7 +385,7 @@ const AppContent: React.FC = () => {
 
     const flattenParams = (node: IUastNode) => {
       if (node.structure.path && node.structure.path !== '$') {
-        params.push({
+        defaultParams.push({
           name: node.semantics.name,
           type: node.semantics.dataType,
           req: node.constraints.required,
@@ -365,38 +394,92 @@ const AppContent: React.FC = () => {
           tagClass: node.governance.securityLevel === 'CONFIDENTIAL_MASKED' ? 'badge-amber' : undefined
         });
       }
-      for (const c of node.children) {
+      for (const c of (node.children || [])) {
         flattenParams(c);
       }
     };
-    flattenParams(uastDoc.requestTree);
+    if (uastDoc.requestTree) {
+      flattenParams(uastDoc.requestTree);
+    }
 
-    const resolvedSysKey = uastDoc.systemKey || defaultSysKey;
-    const resolvedEntityId = uastDoc.entityId || defaultEntityId;
+    // CASE 1: Multi-endpoint document (allEndpoints present and non-empty)
+    if (uastDoc.allEndpoints && uastDoc.allEndpoints.length > 0) {
+      return uastDoc.allEndpoints.map((ep, idx) => {
+        const pathSegments = (ep.path || '').split('/').filter(Boolean);
+        const lastSegment = pathSegments[pathSegments.length - 1] || ep.summary || `endpoint-${idx + 1}`;
+        const cleanPath = ep.path.startsWith('/') ? ep.path : `/${ep.path}`;
 
-    return {
+        const params: Endpoint['params'] = ep.requestFields && ep.requestFields.length > 0
+          ? ep.requestFields.map(f => ({
+              name: f.name,
+              type: f.type,
+              req: f.required,
+              rule: f.example ? `القيمة: ${f.example}` : (f.description || `حقل ${f.name}`),
+              tag: f.length ? f.length.substring(0, 20) : (f.example ? f.example.substring(0, 20) : 'Payload'),
+              tagClass: /iban|pan|pin|token|auth|sign|nonce/i.test(f.name) ? 'badge-amber' : 'badge-green'
+            }))
+          : [...defaultParams];
+
+        const responseFields = ep.responseFields && ep.responseFields.length > 0
+          ? ep.responseFields.map(f => ({
+              name: f.name,
+              type: f.type,
+              req: 'Guaranteed',
+              desc: f.description || `Response field: ${f.name}`
+            }))
+          : undefined;
+
+        return {
+          id: `ep_${uastDoc.serviceCode.toLowerCase()}_${idx}_${Date.now()}`,
+          method: ep.method || 'POST',
+          path: ep.path,
+          shortName: lastSegment,
+          desc: ep.summary || ep.description || ep.path,
+          descEn: ep.description || ep.summary || ep.path,
+          isDraft: uastDoc.status !== 'PUBLISHED',
+          statusBadge: `v${uastDoc.semver || '1.0.0'}`,
+          releaseId: uastDoc.publishedVersionId,
+          systemKey: resolvedSysKey,
+          targetEntities: resolvedEntityId ? [resolvedEntityId] : undefined,
+          params,
+          rules: standardRules,
+          payload: ep.requestExample || uastDoc.rawSource || '',
+          res200: ep.responseExample || JSON.stringify({ status: "SUCCESS", code: "SETTLED_200", version: uastDoc.semver }, null, 2),
+          res422: JSON.stringify({ error: "VALIDATION_FAILED", code: "ERR_422", message: "Invalid payload constraints" }, null, 2),
+          responseFields,
+          curl: `curl -X ${ep.method || 'POST'} "${cleanBase}${cleanPath}" \\\n  -H "Authorization: Bearer <TOKEN>" \\\n  -H "Content-Type: application/json"`,
+          docSource: uastDoc.rawSource
+        };
+      });
+    }
+
+    // CASE 2: Single-endpoint document fallback
+    const singleEndpointPath = uastDoc.channel?.endpointPath || '/api/v1/service';
+    const singleMethod = uastDoc.channel?.method || 'POST';
+    return [{
       id: `ep_uast_${Date.now()}`,
-      method: uastDoc.channel.method,
-      path: uastDoc.channel.endpointPath,
+      method: singleMethod,
+      path: singleEndpointPath,
       shortName: uastDoc.serviceCode.toLowerCase().replace(/_/g, '-'),
       desc: uastDoc.serviceName,
       descEn: uastDoc.serviceNameEn || uastDoc.serviceName,
       isDraft: uastDoc.status !== 'PUBLISHED',
-      statusBadge: `v${uastDoc.semver}`,
+      statusBadge: `v${uastDoc.semver || '1.0.0'}`,
       releaseId: uastDoc.publishedVersionId,
       systemKey: resolvedSysKey,
       targetEntities: resolvedEntityId ? [resolvedEntityId] : undefined,
-      params,
-      rules: (uastDoc.errorCodes || []).map((err, i) => ({
-        id: `BR_${uastDoc.serviceCode}_00${i + 1}`,
-        name: err.message,
-        err: err.code
-      })),
-      payload: uastDoc.rawSource,
+      params: defaultParams,
+      rules: standardRules,
+      payload: uastDoc.rawSource || '',
       res200: JSON.stringify({ status: "SUCCESS", code: "SETTLED_200", version: uastDoc.semver }, null, 2),
       res422: JSON.stringify({ error: "VALIDATION_FAILED", code: "ERR_422", message: "Invalid payload constraints" }, null, 2),
-      curl: `curl -X ${uastDoc.channel.method} "${uastDoc.channel.environments.production || uastDoc.channel.endpointPath}" \\\n  -H "Authorization: Bearer <TOKEN>" \\\n  -H "Content-Type: application/json"`
-    };
+      curl: `curl -X ${singleMethod} "${cleanBase}${singleEndpointPath.startsWith('/') ? '' : '/'}${singleEndpointPath}" \\\n  -H "Authorization: Bearer <TOKEN>" \\\n  -H "Content-Type: application/json"`,
+      docSource: uastDoc.rawSource
+    }];
+  };
+
+  const uastDocToEndpoint = (uastDoc: UastDocument, defaultSysKey: string, defaultEntityId?: string): Endpoint => {
+    return uastDocToEndpoints(uastDoc, defaultSysKey, defaultEntityId)[0];
   };
 
   // If checking authentication
@@ -525,15 +608,17 @@ const AppContent: React.FC = () => {
               onPublishSuccess={(publishedDoc, targetSysKey, targetIntKey) => {
                 const finalSysKey = targetSysKey || publishedDoc.systemKey || activeSystemKey;
                 const finalIntKey = targetIntKey || publishedDoc.entityId || activeIntegrationKey;
-                const newEp = uastDocToEndpoint(publishedDoc, finalSysKey, finalIntKey);
-                handleAddEndpointFromHub(finalIntKey, newEp, false, finalSysKey);
+                const endpointsList = uastDocToEndpoints(publishedDoc, finalSysKey, finalIntKey);
+                handleAddEndpointFromHub(finalIntKey, endpointsList, endpointsList.length > 1, finalSysKey, publishedDoc.rawSource, true);
                 const sysName = systems[finalSysKey]?.name || finalSysKey;
                 const intName = systems[finalSysKey]?.integrations?.[finalIntKey]?.name || finalIntKey;
                 showFloatingAlert(
                   isRtl ? 'تم اعتماد ونشر الـ API بنجاح' : 'API Published Successfully',
-                  isRtl ? `تم تسجيل وتجميد الإصدار v${publishedDoc.semver} في الكتالوج المعتمد تحت [${sysName}] ← [${intName}].` : `Version v${publishedDoc.semver} published to catalog under [${sysName}] ← [${intName}].`,
+                  isRtl 
+                    ? `تم اعتماد وتجميد ${endpointsList.length} نقطة نهاية (Endpoints) للإصدار v${publishedDoc.semver} في الكتالوج المعتمد تحت [${sysName}] ← [${intName}].` 
+                    : `${endpointsList.length} Endpoints published to catalog under [${sysName}] ← [${intName}].`,
                   'success',
-                  publishedDoc.channel.endpointPath
+                  endpointsList[0]?.path
                 );
               }}
               onBackToCatalog={() => setActiveView('dashboard')}
@@ -551,6 +636,7 @@ const AppContent: React.FC = () => {
                   systemName={localizedSysName}
                   integrationName={localizedIntName}
                   onAddNewEndpoint={() => setActiveView('add-api')}
+                  rawSource={currentIntegration?.rawDocSource || currentEndpoints[activeEndpointIndex]?.docSource || currentEndpoints[activeEndpointIndex]?.payload}
                 />
               ) : (
                 <div style={{
