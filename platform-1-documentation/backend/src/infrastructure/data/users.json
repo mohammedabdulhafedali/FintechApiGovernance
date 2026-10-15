@@ -14,5 +14,30 @@
     },
     "createdAt": "2026-01-01T00:00:00.000Z",
     "updatedAt": "2026-10-15T06:58:22.609Z"
+  },
+  {
+    "id": "usr_1792102702300_bac59b",
+    "username": "admin2",
+    "email": "ad@gmail.com",
+    "fullName": "ops",
+    "passwordHash": "c0ab5c80408c90e17eb0e87434fa2fb26d162a440629366da5b598778552fd2fa97d4fc302675f24f7238d3ee7b482176f61e744e7d42aa0c6f722f27f0930d2",
+    "passwordSalt": "fe39699b1fd5e9cb086ad0609e995e96",
+    "groupId": "grp_1792102611025_6289b5",
+    "status": "ACTIVE",
+    "userType": "INTERNAL",
+    "accessScope": {
+      "allowedEntityIds": [
+        "*"
+      ],
+      "allowedSystemIds": [
+        "*"
+      ]
+    },
+    "overrides": {
+      "grantedPermissions": [],
+      "revokedPermissions": []
+    },
+    "createdAt": "2026-10-15T22:18:22.300Z",
+    "updatedAt": "2026-10-15T22:18:22.300Z"
   }
 ]

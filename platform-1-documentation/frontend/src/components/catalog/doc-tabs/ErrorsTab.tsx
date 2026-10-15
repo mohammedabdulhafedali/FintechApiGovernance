@@ -196,7 +196,7 @@ export const ErrorsTab: React.FC<ErrorsTabProps> = ({ endpoints = [] }) => {
   };
 
   return (
-    <div className="doc-tab-pane errors-tab-container" style={{ padding: '1.75rem', maxWidth: '1080px', margin: '0 auto' }}>
+    <div className="doc-tab-pane errors-tab-container" style={{ padding: '1.75rem', maxWidth: '1080px', margin: '0 auto', direction: isRtl ? 'rtl' : 'ltr' }}>
       {/* ── Search & Filter Bar ── */}
       <div style={{
         padding: '1.25rem 1.4rem',
@@ -305,10 +305,10 @@ export const ErrorsTab: React.FC<ErrorsTabProps> = ({ endpoints = [] }) => {
                   textTransform: 'uppercase',
                   letterSpacing: '0.04em'
                 }}>
-                  <th style={{ padding: '0.85rem 1rem', width: '22%' }}>HTTP Status</th>
-                  <th style={{ padding: '0.85rem 1rem', width: '15%' }}>Category</th>
-                  <th style={{ padding: '0.85rem 1rem', width: '38%' }}>Description</th>
-                  <th style={{ padding: '0.85rem 1rem', width: '25%' }}>Recommended Action</th>
+                  <th style={{ padding: '0.85rem 1rem', width: '22%' }}>{isEn ? 'HTTP Status' : 'رمز وحالة الـ HTTP'}</th>
+                  <th style={{ padding: '0.85rem 1rem', width: '15%' }}>{isEn ? 'Category' : 'التصنيف'}</th>
+                  <th style={{ padding: '0.85rem 1rem', width: '38%' }}>{isEn ? 'Description' : 'سبب الخطأ والتفسير'}</th>
+                  <th style={{ padding: '0.85rem 1rem', width: '25%' }}>{isEn ? 'Recommended Action' : 'الإجراء البرمجي الموصى به'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -338,11 +338,12 @@ export const ErrorsTab: React.FC<ErrorsTabProps> = ({ endpoints = [] }) => {
                             background: bg,
                             border: `1px solid ${border}`,
                             padding: '0.2rem 0.5rem',
-                            borderRadius: '4px'
+                            borderRadius: '4px',
+                            direction: 'ltr'
                           }}>
                             {item.code}
                           </span>
-                          <span style={{ fontWeight: 700, color: 'var(--text, #ffffff)' }}>
+                          <span style={{ fontWeight: 700, color: 'var(--text, #ffffff)', direction: 'ltr' }}>
                             {item.status}
                           </span>
                         </div>
@@ -433,10 +434,10 @@ export const ErrorsTab: React.FC<ErrorsTabProps> = ({ endpoints = [] }) => {
                   textTransform: 'uppercase',
                   letterSpacing: '0.04em'
                 }}>
-                  <th style={{ padding: '0.85rem 1rem', width: '28%' }}>Error Code</th>
-                  <th style={{ padding: '0.85rem 1rem', width: '22%' }}>Rule Name</th>
-                  <th style={{ padding: '0.85rem 1rem', width: '28%' }}>Message & Cause</th>
-                  <th style={{ padding: '0.85rem 1rem', width: '22%' }}>Applicable Scope</th>
+                  <th style={{ padding: '0.85rem 1rem', width: '28%' }}>{isEn ? 'Error Code' : 'كود الخطأ المالي'}</th>
+                  <th style={{ padding: '0.85rem 1rem', width: '22%' }}>{isEn ? 'Rule Name' : 'اسم القاعدة الرقابية'}</th>
+                  <th style={{ padding: '0.85rem 1rem', width: '28%' }}>{isEn ? 'Message & Cause' : 'الرسالة وسبب الرفض'}</th>
+                  <th style={{ padding: '0.85rem 1rem', width: '22%' }}>{isEn ? 'Applicable Scope' : 'نطاق التطبيق'}</th>
                 </tr>
               </thead>
               <tbody>

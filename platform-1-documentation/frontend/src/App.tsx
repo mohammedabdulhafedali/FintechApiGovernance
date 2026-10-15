@@ -129,8 +129,30 @@ const AppContent: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isMobileMenuOpen]);
 
-  // Primary Business Entity: Systems (الأنظمة المركزية وتكاملاتها)
-  const [systems, setSystems] = useState<Record<string, SystemModule>>(INITIAL_SYSTEMS);
+  // Primary Business Entity: Systems (الأنظمة المركزية وتكاملاتها مع حفظ محلي وسحابي دائم)
+  const [systems, setSystems] = useState<Record<string, SystemModule>>(() => {
+    try {
+      const cached = localStorage.getItem('gov_fintech_systems_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && Object.keys(parsed).length > 0) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return INITIAL_SYSTEMS;
+  });
+
+  // Load and synchronize systems from SQLite database on mount
+  useEffect(() => {
+    catalogService.fetchSystems().then(loadedSystems => {
+      if (loadedSystems && Object.keys(loadedSystems).length > 0) {
+        setSystems(loadedSystems);
+      }
+    }).catch(err => {
+      console.warn('[Catalog] Failed to load systems from backend:', err);
+    });
+  }, []);
 
   // Sector Management State (حذف وإدارة التكاملات)
   const [sectorKeyToDelete, setSectorKeyToDelete] = useState<string | null>(null);
@@ -159,9 +181,105 @@ const AppContent: React.FC = () => {
     setFloatingAlert(null);
   };
 
-  // Dynamically derive sectors from systems for backward-compatibility & Export Studio
+  // Dynamic Master Sectors State (القطاعات والجهات الشريكة ككيان سيادي مستقل)
+  const [masterSectors, setMasterSectors] = useState<Record<string, Sector>>(() => {
+    try {
+      const cached = localStorage.getItem('gov_fintech_sectors_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && Object.keys(parsed).length > 0) return parsed;
+      }
+    } catch {}
+    return INITIAL_SECTORS;
+  });
+
+  // Synchronize master sectors from SQLite backend on mount
+  useEffect(() => {
+    catalogService.fetchCatalog().then(loaded => {
+      if (loaded && Object.keys(loaded).length > 0) {
+        setMasterSectors(prev => {
+          const merged = { ...prev, ...loaded };
+          try {
+            localStorage.setItem('gov_fintech_sectors_cache', JSON.stringify(merged));
+          } catch {}
+          return merged;
+        });
+      }
+    }).catch(() => {});
+  }, []);
+
+  const handleSaveSector = async (sectorData: { key: string; name: string; nameEn?: string; code: string }) => {
+    const isEdit = !!masterSectors[sectorData.key];
+    const newOrUpdatedSector: Sector = {
+      ...(masterSectors[sectorData.key] || {}),
+      key: sectorData.key,
+      name: sectorData.name,
+      nameEn: sectorData.nameEn || sectorData.name,
+      code: sectorData.code,
+      services: masterSectors[sectorData.key]?.services || {
+        core: {
+          title: sectorData.name,
+          titleEn: sectorData.nameEn || sectorData.name,
+          code: sectorData.code,
+          baseUrl: 'https://api.gov.fintech',
+          versions: ['v2026.2'],
+          endpoints: []
+        }
+      }
+    };
+
+    setMasterSectors(prev => {
+      const updated = { ...prev, [sectorData.key]: newOrUpdatedSector };
+      try {
+        localStorage.setItem('gov_fintech_sectors_cache', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    try {
+      if (isEdit) {
+        await catalogService.updateSector(sectorData.key, sectorData);
+      } else {
+        await catalogService.createSector(sectorData);
+      }
+      showFloatingAlert(
+        isRtl ? 'تم حفظ القطاع/الجهة بنجاح' : 'Sector Saved Successfully',
+        isRtl ? `تم تسجيل [${sectorData.name}] في دليل القطاعات والجهات المعتمدة.` : `Sector [${sectorData.nameEn || sectorData.name}] saved.`,
+        'success'
+      );
+    } catch {
+      showFloatingAlert(
+        isRtl ? 'حفظ محلي' : 'Local Save',
+        isRtl ? 'تم حفظ القطاع محلياً بنجاح.' : 'Sector saved locally.',
+        'info'
+      );
+    }
+  };
+
+  const handleDeleteSector = async (sectorKey: string) => {
+    const secName = masterSectors[sectorKey]?.name || sectorKey;
+    setMasterSectors(prev => {
+      const updated = { ...prev };
+      delete updated[sectorKey];
+      try {
+        localStorage.setItem('gov_fintech_sectors_cache', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    try {
+      await catalogService.deleteSector(sectorKey);
+      showFloatingAlert(
+        isRtl ? 'تم حذف القطاع/الجهة' : 'Sector Deleted',
+        isRtl ? `تمت إزالة [${secName}] من دليل القطاعات والجهات.` : `Sector [${secName}] removed.`,
+        'info'
+      );
+    } catch {}
+  };
+
+  // Dynamically derive combined sectors for backward-compatibility & Export Studio
   const sectors: Record<string, Sector> = useMemo(() => {
-    const result: Record<string, Sector> = {};
+    const result: Record<string, Sector> = { ...masterSectors };
     Object.values(systems).forEach(sys => {
       Object.values(sys.integrations || {}).forEach(intItem => {
         if (!result[intItem.entityId]) {
@@ -170,7 +288,7 @@ const AppContent: React.FC = () => {
             name: intItem.name,
             nameEn: intItem.nameEn,
             code: intItem.code || `SECTOR_${intItem.entityId.toUpperCase()}`,
-            icon: intItem.icon || 'Building2',
+            icon: 'Building2',
             services: {
               core: {
                 title: intItem.name,
@@ -183,13 +301,16 @@ const AppContent: React.FC = () => {
             }
           };
         }
-        if (intItem.endpoints) {
-          result[intItem.entityId].services.core.endpoints.push(...intItem.endpoints);
+        if (intItem.endpoints && result[intItem.entityId]?.services?.core) {
+          result[intItem.entityId].services.core.endpoints = [
+            ...(result[intItem.entityId].services.core.endpoints || []),
+            ...intItem.endpoints
+          ];
         }
       });
     });
     return result;
-  }, [systems]);
+  }, [masterSectors, systems]);
 
   // Active System and Integration Resolution
   const currentSystem = systems[activeSystemKey] || Object.values(systems)[0];
@@ -223,10 +344,14 @@ const AppContent: React.FC = () => {
 
   // Add System Handler
   const handleAddSystem = (newSystem: SystemModule) => {
-    setSystems(prev => ({
-      ...prev,
-      [newSystem.key]: newSystem
-    }));
+    setSystems(prev => {
+      const updated = {
+        ...prev,
+        [newSystem.key]: newSystem
+      };
+      catalogService.saveSystem(newSystem);
+      return updated;
+    });
 
     const firstIntKey = Object.keys(newSystem.integrations || {})[0] || 'banking';
     setActiveSystemKey(newSystem.key);
@@ -236,10 +361,43 @@ const AppContent: React.FC = () => {
 
     const displayName = newSystem.nameEn && !isRtl ? newSystem.nameEn : newSystem.name;
     showFloatingAlert(
-      isRtl ? 'تم إضافة النظام بنجاح' : 'System Created Successfully',
-      isRtl ? `تم تسجيل [${displayName}] وإدراج تكاملاته في القائمة الجانبية والداشبورد.` : `System [${displayName}] created with dynamic integrations.`,
+      isRtl ? 'تم إضافة وحفظ النظام بنجاح' : 'System Created & Saved Successfully',
+      isRtl ? `تم تسجيل [${displayName}] وحفظه في قاعدة البيانات المركزية.` : `System [${displayName}] saved permanently to database.`,
       'success'
     );
+  };
+
+  // Update System Handler
+  const handleUpdateSystem = async (systemKey: string, updatedData: Partial<SystemModule>) => {
+    setSystems(prev => {
+      const existing = prev[systemKey];
+      if (!existing) return prev;
+      const updatedSys = {
+        ...existing,
+        ...updatedData,
+        key: systemKey
+      };
+      return {
+        ...prev,
+        [systemKey]: updatedSys
+      };
+    });
+
+    try {
+      await catalogService.updateSystem(systemKey, updatedData);
+      const displayName = updatedData.name || systemKey;
+      showFloatingAlert(
+        isRtl ? 'تم تحديث بيانات النظام بنجاح' : 'System Updated Successfully',
+        isRtl ? `تم حفظ التعديلات على نظام [${displayName}] في الخادم وقاعدة البيانات.` : `System [${displayName}] updated successfully.`,
+        'success'
+      );
+    } catch {
+      showFloatingAlert(
+        isRtl ? 'حفظ محلي' : 'Local Save',
+        isRtl ? 'تم تطبيق التحديثات محلياً بنجاح.' : 'Updates saved locally.',
+        'info'
+      );
+    }
   };
 
   // Add Endpoint Handler
@@ -300,6 +458,7 @@ const AppContent: React.FC = () => {
           }
         });
         targetInt.endpoints = existingEndpoints;
+        catalogService.saveSystem(sys);
       }
       return updated;
     });
@@ -336,6 +495,7 @@ const AppContent: React.FC = () => {
   };
 
   const handleConfirmDeleteIntegration = (sectorKey: string) => {
+    catalogService.deleteIntegration(activeSystemKey, sectorKey);
     setSystems(prev => {
       const updated = { ...prev };
       if (updated[activeSystemKey]?.integrations) {
@@ -538,6 +698,9 @@ const AppContent: React.FC = () => {
         <Header
           activeView={activeView}
           activeSector={activeSector}
+          activeEndpoint={activeView === 'sector-spec' ? activeEndpoint : null}
+          activeIntegration={activeView === 'sector-spec' ? currentIntegration : null}
+          activeSystem={activeView === 'sector-spec' ? currentSystem : null}
           currentVersion={currentVersion}
           onVersionChange={setCurrentVersion}
           onOpenAddApi={() => {
@@ -565,15 +728,26 @@ const AppContent: React.FC = () => {
           {activeView === 'dashboard' && (
             <DashboardView
               systems={systems}
+              sectors={masterSectors}
               onSelectSystemIntegration={handleSelectSystemIntegration}
               onAddSystem={handleAddSystem}
+              onUpdateSystem={handleUpdateSystem}
               onDeleteSystem={(sysKey) => {
+                const sysName = systems[sysKey]?.name || sysKey;
+                catalogService.deleteSystem(sysKey);
                 setSystems(prev => {
                   const updated = { ...prev };
                   delete updated[sysKey];
                   return updated;
                 });
+                showFloatingAlert(
+                  isRtl ? 'تم حذف النظام بنجاح' : 'System Removed',
+                  isRtl ? `تمت إزالة نظام [${sysName}] من المنظومة.` : `System [${sysName}] removed successfully.`,
+                  'info'
+                );
               }}
+              onSaveSector={handleSaveSector}
+              onDeleteSector={handleDeleteSector}
             />
           )}
 
@@ -596,6 +770,7 @@ const AppContent: React.FC = () => {
                         [newInt.entityId]: newInt
                       }
                     };
+                    catalogService.saveIntegration(sysKey, newInt);
                   }
                   return updated;
                 });

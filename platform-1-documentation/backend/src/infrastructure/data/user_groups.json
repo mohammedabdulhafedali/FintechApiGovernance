@@ -36,5 +36,19 @@
     "isSystemDefault": true,
     "createdAt": "2026-01-01T00:00:00.000Z",
     "updatedAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "grp_1792102611025_6289b5",
+    "key": "OPS",
+    "name": "ops",
+    "description": "",
+    "status": "ACTIVE",
+    "permissions": [
+      "catalog:read",
+      "dashboard:read"
+    ],
+    "isSystemDefault": false,
+    "createdAt": "2026-10-15T22:16:51.026Z",
+    "updatedAt": "2026-10-15T22:22:48.849Z"
   }
 ]

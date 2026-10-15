@@ -31,15 +31,15 @@ export const INITIAL_SYSTEMS: Record<string, SystemModule> = {
             direction: 'INBOUND',
             channels: ['CORE_SERVER', 'MOBILE'],
             params: [
-              { name: 'sourceAccount', type: 'string (IBAN)', req: true, rule: 'صيغة الآيبان الوطني SA-IBAN', tag: 'PII', tagClass: 'badge-purple' },
-              { name: 'destinationAccount', type: 'string (IBAN)', req: true, rule: 'التحقق من صحة المستفيد عبر الدليل الموحد', tag: 'PII', tagClass: 'badge-purple' },
-              { name: 'amount', type: 'decimal', req: true, rule: 'الحد الأقصى للعملية الفردية: 50,000 ر.س', tag: 'Financial', tagClass: 'badge-emerald' },
-              { name: 'currency', type: 'string (ISO-4217)', req: true, rule: 'SAR فقط', tag: 'ISO 20022', tagClass: 'badge-blue' },
-              { name: 'idempotencyKey', type: 'string (UUID v4)', req: true, rule: 'صلاحية المفتاح 24 ساعة لمنع تكرار القيد المالي', tag: 'Idempotent', tagClass: 'badge-amber' }
+              { name: 'sourceAccount', type: 'string (IBAN)', req: true, rule: 'صيغة الآيبان الوطني SA-IBAN', ruleEn: 'National SA-IBAN standard format', tag: 'PII', tagClass: 'badge-purple' },
+              { name: 'destinationAccount', type: 'string (IBAN)', req: true, rule: 'التحقق من صحة المستفيد عبر الدليل الموحد', ruleEn: 'Beneficiary validation via unified directory', tag: 'PII', tagClass: 'badge-purple' },
+              { name: 'amount', type: 'decimal', req: true, rule: 'الحد الأقصى للعملية الفردية: 50,000 ر.س', ruleEn: 'Single transaction ceiling: 50,000 SAR', tag: 'Financial', tagClass: 'badge-emerald' },
+              { name: 'currency', type: 'string (ISO-4217)', req: true, rule: 'SAR فقط', ruleEn: 'SAR currency only', tag: 'ISO 20022', tagClass: 'badge-blue' },
+              { name: 'idempotencyKey', type: 'string (UUID v4)', req: true, rule: 'صلاحية المفتاح 24 ساعة لمنع تكرار القيد المالي', ruleEn: '24-hour key validity to prevent duplicate booking', tag: 'Idempotent', tagClass: 'badge-amber' }
             ],
             rules: [
-              { id: 'BR_IPS_001', name: 'الحد الأقصى للتحويل 50,000 ريال', err: 'LIMIT_EXCEEDED_422' },
-              { id: 'BR_IPS_002', name: 'منع التكرار بمفتاح IdempotencyKey', err: 'DUPLICATE_TXN_409' }
+              { id: 'BR_IPS_001', name: 'الحد الأقصى للتحويل 50,000 ريال', nameEn: 'Transfer ceiling 50,000 SAR', err: 'LIMIT_EXCEEDED_422' },
+              { id: 'BR_IPS_002', name: 'منع التكرار بمفتاح IdempotencyKey', nameEn: 'De-duplication via IdempotencyKey', err: 'DUPLICATE_TXN_409' }
             ],
             payload: `{\n  "sourceAccount": "SA0380000000608010167519",\n  "destinationAccount": "SA4420000001234567890123",\n  "amount": 1500.00,\n  "currency": "SAR",\n  "idempotencyKey": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"\n}`,
             res200: `{\n  "status": "SUCCESS",\n  "transactionId": "TXN-88492019",\n  "clearingCode": "SA-IPS-CLR-01",\n  "settledAt": "2026-10-11T12:00:00Z"\n}`,
@@ -57,10 +57,10 @@ export const INITIAL_SYSTEMS: Record<string, SystemModule> = {
             direction: 'INBOUND',
             channels: ['CORE_SERVER', 'MOBILE', 'WEB'],
             params: [
-              { name: 'id', type: 'string (Path)', req: true, rule: 'معرف الحوالة الرقمي المقيد', tag: 'Audit Key', tagClass: 'badge-blue' }
+              { name: 'id', type: 'string (Path)', req: true, rule: 'معرف الحوالة الرقمي المقيد', ruleEn: 'Registered transaction reference ID', tag: 'Audit Key', tagClass: 'badge-blue' }
             ],
             rules: [
-              { id: 'BR_IPS_003', name: 'متاح الاستعلام حتى 90 يوماً من التنفيذ', err: 'TXN_NOT_FOUND_404' }
+              { id: 'BR_IPS_003', name: 'متاح الاستعلام حتى 90 يوماً من التنفيذ', nameEn: 'Query available up to 90 days after execution', err: 'TXN_NOT_FOUND_404' }
             ],
             payload: `// GET Request has no body`,
             res200: `{\n  "transactionId": "TXN-88492019",\n  "status": "SETTLED",\n  "settledAt": "2026-10-11T12:00:00Z"\n}`,

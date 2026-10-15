@@ -9,7 +9,13 @@ import {
   Trash2,
   AlertTriangle,
   Lock,
-  ShieldCheck
+  ShieldCheck,
+  Building,
+  Sliders,
+  ChevronDown,
+  ChevronUp,
+  Code,
+  Sparkles
 } from 'lucide-react';
 import { ScreenResourceDefinition, ScreenActionType, UserGroup } from '../../types/auth';
 import { iamService } from '../../services/iamService';
@@ -45,6 +51,19 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
   const [screens, setScreens] = useState<ScreenResourceDefinition[]>([]);
   const [isLoadingScreens, setIsLoadingScreens] = useState(true);
 
+  // Active Tab: Base Modules vs Granular Systems & Integrations vs All
+  const [activeTab, setActiveTab] = useState<'BASE_MODULES' | 'CENTRAL_SYSTEMS' | 'ALL'>('BASE_MODULES');
+  const [expandedEndpoints, setExpandedEndpoints] = useState<Set<string>>(new Set());
+
+  const toggleEndpointExpansion = (key: string) => {
+    setExpandedEndpoints(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   // Deletion state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -73,7 +92,7 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Check if a specific screen action is permitted
+  // Check if a specific screen action is permitted (Hierarchical Scoped Evaluation)
   const isPermissionChecked = useCallback((screenKey: string, action: ScreenActionType) => {
     // 1. Full Admin Wildcard
     if (selectedPermissions.has('*')) return true;
@@ -82,14 +101,22 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
     const directKey = `${screenKey}:${action}`;
     if (selectedPermissions.has(directKey)) return true;
 
-    // 3. Screen Wildcard (e.g. "banking:ips:*")
+    // 3. Screen / Integration Wildcard (e.g. "sys:collection:int:banking:*")
     if (selectedPermissions.has(`${screenKey}:*`)) return true;
 
-    // 4. Prefix Wildcard (e.g. "catalog:*")
+    // 4. Central System-Level Wildcard (e.g. "sys:collection:*")
+    if (screenKey.startsWith('sys:')) {
+      const parts = screenKey.split(':');
+      if (parts.length >= 2) {
+        if (selectedPermissions.has(`sys:${parts[1]}:*`)) return true;
+      }
+    }
+
+    // 5. Prefix Wildcard (e.g. "catalog:*")
     const [prefix] = screenKey.split(':');
     if (prefix && selectedPermissions.has(`${prefix}:*`)) return true;
 
-    // 5. Cross-domain mapping for legacy catalog permissions
+    // 6. Cross-domain mapping for legacy catalog permissions
     if (screenKey.startsWith('catalog:') && action === 'create') {
       if (selectedPermissions.has('catalog:system:create') || selectedPermissions.has('catalog:endpoint:create')) return true;
     }
@@ -97,7 +124,13 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
       if (selectedPermissions.has('catalog:system:delete') || selectedPermissions.has('catalog:endpoint:delete')) return true;
     }
     if (screenKey.startsWith('catalog:') && action === 'read') {
-      if (selectedPermissions.has('catalog:spec:export') || selectedPermissions.has('catalog:system:create') || selectedPermissions.has('catalog:endpoint:create')) return true;
+      if (
+        selectedPermissions.has('catalog:spec:export') || 
+        selectedPermissions.has('catalog:system:create') || 
+        selectedPermissions.has('catalog:endpoint:create') ||
+        selectedPermissions.has('documentation:systems:read') ||
+        selectedPermissions.has('documentation:systems:*')
+      ) return true;
     }
 
     return false;
@@ -315,25 +348,43 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
     });
   }, [screens]);
 
-  // تجميع الموارد والشاشات ديناميكياً بحسب النظام المصرفي والسيادي
+  // تجميع الموارد بحسب الفئات (نماذج المنظومة الأساسية مقابل الصلاحيات المخصصة العميقة)
+  const baseModuleScreens = useMemo(() => {
+    return screens.filter(s => s.category === 'BASE_MODULES' || s.systemKey === 'BASE_MODULES');
+  }, [screens]);
+
+  const centralSystemScreens = useMemo(() => {
+    return screens.filter(s => s.category !== 'BASE_MODULES' && s.systemKey !== 'BASE_MODULES');
+  }, [screens]);
+
+  const displayedScreens = useMemo(() => {
+    if (activeTab === 'BASE_MODULES') return baseModuleScreens;
+    if (activeTab === 'CENTRAL_SYSTEMS') return centralSystemScreens;
+    return screens;
+  }, [activeTab, baseModuleScreens, centralSystemScreens, screens]);
+
+  // تجميع الموارد والشاشات ديناميكياً بحسب النظام والتبويب
   const groupedScreens = useMemo(() => {
     const map = new Map<string, {
       systemKey: string;
       systemName: string;
       systemNameEn?: string;
+      systemCode?: string;
       screens: ScreenResourceDefinition[];
     }>();
 
-    screens.forEach(s => {
-      const sKey = s.systemKey || (s.category === 'GOVERNANCE_SYSTEM' ? 'GOVERNANCE_SYSTEM' : 'SYSTEM_RESOURCES');
-      const sName = s.systemName || (s.category === 'GOVERNANCE_SYSTEM' ? 'إدارة وحوكمة المنظومة السيادية' : 'الخدمات المصرفية العامة');
+    displayedScreens.forEach(s => {
+      const sKey = s.systemKey || (s.category === 'BASE_MODULES' ? 'BASE_MODULES' : 'SYSTEM_RESOURCES');
+      const sName = s.systemName || (s.category === 'BASE_MODULES' ? 'نماذج المنظومة الأساسية' : 'الخدمات المصرفية');
       const sNameEn = s.systemNameEn || sKey;
+      const sCode = s.systemCode;
 
       if (!map.has(sKey)) {
         map.set(sKey, {
           systemKey: sKey,
           systemName: sName,
           systemNameEn: sNameEn,
+          systemCode: sCode,
           screens: []
         });
       }
@@ -341,7 +392,34 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
     });
 
     return Array.from(map.values());
-  }, [screens]);
+  }, [displayedScreens]);
+
+  // تفعيل أو إلغاء نظام مركزي بالكامل دفعة واحدة
+  const handleToggleEntireSystem = useCallback((systemKey: string, systemScreens: ScreenResourceDefinition[]) => {
+    if (isSovereignFrozen) return;
+
+    setSelectedPermissions(prev => {
+      const next = new Set(prev);
+      const sysWildcard = `sys:${systemKey}:*`;
+      const allChecked = systemScreens.every(s => s.supportedActions.every(act => isPermissionChecked(s.key, act)));
+
+      if (allChecked) {
+        next.delete(sysWildcard);
+        systemScreens.forEach(s => {
+          next.delete(`${s.key}:*`);
+          s.supportedActions.forEach(act => next.delete(`${s.key}:${act}`));
+        });
+      } else {
+        next.add(sysWildcard);
+        systemScreens.forEach(s => {
+          s.supportedActions.forEach(act => next.add(`${s.key}:${act}`));
+        });
+      }
+
+      setHasChanges(true);
+      return next;
+    });
+  }, [isSovereignFrozen, isPermissionChecked]);
 
 
   // حفظ الدور / المجموعة
@@ -776,6 +854,90 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
         </div>
       )}
 
+      {/* ── 3.7 TAB CONTROLLER (فصل النماذج الأساسية عن الصلاحيات المخصصة الهرمية) ── */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem',
+          marginBottom: '1rem',
+          borderBottom: '1px solid var(--border)',
+          paddingBottom: '0.75rem',
+          flexWrap: 'wrap'
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setActiveTab('BASE_MODULES')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.55rem 1.15rem',
+            borderRadius: '8px',
+            fontSize: '0.88rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            background: activeTab === 'BASE_MODULES' ? 'rgba(59, 130, 246, 0.15)' : 'var(--overlay-subtle)',
+            border: `1px solid ${activeTab === 'BASE_MODULES' ? '#3b82f6' : 'var(--border)'}`,
+            color: activeTab === 'BASE_MODULES' ? '#60a5fa' : 'var(--text-muted, #9ca3af)'
+          }}
+        >
+          <Building size={16} />
+          <span>{isRtl ? 'نماذج وشاشات المنظومة الأساسية' : 'Core System Modules'}</span>
+          <span style={{ fontSize: '0.74rem', padding: '0.1rem 0.45rem', borderRadius: '12px', background: activeTab === 'BASE_MODULES' ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255, 255, 255, 0.05)', color: activeTab === 'BASE_MODULES' ? '#93c5fd' : '#9ca3af' }}>
+            {baseModuleScreens.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('CENTRAL_SYSTEMS')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.55rem 1.15rem',
+            borderRadius: '8px',
+            fontSize: '0.88rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            background: activeTab === 'CENTRAL_SYSTEMS' ? 'rgba(16, 185, 129, 0.15)' : 'var(--overlay-subtle)',
+            border: `1px solid ${activeTab === 'CENTRAL_SYSTEMS' ? '#10b981' : 'var(--border)'}`,
+            color: activeTab === 'CENTRAL_SYSTEMS' ? '#34d399' : 'var(--text-muted, #9ca3af)'
+          }}
+        >
+          <Sliders size={16} />
+          <span>{isRtl ? 'الصلاحيات المخصصة للأنظمة والتكاملات' : 'Granular Systems & Scopes'}</span>
+          <span style={{ fontSize: '0.74rem', padding: '0.1rem 0.45rem', borderRadius: '12px', background: activeTab === 'CENTRAL_SYSTEMS' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.05)', color: activeTab === 'CENTRAL_SYSTEMS' ? '#6ee7b7' : '#9ca3af' }}>
+            {centralSystemScreens.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('ALL')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.55rem 1rem',
+            borderRadius: '8px',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            background: activeTab === 'ALL' ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
+            border: `1px solid ${activeTab === 'ALL' ? '#8b5cf6' : 'transparent'}`,
+            color: activeTab === 'ALL' ? '#a78bfa' : 'var(--text-muted, #9ca3af)'
+          }}
+        >
+          <span>{isRtl ? 'عرض الكل (المصفوفة الشاملة)' : 'View All Matrix'}</span>
+        </button>
+      </div>
+
       {/* ── 4. PERMISSION MATRIX TABLE (مطابق لهيكل ومصفوفة الصورة) ── */}
       <div 
         style={{
@@ -791,12 +953,12 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
             <tr style={{ background: 'var(--table-header-bg)', borderBottom: '2px solid rgba(16, 185, 129, 0.4)' }}>
               {/* عمود اسم الشاشة */}
               <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-main, #f3f4f6)' }}>
-                {isRtl ? 'اسم الشاشة' : 'Screen Name'}
+                {isRtl ? 'اسم الشاشة / الخدمة' : 'Screen / Service Name'}
               </th>
 
               {/* أعمدة العمليات الأربعة: قراءة | انشاء | تعديل | حذف */}
               {ACTION_COLUMNS.map((col) => {
-                const applicableScreens = screens.filter(s => s.supportedActions.includes(col.key));
+                const applicableScreens = displayedScreens.filter(s => s.supportedActions.includes(col.key));
                 const isAllChecked = applicableScreens.length > 0 && applicableScreens.every(s => isPermissionChecked(s.key, col.key));
                 const isSomeChecked = !isAllChecked && applicableScreens.some(s => isPermissionChecked(s.key, col.key));
 
@@ -863,35 +1025,83 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
                   {isRtl ? 'جاري تحميل سجل الشاشات والموارد المصرفية...' : 'Loading dynamic screens catalog...'}
                 </td>
               </tr>
-            ) : screens.length === 0 ? (
+            ) : displayedScreens.length === 0 ? (
               <tr>
                 <td colSpan={5} style={{ padding: '3rem', textAlign: 'center' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
                     <AlertCircle size={28} color="#f59e0b" />
                     <span style={{ fontWeight: 700, color: '#f3f4f6' }}>
-                      {isRtl ? 'لم يتم العثور على أنظمة مسجلة أو السيرفر غير متصل' : 'No systems found or backend offline'}
-                    </span>
-                    <span style={{ fontSize: '0.78rem', color: '#9ca3af' }}>
-                      {isRtl ? 'يرجى التأكد من تشغيل سيرفر المنظومة (Backend API) على المنفذ 4000 لجلب الأنظمة والخدمات الحية' : 'Please ensure Backend API server is running on port 4000 to load live systems'}
+                      {isRtl ? 'لا توجد عناصر في هذا التبويب' : 'No items found in this tab'}
                     </span>
                   </div>
                 </td>
               </tr>
             ) : (
               groupedScreens.map((grp) => {
+                const isBase = grp.systemKey === 'BASE_MODULES';
+                const isEntireSystemChecked = !isBase && grp.screens.every(s => s.supportedActions.every(act => isPermissionChecked(s.key, act)));
+
                 return (
                   <React.Fragment key={grp.systemKey}>
-                    {/* رأس قسم النظام المصرفي الديناميكي */}
-                    <tr style={{ background: 'rgba(16, 185, 129, 0.08)', borderBottom: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                    {/* رأس قسم النظام المصرفي الديناميكي أو نماذج المنظومة */}
+                    <tr 
+                      style={{ 
+                        background: isBase ? 'rgba(59, 130, 246, 0.08)' : 'rgba(16, 185, 129, 0.08)', 
+                        borderBottom: `1px solid ${isBase ? 'rgba(59, 130, 246, 0.25)' : 'rgba(16, 185, 129, 0.25)'}` 
+                      }}
+                    >
                       <td colSpan={5} style={{ padding: '0.65rem 1.25rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                          <Layers size={16} color="#34d399" />
-                          <span style={{ fontWeight: 800, fontSize: '0.88rem', color: '#34d399' }}>
-                            {isRtl ? grp.systemName : (grp.systemNameEn || grp.systemName)}
-                          </span>
-                          <span style={{ fontSize: '0.74rem', color: '#9ca3af', padding: '0.1rem 0.45rem', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)' }}>
-                            {grp.screens.length} {isRtl ? 'شاشة / خدمة' : 'screens'}
-                          </span>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                            {isBase ? <Building size={16} color="#60a5fa" /> : <Layers size={16} color="#34d399" />}
+                            <span style={{ fontWeight: 800, fontSize: '0.88rem', color: isBase ? '#60a5fa' : '#34d399' }}>
+                              {isRtl ? grp.systemName : (grp.systemNameEn || grp.systemName)}
+                            </span>
+                            {grp.systemCode && (
+                              <span 
+                                style={{ 
+                                  fontSize: '0.72rem', 
+                                  color: '#10b981', 
+                                  padding: '0.1rem 0.5rem', 
+                                  borderRadius: '4px', 
+                                  background: 'rgba(16, 185, 129, 0.15)', 
+                                  border: '1px solid rgba(16, 185, 129, 0.3)', 
+                                  fontFamily: 'monospace' 
+                                }}
+                              >
+                                {grp.systemCode}
+                              </span>
+                            )}
+                            <span style={{ fontSize: '0.74rem', color: '#9ca3af', padding: '0.1rem 0.45rem', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)' }}>
+                              {grp.screens.length} {isRtl ? 'شاشة / تكامل' : 'screens'}
+                            </span>
+                          </div>
+
+                          {/* زر تفعيل كامل النظام للأنظمة المركزية */}
+                          {!isBase && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleEntireSystem(grp.systemKey, grp.screens)}
+                              disabled={isSovereignFrozen}
+                              style={{
+                                background: isEntireSystemChecked ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                                border: `1px solid ${isEntireSystemChecked ? '#10b981' : 'rgba(255, 255, 255, 0.15)'}`,
+                                borderRadius: '6px',
+                                padding: '0.25rem 0.75rem',
+                                color: isEntireSystemChecked ? '#34d399' : '#d1d5db',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                cursor: isSovereignFrozen ? 'not-allowed' : 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                transition: 'all 0.15s'
+                              }}
+                            >
+                              <Sparkles size={12} />
+                              <span>{isEntireSystemChecked ? (isRtl ? 'إلغاء كامل النظام' : 'Deselect System') : (isRtl ? 'تفعيل كامل النظام (*)' : 'Enable All System (*)')}</span>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -900,106 +1110,190 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
                     {grp.screens.map((screen, idx) => {
                       const isEven = idx % 2 === 0;
                       const allScreenChecked = screen.supportedActions.every(act => isPermissionChecked(screen.key, act));
+                      const isExpanded = expandedEndpoints.has(screen.key);
+                      const hasEndpoints = screen.endpoints && screen.endpoints.length > 0;
 
                       return (
-                        <tr 
-                          key={screen.key}
-                          style={{
-                            background: isEven ? 'var(--table-row-alt)' : 'var(--table-row-hover)',
-                            borderBottom: '1px solid var(--border-subtle)',
-                            transition: 'background 0.15s'
-                          }}
-                        >
-                          {/* اسم الشاشة + زر التحديد السريع */}
-                          <td style={{ padding: '0.85rem 1.25rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <div>
-                                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-main, #f9fafb)' }}>
-                                  {screen.name}
+                        <React.Fragment key={screen.key}>
+                          <tr 
+                            style={{
+                              background: isEven ? 'var(--table-row-alt)' : 'var(--table-row-hover)',
+                              borderBottom: '1px solid var(--border-subtle)',
+                              transition: 'background 0.15s'
+                            }}
+                          >
+                            {/* اسم الشاشة + زر التحديد السريع + زر تفصيل الـ Endpoints */}
+                            <td style={{ padding: '0.85rem 1.25rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-main, #f9fafb)' }}>
+                                    {screen.name}
+                                  </div>
+                                  <div style={{ fontSize: '0.72rem', color: 'var(--text-dim, #9ca3af)', marginTop: '0.15rem' }}>
+                                    {screen.nameAr}
+                                  </div>
+
+                                  {/* زر إظهار مسارات الـ API التابعة للتكامل */}
+                                  {hasEndpoints && (
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleEndpointExpansion(screen.key)}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.3rem',
+                                        padding: '0.15rem 0.5rem',
+                                        borderRadius: '4px',
+                                        background: isExpanded ? 'rgba(59, 130, 246, 0.18)' : 'rgba(255, 255, 255, 0.04)',
+                                        border: `1px solid ${isExpanded ? 'rgba(59, 130, 246, 0.4)' : 'rgba(255, 255, 255, 0.1)'}`,
+                                        color: isExpanded ? '#60a5fa' : '#9ca3af',
+                                        fontSize: '0.7rem',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        marginTop: '0.35rem',
+                                        transition: 'all 0.15s'
+                                      }}
+                                    >
+                                      <Code size={11} />
+                                      <span>{screen.endpoints!.length} {isRtl ? 'مسارات API محكومة' : 'Endpoints'}</span>
+                                      {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                                    </button>
+                                  )}
                                 </div>
-                                <div style={{ fontSize: '0.72rem', color: 'var(--text-dim, #9ca3af)', marginTop: '0.15rem' }}>
-                                  {screen.nameAr}
-                                </div>
+
+                                {/* زر سريع لتحديد كافة الخانات المتاحة للشاشة */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleAllForScreen(screen)}
+                                  disabled={isSovereignFrozen}
+                                  style={{
+                                    background: allScreenChecked ? 'rgba(16, 185, 129, 0.12)' : 'var(--overlay-subtle)',
+                                    border: `1px solid ${allScreenChecked ? 'rgba(16, 185, 129, 0.3)' : 'var(--border)'}`,
+                                    borderRadius: '4px',
+                                    padding: '0.2rem 0.55rem',
+                                    color: allScreenChecked ? '#34d399' : 'var(--text-muted, #9ca3af)',
+                                    fontSize: '0.68rem',
+                                    fontWeight: 600,
+                                    cursor: isSovereignFrozen ? 'not-allowed' : 'pointer',
+                                    opacity: isSovereignFrozen ? 0.75 : 1,
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                >
+                                  {allScreenChecked ? (isRtl ? 'إلغاء التحديد' : 'Deselect') : (isRtl ? 'تحديد الكل' : 'Select All')}
+                                </button>
                               </div>
+                            </td>
 
-                              {/* زر سريع لتحديد كافة الخانات المتاحة للشاشة */}
-                              <button
-                                type="button"
-                                onClick={() => handleToggleAllForScreen(screen)}
-                                disabled={isSovereignFrozen}
-                                style={{
-                                  background: allScreenChecked ? 'rgba(16, 185, 129, 0.12)' : 'var(--overlay-subtle)',
-                                  border: `1px solid ${allScreenChecked ? 'rgba(16, 185, 129, 0.3)' : 'var(--border)'}`,
-                                  borderRadius: '4px',
-                                  padding: '0.2rem 0.5rem',
-                                  color: allScreenChecked ? '#34d399' : 'var(--text-muted, #9ca3af)',
-                                  fontSize: '0.68rem',
-                                  cursor: isSovereignFrozen ? 'not-allowed' : 'pointer',
-                                  opacity: isSovereignFrozen ? 0.75 : 1
-                                }}
-                              >
-                                {allScreenChecked ? (isRtl ? 'إلغاء الشاشة' : 'Deselect') : (isRtl ? 'كامل الشاشة' : 'Select All')}
-                              </button>
-                            </div>
-                          </td>
+                            {/* أعمدة العمليات الأربعة (قراءة | انشاء | تعديل | حذف) */}
+                            {ACTION_COLUMNS.map((col) => {
+                              const isSupported = screen.supportedActions.includes(col.key);
+                              const isChecked = isPermissionChecked(screen.key, col.key);
 
-                          {/* أعمدة العمليات الأربعة (قراءة | انشاء | تعديل | حذف) */}
-                          {ACTION_COLUMNS.map((col) => {
-                            const isSupported = screen.supportedActions.includes(col.key);
-                            const isChecked = isPermissionChecked(screen.key, col.key);
-
-                            return (
-                              <td 
-                                key={col.key} 
-                                style={{ 
-                                  padding: '0.85rem 1rem', 
-                                  textAlign: 'center',
-                                  verticalAlign: 'middle'
-                                }}
-                              >
-                                {isSupported ? (
-                                  <label
-                                    title={isSovereignFrozen ? (isRtl ? 'صلاحية سيادية مجمدة ومحمية بالكامل (*)' : 'Sovereign permission frozen (*)') : undefined}
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      width: '28px',
-                                      height: '28px',
-                                      borderRadius: '6px',
-                                      background: isChecked ? 'rgba(16, 185, 129, 0.15)' : 'var(--overlay-subtle)',
-                                      border: `1px solid ${isChecked ? '#10b981' : 'var(--border)'}`,
-                                      cursor: isSovereignFrozen ? 'not-allowed' : 'pointer',
-                                      opacity: isSovereignFrozen ? 0.85 : 1,
-                                      transition: 'all 0.15s'
-                                    }}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      disabled={isSovereignFrozen}
-                                      checked={isChecked}
-                                      onChange={() => handleTogglePermission(screen.key, col.key)}
-                                      style={{ display: 'none' }}
+                              return (
+                                <td 
+                                  key={col.key} 
+                                  style={{ 
+                                    padding: '0.85rem 1rem', 
+                                    textAlign: 'center',
+                                    verticalAlign: 'middle'
+                                  }}
+                                >
+                                  {isSupported ? (
+                                    <label
+                                      title={isSovereignFrozen ? (isRtl ? 'صلاحية سيادية مجمدة ومحمية بالكامل (*)' : 'Sovereign permission frozen (*)') : undefined}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        width: '28px',
+                                        height: '28px',
+                                        borderRadius: '6px',
+                                        background: isChecked ? 'rgba(16, 185, 129, 0.15)' : 'var(--overlay-subtle)',
+                                        border: `1px solid ${isChecked ? '#10b981' : 'var(--border)'}`,
+                                        cursor: isSovereignFrozen ? 'not-allowed' : 'pointer',
+                                        opacity: isSovereignFrozen ? 0.85 : 1,
+                                        transition: 'all 0.15s'
+                                      }}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        disabled={isSovereignFrozen}
+                                        checked={isChecked}
+                                        onChange={() => handleTogglePermission(screen.key, col.key)}
+                                        style={{ display: 'none' }}
+                                      />
+                                      {isChecked && <Check size={16} color="#10b981" strokeWidth={3} />}
+                                    </label>
+                                  ) : (
+                                    /* خلية فارغة تماماً ومحجوبة إذا كانت الشاشة لا تدعم هذه العملية */
+                                    <span 
+                                      style={{ 
+                                        display: 'inline-block', 
+                                        width: '16px', 
+                                        height: '2px', 
+                                        background: 'rgba(255, 255, 255, 0.08)',
+                                        borderRadius: '1px'
+                                      }} 
+                                      title={isRtl ? 'العملية غير مدعومة لهذه الشاشة' : 'Action not applicable for this screen'}
                                     />
-                                    {isChecked && <Check size={16} color="#10b981" strokeWidth={3} />}
-                                  </label>
-                                ) : (
-                                  /* خلية فارغة تماماً ومحجوبة إذا كانت الشاشة لا تدعم هذه العملية */
-                                  <span 
-                                    style={{ 
-                                      display: 'inline-block', 
-                                      width: '16px', 
-                                      height: '2px', 
-                                      background: 'rgba(255, 255, 255, 0.08)',
-                                      borderRadius: '1px'
-                                    }} 
-                                    title={isRtl ? 'العملية غير مدعومة لهذه الشاشة' : 'Action not applicable for this screen'}
-                                  />
-                                )}
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+
+                          {/* درج تفاصيل مسارات الـ API الدقيقة (Endpoints Drawer) عند توسيعه */}
+                          {isExpanded && hasEndpoints && (
+                            <tr style={{ background: 'rgba(0, 0, 0, 0.35)', borderBottom: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                              <td colSpan={5} style={{ padding: '0.85rem 1.75rem' }}>
+                                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#93c5fd', marginBottom: '0.55rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                                  <Code size={13} />
+                                  <span>{isRtl ? `مسارات الـ API المشمولة تحت تكامل [${screen.nameAr}]:` : `API Endpoints governed under [${screen.name}]:`}</span>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '0.55rem' }}>
+                                  {screen.endpoints!.map((ep: any) => (
+                                    <div
+                                      key={ep.id}
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.65rem',
+                                        background: 'rgba(255, 255, 255, 0.03)',
+                                        border: '1px solid rgba(255, 255, 255, 0.07)',
+                                        borderRadius: '6px',
+                                        padding: '0.45rem 0.75rem'
+                                      }}
+                                    >
+                                      <span
+                                        style={{
+                                          fontSize: '0.65rem',
+                                          fontWeight: 800,
+                                          padding: '0.15rem 0.45rem',
+                                          borderRadius: '4px',
+                                          background: ep.method === 'POST' ? 'rgba(16, 185, 129, 0.2)' : ep.method === 'GET' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                                          color: ep.method === 'POST' ? '#34d399' : ep.method === 'GET' ? '#60a5fa' : '#fbbf24',
+                                          fontFamily: 'monospace'
+                                        }}
+                                      >
+                                        {ep.method}
+                                      </span>
+                                      <div style={{ minWidth: 0, flex: 1 }}>
+                                        <div style={{ fontSize: '0.74rem', color: '#e5e7eb', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          {ep.path}
+                                        </div>
+                                        {ep.desc && (
+                                          <div style={{ fontSize: '0.68rem', color: '#9ca3af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '0.1rem' }}>
+                                            {ep.desc}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
                               </td>
-                            );
-                          })}
-                        </tr>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })}
                   </React.Fragment>

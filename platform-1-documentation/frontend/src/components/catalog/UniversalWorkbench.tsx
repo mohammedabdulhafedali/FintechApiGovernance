@@ -274,7 +274,8 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
   onAddSystem,
   onAddIntegration
 }) => {
-  const { isRtl } = useLanguage();
+  const { isRtl, language, t, getLocalized } = useLanguage();
+  const isEn = language === 'en';
 
   // ── Workbench Systems & Integrations Target State ──
   const [workbenchSystems, setWorkbenchSystems] = useState<Record<string, SystemModule>>(() => {
@@ -1490,7 +1491,7 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
             }}
           >
             <PlusCircle size={17} />
-            <span>إضافة توثيق</span>
+            <span>{isEn ? 'Add Documentation' : 'إضافة توثيق'}</span>
           </button>
 
           <button
@@ -1511,7 +1512,7 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
             }}
           >
             <FileText size={17} />
-            <span>المسودات</span>
+            <span>{isEn ? 'Drafts' : 'المسودات'}</span>
             <span
               style={{
                 fontSize: '0.75rem',
@@ -1543,7 +1544,7 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
             }}
           >
             <CheckCircle2 size={17} />
-            <span>المرفوعات</span>
+            <span>{isEn ? 'Submissions' : 'المرفوعات'}</span>
             <span
               style={{
                 fontSize: '0.75rem',
@@ -1592,16 +1593,16 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
                 alignItems: 'center',
                 gap: '4px'
               }}
-              title="العودة لاختيار صيغة أو استيراد ملف آخر"
+              title={isEn ? 'Back to format selection or import another file' : 'العودة لاختيار صيغة أو استيراد ملف آخر'}
             >
-              <span>← العودة للاستيراد</span>
+              <span>{isEn ? '← Back to Import' : '← العودة للاستيراد'}</span>
             </button>
 
             <button 
               className={`studio-icon-btn ${fullscreenTarget === 'all' ? 'is-active' : ''}`}
               onClick={handleToggleAllFullscreen}
-              title={fullscreenTarget === 'all' ? 'إنهاء ملء الشاشة (Esc)' : 'ملء الشاشة للشاشات الثلاث'}
-              aria-label="ملء الشاشة للشاشات الثلاث"
+              title={fullscreenTarget === 'all' ? (isEn ? 'Exit Fullscreen (Esc)' : 'إنهاء ملء الشاشة (Esc)') : (isEn ? 'Fullscreen for all 3 screens' : 'ملء الشاشة للشاشات الثلاث')}
+              aria-label={isEn ? 'Fullscreen for all 3 screens' : 'ملء الشاشة للشاشات الثلاث'}
             >
               {fullscreenTarget === 'all' ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
             </button>
@@ -1611,9 +1612,9 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
               onClick={handleSaveAsDraft}
               disabled={!!syntaxError}
               style={syntaxError ? { opacity: 0.5, cursor: 'not-allowed', filter: 'grayscale(0.6)' } : undefined}
-              title={syntaxError ? 'تعذر الحفظ: صحح أخطاء الصياغة أولاً' : 'حفظ كمسودة'}
+              title={syntaxError ? (isEn ? 'Cannot save: fix syntax errors first' : 'تعذر الحفظ: صحح أخطاء الصياغة أولاً') : (isEn ? 'Save Draft' : 'حفظ كمسودة')}
             >
-              حفظ كمسودة
+              {isEn ? 'Save Draft' : 'حفظ كمسودة'}
             </button>
 
             <button 
@@ -1621,9 +1622,9 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
               onClick={handleSubmitToReviewer}
               disabled={!!syntaxError}
               style={syntaxError ? { opacity: 0.5, cursor: 'not-allowed', filter: 'grayscale(0.6)' } : undefined}
-              title={syntaxError ? 'تعذر الرفع: صحح أخطاء الصياغة أولاً' : 'رفع إلى المراجع'}
+              title={syntaxError ? (isEn ? 'Cannot submit: fix syntax errors first' : 'تعذر الرفع: صحح أخطاء الصياغة أولاً') : (isEn ? 'Submit to Reviewer' : 'رفع إلى المراجع')}
             >
-              رفع إلى المراجع
+              {isEn ? 'Submit to Reviewer' : 'رفع إلى المراجع'}
             </button>
           </div>
         )}
@@ -1957,7 +1958,7 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
               onClick={(e) => triggerFilePicker('json', e)}
               role="button"
               tabIndex={0}
-              title="استيراد ملف JSON"
+              title={isEn ? "Import JSON specification file" : "استيراد ملف JSON"}
             >
               <div className="format-file-visual">
                 <FileText size={42} />
@@ -1971,7 +1972,7 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
               onClick={(e) => triggerFilePicker('markdown', e)}
               role="button"
               tabIndex={0}
-              title="استيراد ملف Markdown"
+              title={isEn ? "Import Markdown documentation file" : "استيراد ملف Markdown"}
             >
               <div className="format-file-visual">
                 <FileText size={42} />
@@ -1985,7 +1986,7 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
               onClick={(e) => triggerFilePicker('soap', e)}
               role="button"
               tabIndex={0}
-              title="استيراد ملف SOAP / XML"
+              title={isEn ? "Import SOAP / WSDL / XML file" : "استيراد ملف SOAP / XML"}
             >
               <div className="format-file-visual">
                 <Code size={42} />
@@ -1999,7 +2000,7 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
               onClick={(e) => triggerFilePicker('openapi', e)}
               role="button"
               tabIndex={0}
-              title="استيراد مواصفات OpenAPI / Swagger"
+              title={isEn ? "Import OpenAPI 3.x / Swagger specification" : "استيراد مواصفات OpenAPI / Swagger"}
             >
               <div className="format-file-visual">
                 <Globe size={42} />
@@ -2013,7 +2014,7 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
               onClick={(e) => triggerFilePicker('postman', e)}
               role="button"
               tabIndex={0}
-              title="استيراد مجموعة Postman"
+              title={isEn ? "Import Postman Collection v2.x" : "استيراد مجموعة Postman"}
             >
               <div className="format-file-visual">
                 <Upload size={42} />
@@ -2027,7 +2028,7 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
               onClick={(e) => triggerFilePicker('pdf', e)}
               role="button"
               tabIndex={0}
-              title="استيراد وثيقة PDF مباشرة وعرضها بنفس الجودة"
+              title={isEn ? "Import official PDF document" : "استيراد وثيقة PDF مباشرة وعرضها بنفس الجودة"}
             >
               <div className="format-file-visual">
                 <FileText size={42} style={{ color: '#ef4444' }} />
@@ -2041,11 +2042,11 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
               onClick={handleStartNewDoc}
               role="button"
               tabIndex={0}
-              title="فتح الشاشات الثلاث بنموذج فارغ"
+              title={isEn ? "Open 3 screens with blank interactive template" : "فتح الشاشات الثلاث بنموذج فارغ"}
             >
               <div className="format-file-visual">
                 <PlusCircle size={42} />
-                <span className="format-file-ext">يدوي</span>
+                <span className="format-file-ext">{isEn ? 'MANUAL' : 'يدوي'}</span>
               </div>
             </div>
           </div>

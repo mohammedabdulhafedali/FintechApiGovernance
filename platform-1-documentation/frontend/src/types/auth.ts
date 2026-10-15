@@ -14,9 +14,20 @@ export interface ScreenResourceDefinition {
   systemKey?: string;
   systemName?: string;
   systemNameEn?: string;
-  category: 'BANKING_OPERATIONS' | 'INTEGRATION_APIS' | 'GOVERNANCE_SYSTEM' | string;
+  systemCode?: string;
+  sectorKey?: string;
+  sectorName?: string;
+  category: 'BASE_MODULES' | 'CENTRAL_SYSTEMS' | 'GOVERNANCE_SYSTEM' | 'BANKING_OPERATIONS' | string;
   description: string;
   supportedActions: ScreenActionType[];
+  endpointsCount?: number;
+  endpoints?: Array<{
+    id: string;
+    method: string;
+    path: string;
+    shortName: string;
+    desc?: string;
+  }>;
 }
 
 export interface UserOverrides {

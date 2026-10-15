@@ -14,6 +14,7 @@ export interface EndpointParam {
   type: string;
   req: boolean;
   rule: string;
+  ruleEn?: string;
   tag: string;
   tagClass?: string;
 }
@@ -21,6 +22,7 @@ export interface EndpointParam {
 export interface BusinessRule {
   id: string;
   name: string;
+  nameEn?: string;
   err: string;
 }
 

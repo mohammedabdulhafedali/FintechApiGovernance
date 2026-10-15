@@ -7,7 +7,8 @@ interface NotesTabProps {
 }
 
 export const NotesTab: React.FC<NotesTabProps> = ({ customNotes }) => {
-  const { isRtl } = useLanguage();
+  const { isRtl, language } = useLanguage();
+  const isEn = language === 'en';
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedPip, setCopiedPip] = useState(false);
 
@@ -102,7 +103,7 @@ if __name__ == "__main__":
   };
 
   return (
-    <div className="doc-tab-pane notes-tab-container" style={{ padding: '1.75rem', maxWidth: '1080px', margin: '0 auto' }}>
+    <div className="doc-tab-pane notes-tab-container" style={{ padding: '1.75rem', maxWidth: '1080px', margin: '0 auto', direction: isRtl ? 'rtl' : 'ltr' }}>
       {/* ── Section Title ── */}
       <div style={{
         padding: '1.4rem',
@@ -114,7 +115,8 @@ if __name__ == "__main__":
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: '0.75rem'
+        gap: '0.75rem',
+        textAlign: isRtl ? 'right' : 'left'
       }}>
         <div>
           <h2 style={{
@@ -123,14 +125,16 @@ if __name__ == "__main__":
             color: 'var(--text, #ffffff)',
             margin: '0 0 0.35rem 0'
           }}>
-            1.5 Python Client SDK Implementation
+            {isEn ? '1.5 Python Client SDK Implementation' : '1.5 نموذج الربط والتكامل البرمجي (Python Client SDK)'}
           </h2>
           <p style={{
             fontSize: '0.9rem',
             color: 'var(--text-muted, #cbd5e1)',
             margin: 0
           }}>
-            Below is a complete, production-ready Python client class implementing RSA-256 request signing and request execution:
+            {isEn
+              ? 'Below is a complete, production-ready Python client class implementing RSA-256 request signing and request execution:'
+              : 'نموذج تطبيقي متكامل بلغة بايثون يوضح كيفية بناء التوقيع الرقمي RSA-256 وإرسال الطلبات المتوافقة مع المنظومة:'}
           </p>
         </div>
 

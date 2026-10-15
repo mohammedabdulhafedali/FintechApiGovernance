@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   GitBranch, 
   Copy, 
@@ -14,6 +14,7 @@ import {
 import { useLanguage } from '../../i18n';
 import { LangSwitcher } from '../common/LangSwitcher';
 import { useAuth } from '../auth/AuthContext';
+import { apiContextResolver, ApiContextState } from '../../services/apiContextResolver';
 
 interface HeaderProps {
   currentVersion: string;
@@ -21,6 +22,10 @@ interface HeaderProps {
   onNotify?: (title: string, message: string, type: 'success' | 'info' | 'warning' | 'error', snippet?: string) => void;
   activeView?: any;
   activeSector?: any;
+  activeEndpoint?: any;
+  activeIntegration?: any;
+  activeSystem?: any;
+  apiContext?: ApiContextState;
   onOpenAddApi?: () => void;
   onOpenAddSector?: () => void;
   onBackToDashboard?: () => void;
@@ -35,6 +40,12 @@ export const Header: React.FC<HeaderProps> = ({
   currentVersion,
   onVersionChange,
   onNotify,
+  activeView,
+  activeSector,
+  activeEndpoint,
+  activeIntegration,
+  activeSystem,
+  apiContext,
   onToggleMobileMenu,
   isSidebarCollapsed = false,
   onToggleSidebarCollapse,
@@ -58,7 +69,22 @@ export const Header: React.FC<HeaderProps> = ({
     { value: 'v2027.0-draft', shortLabel: 'v2027.0', badge: isRtl ? 'مسودة' : 'Draft' },
   ];
 
-  const activeRelease = releaseVersions.find(r => r.value === currentVersion) || releaseVersions[0];
+  const resolvedContext = useMemo(() => {
+    if (apiContext) return apiContext;
+    return apiContextResolver.resolve({
+      activeView,
+      activeEndpoint,
+      activeIntegration,
+      activeSystem,
+      activeSector,
+      currentVersion,
+      isRtl
+    });
+  }, [apiContext, activeView, activeEndpoint, activeIntegration, activeSystem, activeSector, currentVersion, isRtl]);
+
+  const activeRelease = (resolvedContext.availableVersions && resolvedContext.availableVersions.length > 0)
+    ? (resolvedContext.availableVersions.find(r => r.value === currentVersion) || resolvedContext.availableVersions[0])
+    : (releaseVersions.find(r => r.value === currentVersion) || releaseVersions[0]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -83,7 +109,8 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const handleCopyBaseUrl = () => {
-    navigator.clipboard.writeText('https://api.gov.fintech');
+    const urlToCopy = resolvedContext.baseUrl || 'https://api.gov.fintech';
+    navigator.clipboard.writeText(urlToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     if (onNotify) {
@@ -91,7 +118,7 @@ export const Header: React.FC<HeaderProps> = ({
         t('header.copiedBaseUrlTitle'),
         t('header.copiedBaseUrlMsg'),
         'info',
-        'https://api.gov.fintech'
+        urlToCopy
       );
     }
   };
@@ -117,60 +144,65 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Item 1: Global Platform Release Selector (Custom Dropdown matching LangSwitcher) */}
-          <div className="release-dropdown-wrap" ref={releaseMenuRef}>
-            <button
-              type="button"
-              className={`release-dropdown-trigger ${isReleaseOpen ? 'active' : ''}`}
-              onClick={() => setIsReleaseOpen(prev => !prev)}
-              aria-haspopup="true"
-              aria-expanded={isReleaseOpen}
-              title={isRtl ? 'إصدار المنظومة المعتمد' : 'Active Platform Release'}
-            >
-              <GitBranch size={13} className="release-branch-icon" />
-              <span className="release-current-label">
-                {activeRelease.shortLabel}
-              </span>
-              <ChevronDown size={11} className={`release-chevron ${isReleaseOpen ? 'rotated' : ''}`} />
-            </button>
+          {/* Dynamic Release & Base URL: Strictly hidden by default; renders dynamically only when a path/file is open */}
+          {resolvedContext.isOpen && (
+            <>
+              {/* Item 1: Global Platform Release Selector (Custom Dropdown matching LangSwitcher) */}
+              <div className="release-dropdown-wrap" ref={releaseMenuRef}>
+                <button
+                  type="button"
+                  className={`release-dropdown-trigger ${isReleaseOpen ? 'active' : ''}`}
+                  onClick={() => setIsReleaseOpen(prev => !prev)}
+                  aria-haspopup="true"
+                  aria-expanded={isReleaseOpen}
+                  title={isRtl ? 'إصدار المنظومة المعتمد' : 'Active Platform Release'}
+                >
+                  <GitBranch size={13} className="release-branch-icon" />
+                  <span className="release-current-label">
+                    {resolvedContext.shortVersion || activeRelease.shortLabel}
+                  </span>
+                  <ChevronDown size={11} className={`release-chevron ${isReleaseOpen ? 'rotated' : ''}`} />
+                </button>
 
-            {isReleaseOpen && (
-              <div className={`release-dropdown-menu ${isRtl ? 'rtl' : 'ltr'}`}>
-                {releaseVersions.map((item) => {
-                  const isSelected = item.value === currentVersion;
-                  return (
-                    <button
-                      key={item.value}
-                      type="button"
-                      className={`release-menu-item ${isSelected ? 'selected' : ''}`}
-                      onClick={() => {
-                        onVersionChange(item.value);
-                        setIsReleaseOpen(false);
-                      }}
-                    >
-                      <div className="release-item-text">
-                        <span className="release-code">{item.shortLabel}</span>
-                        <span className="release-badge">{item.badge}</span>
-                      </div>
-                      {isSelected && <Check size={13} className="check-icon" />}
-                    </button>
-                  );
-                })}
+                {isReleaseOpen && (
+                  <div className={`release-dropdown-menu ${isRtl ? 'rtl' : 'ltr'}`}>
+                    {(resolvedContext.availableVersions.length > 0 ? resolvedContext.availableVersions : releaseVersions).map((item) => {
+                      const isSelected = item.value === currentVersion;
+                      return (
+                        <button
+                          key={item.value}
+                          type="button"
+                          className={`release-menu-item ${isSelected ? 'selected' : ''}`}
+                          onClick={() => {
+                            onVersionChange(item.value);
+                            setIsReleaseOpen(false);
+                          }}
+                        >
+                          <div className="release-item-text">
+                            <span className="release-code">{item.shortLabel}</span>
+                            <span className="release-badge">{item.badge}</span>
+                          </div>
+                          {isSelected && <Check size={13} className="check-icon" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          {/* Item 2: Compact Permanent Base URL */}
-          <div 
-            className="topbar-base-url-wrap compact-clickable"
-            onClick={handleCopyBaseUrl}
-            title={copied ? (isRtl ? 'تم النسخ بنجاح!' : 'Copied!') : `${t('header.copyBaseUrl')}: https://api.gov.fintech`}
-          >
-            <span className="base-url-copy-icon">
-              {copied ? <Check size={12} style={{ color: 'var(--emerald)' }} /> : <Copy size={12} />}
-            </span>
-            <code className="topbar-base-url" dir="ltr">api.gov.fintech</code>
-          </div>
+              {/* Item 2: Dynamic Compact Base URL */}
+              <div 
+                className="topbar-base-url-wrap compact-clickable"
+                onClick={handleCopyBaseUrl}
+                title={copied ? (isRtl ? 'تم النسخ بنجاح!' : 'Copied!') : `${t('header.copyBaseUrl')}: ${resolvedContext.baseUrl}`}
+              >
+                <span className="base-url-copy-icon">
+                  {copied ? <Check size={12} style={{ color: 'var(--emerald)' }} /> : <Copy size={12} />}
+                </span>
+                <code className="topbar-base-url" dir="ltr">{resolvedContext.displayUrl}</code>
+              </div>
+            </>
+          )}
         </div>
 
         {/* 2. Actions Zone: Theme Toggle, LangSwitcher, User Menu (with Logout inside) */}

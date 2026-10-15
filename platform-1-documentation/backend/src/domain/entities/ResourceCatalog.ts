@@ -4,9 +4,23 @@ export interface ScreenResource {
   key: string;
   name: string;
   nameAr: string;
-  category: 'BANKING_OPERATIONS' | 'INTEGRATION_APIS' | 'GOVERNANCE_SYSTEM';
+  systemKey?: string;
+  systemName?: string;
+  systemNameEn?: string;
+  systemCode?: string;
+  sectorKey?: string;
+  sectorName?: string;
+  category: 'BASE_MODULES' | 'CENTRAL_SYSTEMS' | 'BANKING_OPERATIONS' | 'INTEGRATION_APIS' | 'GOVERNANCE_SYSTEM' | string;
   description: string;
   supportedActions: ScreenActionType[];
+  endpointsCount?: number;
+  endpoints?: Array<{
+    id: string;
+    method: string;
+    path: string;
+    shortName: string;
+    desc?: string;
+  }>;
 }
 
 /**

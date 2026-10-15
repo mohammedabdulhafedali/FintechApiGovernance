@@ -9,9 +9,11 @@
     "dev": "tsx watch src/infrastructure/server.ts"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.3",
     "cors": "^2.8.5",
     "express": "^4.21.2",
-    "jsonwebtoken": "^9.0.3"
+    "jsonwebtoken": "^9.0.3",
+    "prisma": "^6.19.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

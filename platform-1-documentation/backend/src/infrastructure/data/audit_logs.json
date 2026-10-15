@@ -1,5 +1,90 @@
 [
   {
+    "userId": "usr_1792102702300_bac59b",
+    "username": "admin2",
+    "action": "access_denied:iam:manage",
+    "resource": "/api/v1/iam/users",
+    "status": "DENIED",
+    "details": "تم رفض الوصول: المستخدم يفتقر لصلاحية [iam:manage] أو لا يملك إذناً بالنطاق المحدد ({})",
+    "ip": "::1",
+    "id": "log_1792102998821_7052bf28",
+    "timestamp": "2026-10-15T22:23:18.821Z"
+  },
+  {
+    "userId": "usr_1792102702300_bac59b",
+    "username": "admin2",
+    "action": "auth:login",
+    "resource": "iam:session",
+    "status": "SUCCESS",
+    "details": "تم تسجيل الدخول بنجاح - المجموعة: ops",
+    "ip": "::1",
+    "id": "log_1792102998751_cb740d81",
+    "timestamp": "2026-10-15T22:23:18.751Z"
+  },
+  {
+    "userId": "admin",
+    "username": "admin",
+    "action": "iam:group:update",
+    "resource": "group:OPS",
+    "status": "SUCCESS",
+    "details": "تحديث الدور/المجموعة [ops] - الحالة: (ACTIVE) - الصلاحيات: (2)",
+    "id": "log_1792102968852_8e0d35b7",
+    "timestamp": "2026-10-15T22:22:48.852Z"
+  },
+  {
+    "userId": "usr_admin_01",
+    "username": "admin",
+    "action": "auth:login",
+    "resource": "iam:session",
+    "status": "SUCCESS",
+    "details": "تم تسجيل الدخول بنجاح - المجموعة: مدير النظام",
+    "ip": "::1",
+    "id": "log_1792102942543_66406a9f",
+    "timestamp": "2026-10-15T22:22:22.543Z"
+  },
+  {
+    "userId": "usr_1792102702300_bac59b",
+    "username": "admin2",
+    "action": "auth:login",
+    "resource": "iam:session",
+    "status": "SUCCESS",
+    "details": "تم تسجيل الدخول بنجاح - المجموعة: ops",
+    "ip": "::1",
+    "id": "log_1792102847493_d55f8ade",
+    "timestamp": "2026-10-15T22:20:47.494Z"
+  },
+  {
+    "userId": "admin",
+    "username": "admin",
+    "action": "iam:user:create",
+    "resource": "user:admin2",
+    "status": "SUCCESS",
+    "details": "تم إنشاء المستخدم [ops] نوع [INTERNAL] وربطه بمجموعة [ops]",
+    "id": "log_1792102702303_8672ea06",
+    "timestamp": "2026-10-15T22:18:22.303Z"
+  },
+  {
+    "userId": "admin",
+    "username": "admin",
+    "action": "iam:group:create",
+    "resource": "group:OPS",
+    "status": "SUCCESS",
+    "details": "إنشاء مجموعة/دور جديد [ops] بحالة (ACTIVE) وبصلاحيات (2)",
+    "id": "log_1792102611032_168dd471",
+    "timestamp": "2026-10-15T22:16:51.032Z"
+  },
+  {
+    "userId": "usr_admin_01",
+    "username": "admin",
+    "action": "auth:login",
+    "resource": "iam:session",
+    "status": "SUCCESS",
+    "details": "تم تسجيل الدخول بنجاح - المجموعة: مدير النظام",
+    "ip": "::1",
+    "id": "log_1792076833626_1ef9d2ba",
+    "timestamp": "2026-10-15T15:07:13.627Z"
+  },
+  {
     "userId": "usr_admin_01",
     "username": "admin",
     "action": "auth:login",
@@ -1446,5 +1531,7 @@
     "details": "تهيئة نظام الصلاحيات السيادي وتدشين مجموعات المستخدمين",
     "timestamp": "2026-01-01T00:00:00.000Z",
     "ip": "127.0.0.1"
+  }
+]"ip": "127.0.0.1"
   }
 ]

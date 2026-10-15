@@ -1,0 +1,86 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model System {
+  key                  String   @id
+  name                 String
+  nameEn               String?
+  code                 String
+  icon                 String   @default("Layers")
+  description          String?
+  descriptionEn        String?
+  status               String   @default("ACTIVE")
+  associatedSectorKeys String?  // JSON string
+  integrations         String   // JSON string of Record<string, SystemIntegration>
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model Sector {
+  key       String   @id
+  name      String
+  nameEn    String?
+  code      String
+  icon      String   @default("Building2")
+  services  String   // JSON string of Record<string, ServiceDefinition>
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id           String   @id
+  username     String   @unique
+  fullName     String
+  email        String
+  passwordHash String
+  roleId       String
+  userType     String   @default("INTERNAL")
+  status       String   @default("ACTIVE")
+  department   String?
+  accessScope  String?  // JSON string
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model UserGroup {
+  id          String   @id
+  name        String
+  description String?
+  permissions String   // JSON string
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id
+  timestamp DateTime @default(now())
+  userId    String
+  username  String
+  action    String
+  resource  String
+  status    String
+  details   String?  // JSON string
+  ipAddress String?
+}
+
+model GovernanceRequest {
+  id               String   @id
+  title            String
+  description      String?
+  actionType       String
+  resourceKey      String
+  targetResourceId String?
+  payload          String   // JSON string
+  makerId          String
+  makerName        String
+  status           String   @default("PENDING")
+  approvals        String   // JSON string
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}

@@ -5,5 +5,6 @@ export interface Sector {
   name: string;
   nameEn?: string;
   code: string;
+  icon?: string;
   services: Record<string, Service>;
 }

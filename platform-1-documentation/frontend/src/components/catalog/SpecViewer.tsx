@@ -34,7 +34,7 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
     }
   }, [highlightedField]);
 
-  const { t, language } = useLanguage();
+  const { t, language, isRtl, getLocalized } = useLanguage();
   const isEn = language === 'en';
 
   const handleOpenErrors = () => {
@@ -361,12 +361,12 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
   };
 
   return (
-    <div className="spec-workbench-container">
+    <div className="spec-workbench-container" style={{ direction: isRtl ? 'rtl' : 'ltr' }}>
       {/* Ultra-Slim Consolidated Single-Row Header Bar (Image 3) */}
       <div className="spec-slim-toolbar">
         <div className="spec-slim-meta">
           <div className="spec-slim-path-wrap">
-            <span className={`method-badge method-${endpoint.method.toLowerCase()}`}>
+            <span className={`method-badge method-${endpoint.method.toLowerCase()}`} dir="ltr">
               {endpoint.method}
             </span>
             <span className="mono spec-slim-path" dir="ltr" title={endpoint.path}>
@@ -472,7 +472,9 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
               <div className="spec-table-block-title">
                 <span>{isEn ? 'Request Body Schema' : 'حقول جسم الطلب الحية (Request Body Schema)'}</span>
               </div>
-              <span className="mono" style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>تحديث مباشر</span>
+              <span className="mono" style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>
+                {isEn ? 'Live Synced' : 'تحديث مباشر'}
+              </span>
             </div>
             <div style={{ overflowX: 'auto' }}>
               <table className="spec-data-table">
@@ -492,8 +494,8 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
                         id={`col2-field-${param.name}`}
                         className={highlightedField === param.name ? 'row-live-highlight' : ''}
                       >
-                        <td><code className="mono spec-code-key">{param.name}</code></td>
-                        <td><span className="mono" style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{param.type}</span></td>
+                        <td><code className="mono spec-code-key" dir="ltr">{param.name}</code></td>
+                        <td><span className="mono" dir="ltr" style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{param.type}</span></td>
                         <td>
                           <span className={`badge-pill ${param.req ? 'badge-req' : 'badge-opt'}`} style={{ marginInlineEnd: '0.35rem' }}>
                             {param.req ? t('spec.reqTrue') : t('spec.reqFalse')}
@@ -502,7 +504,9 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
                             {param.tag}
                           </span>
                         </td>
-                        <td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{param.rule}</td>
+                        <td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                          {getLocalized(param.rule)}
+                        </td>
                       </tr>
                     ))
                   ) : (

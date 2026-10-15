@@ -9,7 +9,11 @@ import {
   RotateCcw,
   Layers,
   Lock,
-  AlertCircle
+  AlertCircle,
+  Building,
+  Code,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { 
   UserPublicProfile, 
@@ -48,6 +52,7 @@ export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
   const [screens, setScreens] = useState<ScreenResourceDefinition[]>([]);
   const [isLoadingScreens, setIsLoadingScreens] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<'BASE_MODULES' | 'CENTRAL_SYSTEMS' | 'ALL'>('BASE_MODULES');
 
   // Overrides state: granted and revoked sets
   const [grantedSet, setGrantedSet] = useState<Set<string>>(() => {
@@ -89,25 +94,43 @@ export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
     return () => { isMounted = false; };
   }, []);
 
-  // تجميع الموارد والشاشات ديناميكياً بحسب النظام المصرفي والسيادي
+  // تجميع الموارد بحسب الفئات (نماذج المنظومة الأساسية مقابل الصلاحيات المخصصة)
+  const baseModuleScreens = useMemo(() => {
+    return screens.filter(s => s.category === 'BASE_MODULES' || s.systemKey === 'BASE_MODULES');
+  }, [screens]);
+
+  const centralSystemScreens = useMemo(() => {
+    return screens.filter(s => s.category !== 'BASE_MODULES' && s.systemKey !== 'BASE_MODULES');
+  }, [screens]);
+
+  const displayedScreens = useMemo(() => {
+    if (activeTab === 'BASE_MODULES') return baseModuleScreens;
+    if (activeTab === 'CENTRAL_SYSTEMS') return centralSystemScreens;
+    return screens;
+  }, [activeTab, baseModuleScreens, centralSystemScreens, screens]);
+
+  // تجميع الموارد والشاشات ديناميكياً بحسب النظام والتبويب
   const groupedScreens = useMemo(() => {
     const map = new Map<string, {
       systemKey: string;
       systemName: string;
       systemNameEn?: string;
+      systemCode?: string;
       screens: ScreenResourceDefinition[];
     }>();
 
-    screens.forEach(s => {
-      const sKey = s.systemKey || (s.category === 'GOVERNANCE_SYSTEM' ? 'GOVERNANCE_SYSTEM' : 'SYSTEM_RESOURCES');
-      const sName = s.systemName || (s.category === 'GOVERNANCE_SYSTEM' ? 'إدارة وحوكمة المنظومة السيادية' : 'الخدمات المصرفية العامة');
+    displayedScreens.forEach(s => {
+      const sKey = s.systemKey || (s.category === 'BASE_MODULES' ? 'BASE_MODULES' : 'SYSTEM_RESOURCES');
+      const sName = s.systemName || (s.category === 'BASE_MODULES' ? 'نماذج المنظومة الأساسية' : 'الخدمات المصرفية');
       const sNameEn = s.systemNameEn || sKey;
+      const sCode = s.systemCode;
 
       if (!map.has(sKey)) {
         map.set(sKey, {
           systemKey: sKey,
           systemName: sName,
           systemNameEn: sNameEn,
+          systemCode: sCode,
           screens: []
         });
       }
@@ -115,7 +138,7 @@ export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
     });
 
     return Array.from(map.values());
-  }, [screens]);
+  }, [displayedScreens]);
 
   // التحقق من نطاق صلاحية المستخدم الخارجي للوصول إلى هذا النظام
   const isSystemAllowed = useCallback((systemKey: string) => {
@@ -504,6 +527,90 @@ export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
         </div>
       )}
 
+      {/* ── 2.7 TAB CONTROLLER (فصل النماذج الأساسية عن الصلاحيات المخصصة الهرمية) ── */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem',
+          marginBottom: '1rem',
+          borderBottom: '1px solid var(--border)',
+          paddingBottom: '0.75rem',
+          flexWrap: 'wrap'
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setActiveTab('BASE_MODULES')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.55rem 1.15rem',
+            borderRadius: '8px',
+            fontSize: '0.88rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            background: activeTab === 'BASE_MODULES' ? 'rgba(59, 130, 246, 0.15)' : 'var(--overlay-subtle)',
+            border: `1px solid ${activeTab === 'BASE_MODULES' ? '#3b82f6' : 'var(--border)'}`,
+            color: activeTab === 'BASE_MODULES' ? '#60a5fa' : 'var(--text-muted, #9ca3af)'
+          }}
+        >
+          <Building size={16} />
+          <span>{isRtl ? 'نماذج وشاشات المنظومة الأساسية' : 'Core System Modules'}</span>
+          <span style={{ fontSize: '0.74rem', padding: '0.1rem 0.45rem', borderRadius: '12px', background: activeTab === 'BASE_MODULES' ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255, 255, 255, 0.05)', color: activeTab === 'BASE_MODULES' ? '#93c5fd' : '#9ca3af' }}>
+            {baseModuleScreens.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('CENTRAL_SYSTEMS')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.55rem 1.15rem',
+            borderRadius: '8px',
+            fontSize: '0.88rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            background: activeTab === 'CENTRAL_SYSTEMS' ? 'rgba(16, 185, 129, 0.15)' : 'var(--overlay-subtle)',
+            border: `1px solid ${activeTab === 'CENTRAL_SYSTEMS' ? '#10b981' : 'var(--border)'}`,
+            color: activeTab === 'CENTRAL_SYSTEMS' ? '#34d399' : 'var(--text-muted, #9ca3af)'
+          }}
+        >
+          <Sliders size={16} />
+          <span>{isRtl ? 'الصلاحيات المخصصة للأنظمة والتكاملات' : 'Granular Systems & Scopes'}</span>
+          <span style={{ fontSize: '0.74rem', padding: '0.1rem 0.45rem', borderRadius: '12px', background: activeTab === 'CENTRAL_SYSTEMS' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.05)', color: activeTab === 'CENTRAL_SYSTEMS' ? '#6ee7b7' : '#9ca3af' }}>
+            {centralSystemScreens.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('ALL')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.55rem 1rem',
+            borderRadius: '8px',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            background: activeTab === 'ALL' ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
+            border: `1px solid ${activeTab === 'ALL' ? '#8b5cf6' : 'transparent'}`,
+            color: activeTab === 'ALL' ? '#a78bfa' : 'var(--text-muted, #9ca3af)'
+          }}
+        >
+          <span>{isRtl ? 'عرض الكل (المصفوفة الشاملة)' : 'View All Matrix'}</span>
+        </button>
+      </div>
+
       {/* ── 3. FULL PAGE UNIFIED MATRIX TABLE (جدول الصلاحيات بعرض كامل الصفحة) ── */}
       <div 
         style={{
@@ -518,7 +625,7 @@ export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
           <thead>
             <tr style={{ background: 'var(--table-header-bg)', borderBottom: '2px solid rgba(16, 185, 129, 0.4)' }}>
               <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-main, #f3f4f6)' }}>
-                {isRtl ? 'اسم الشاشة' : 'Screen Name'}
+                {isRtl ? 'اسم الشاشة / الخدمة' : 'Screen / Service Name'}
               </th>
 
               {ACTION_COLUMNS.map((col) => (
@@ -546,42 +653,60 @@ export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
                   {isRtl ? 'جاري تحميل سجل الشاشات والموارد المصرفية...' : 'Loading dynamic screens catalog...'}
                 </td>
               </tr>
-            ) : screens.length === 0 ? (
+            ) : displayedScreens.length === 0 ? (
               <tr>
                 <td colSpan={5} style={{ padding: '3.5rem', textAlign: 'center' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
                     <AlertCircle size={28} color="#f59e0b" />
                     <span style={{ fontWeight: 700, color: '#f3f4f6' }}>
-                      {isRtl ? 'لم يتم العثور على أنظمة مسجلة أو السيرفر غير متصل' : 'No systems found or backend offline'}
-                    </span>
-                    <span style={{ fontSize: '0.78rem', color: '#9ca3af' }}>
-                      {isRtl ? 'يرجى التأكد من تشغيل سيرفر المنظومة (Backend API) على المنفذ 4000 لجلب الأنظمة والخدمات الحية' : 'Please ensure Backend API server is running on port 4000 to load live systems'}
+                      {isRtl ? 'لا توجد عناصر في هذا التبويب' : 'No items found in this tab'}
                     </span>
                   </div>
                 </td>
               </tr>
             ) : (
               groupedScreens.map((grp) => {
+                const isBase = grp.systemKey === 'BASE_MODULES';
                 const allowed = isSystemAllowed(grp.systemKey);
 
                 return (
                   <React.Fragment key={grp.systemKey}>
-                    {/* رأس قسم النظام المصرفي الديناميكي */}
-                    <tr style={{ background: 'rgba(59, 130, 246, 0.08)', borderBottom: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                    {/* رأس قسم النظام المصرفي الديناميكي أو نماذج المنظومة */}
+                    <tr 
+                      style={{ 
+                        background: isBase ? 'rgba(59, 130, 246, 0.08)' : 'rgba(16, 185, 129, 0.08)', 
+                        borderBottom: `1px solid ${isBase ? 'rgba(59, 130, 246, 0.25)' : 'rgba(16, 185, 129, 0.25)'}` 
+                      }}
+                    >
                       <td colSpan={5} style={{ padding: '0.65rem 1.25rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                            <Layers size={16} color="#60a5fa" />
-                            <span style={{ fontWeight: 800, fontSize: '0.88rem', color: '#93c5fd' }}>
+                            {isBase ? <Building size={16} color="#60a5fa" /> : <Layers size={16} color="#34d399" />}
+                            <span style={{ fontWeight: 800, fontSize: '0.88rem', color: isBase ? '#60a5fa' : '#34d399' }}>
                               {isRtl ? grp.systemName : (grp.systemNameEn || grp.systemName)}
                             </span>
+                            {grp.systemCode && (
+                              <span 
+                                style={{ 
+                                  fontSize: '0.72rem', 
+                                  color: '#10b981', 
+                                  padding: '0.1rem 0.5rem', 
+                                  borderRadius: '4px', 
+                                  background: 'rgba(16, 185, 129, 0.15)', 
+                                  border: '1px solid rgba(16, 185, 129, 0.3)', 
+                                  fontFamily: 'monospace' 
+                                }}
+                              >
+                                {grp.systemCode}
+                              </span>
+                            )}
                             <span style={{ fontSize: '0.74rem', color: '#9ca3af', padding: '0.1rem 0.45rem', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)' }}>
-                              {grp.screens.length} {isRtl ? 'شاشة / خدمة' : 'screens'}
+                              {grp.screens.length} {isRtl ? 'شاشة / تكامل' : 'screens'}
                             </span>
                           </div>
 
                           {/* شارة حالة نطاق صلاحية المستخدم الخارجي */}
-                          {user.userType === 'EXTERNAL' && (
+                          {user.userType === 'EXTERNAL' && !isBase && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                               {allowed ? (
                                 <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#34d399', background: 'rgba(16, 185, 129, 0.15)', padding: '0.15rem 0.5rem', borderRadius: '4px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>

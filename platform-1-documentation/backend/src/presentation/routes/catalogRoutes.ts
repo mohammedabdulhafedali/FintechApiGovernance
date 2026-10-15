@@ -19,9 +19,19 @@ export function createCatalogRouter(
     next();
   };
 
-  // Scoped Catalog reading
+  // Scoped Catalog & Systems reading
   router.get('/catalog', optionalAuth, controller.getCatalog);
+  router.get('/sectors', optionalAuth, controller.getCatalog);
+  router.post('/sectors', optionalAuth, controller.createSector);
+  router.put('/sectors/:sectorKey', optionalAuth, controller.updateSector);
+  router.delete('/sectors/:sectorKey', optionalAuth, controller.deleteSector);
   router.get('/sectors/:sectorKey/endpoints', optionalAuth, controller.getSectorEndpoints);
+  router.get('/systems', optionalAuth, controller.getSystems);
+  router.post('/systems', optionalAuth, controller.createSystem);
+  router.put('/systems/:systemKey', optionalAuth, controller.updateSystem);
+  router.delete('/systems/:systemKey', optionalAuth, controller.deleteSystem);
+  router.post('/systems/:systemKey/integrations', optionalAuth, controller.saveIntegration);
+  router.delete('/systems/:systemKey/integrations/:entityId', optionalAuth, controller.deleteIntegration);
 
   // Helper middleware for dynamic governance interception
   const intercept = (resourceKey: string, actionType: 'CREATE' | 'UPDATE' | 'DELETE', descGen: (req: any) => { ar: string; en: string }) => {
@@ -87,6 +97,17 @@ export function createCatalogRouter(
       controller.createSector
     );
 
+    router.put(
+      '/sectors/:sectorKey',
+      authMiddleware,
+      requirePermission('catalog:system:create'),
+      intercept('catalog:sectors', 'UPDATE', (r) => ({
+        ar: `تعديل القطاع المصرفي: ${r.params.sectorKey}`,
+        en: `Update banking sector: ${r.params.sectorKey}`
+      })),
+      controller.updateSector
+    );
+
     router.delete(
       '/sectors/:sectorKey',
       authMiddleware,
@@ -100,6 +121,7 @@ export function createCatalogRouter(
   } else {
     router.post('/endpoints', controller.createEndpoint);
     router.post('/sectors', controller.createSector);
+    router.put('/sectors/:sectorKey', controller.updateSector);
     router.delete('/sectors/:sectorKey', controller.deleteSector);
   }
 

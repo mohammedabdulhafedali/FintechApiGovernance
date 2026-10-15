@@ -83,7 +83,7 @@ export const HeadersTab: React.FC<HeadersTabProps> = ({ customHeaders }) => {
   };
 
   return (
-    <div className="doc-tab-pane headers-tab-container" style={{ padding: '1.75rem', maxWidth: '1080px', margin: '0 auto' }}>
+    <div className="doc-tab-pane headers-tab-container" style={{ padding: '1.75rem', maxWidth: '1080px', margin: '0 auto', direction: isRtl ? 'rtl' : 'ltr' }}>
       {/* ── Section Header ── */}
       <div style={{
         padding: '1.4rem',
@@ -95,7 +95,8 @@ export const HeadersTab: React.FC<HeadersTabProps> = ({ customHeaders }) => {
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: '0.75rem'
+        gap: '0.75rem',
+        textAlign: isRtl ? 'right' : 'left'
       }}>
         <div>
           <h2 style={{
@@ -104,14 +105,16 @@ export const HeadersTab: React.FC<HeadersTabProps> = ({ customHeaders }) => {
             color: 'var(--text, #ffffff)',
             margin: '0 0 0.35rem 0'
           }}>
-            1.4 Required Request Headers
+            {isEn ? '1.4 Standard Mandatory Request Headers' : '1.4 رؤوس الطلبات المعيارية الإلزامية'}
           </h2>
           <p style={{
             fontSize: '0.9rem',
             color: 'var(--text-muted, #cbd5e1)',
             margin: 0
           }}>
-            Every request sent to the Ultimate Pay platform must include the following headers:
+            {isEn 
+              ? 'Every request sent to the Ultimate Pay platform must include the following headers:' 
+              : 'يجب تضمين جميع الرؤوس التالية في كل استدعاء API موجه للمنظومة لضمان التوثيق والأمان:'}
           </p>
         </div>
 
@@ -130,7 +133,7 @@ export const HeadersTab: React.FC<HeadersTabProps> = ({ customHeaders }) => {
             fontWeight: 700,
             cursor: 'pointer'
           }}
-          title="Copy cURL Header Flags"
+          title={isEn ? 'Copy cURL Header Flags' : 'نسخ معاملات cURL للترويسات'}
         >
           {copiedCurl ? <Check size={14} /> : <Copy size={14} />}
           <span>{copiedCurl ? (isRtl ? 'تم نسخ الترويسات' : 'Copied Headers') : (isRtl ? 'نسخ ترويسات cURL' : 'Copy cURL Headers')}</span>
@@ -161,10 +164,10 @@ export const HeadersTab: React.FC<HeadersTabProps> = ({ customHeaders }) => {
                 textTransform: 'uppercase',
                 letterSpacing: '0.04em'
               }}>
-                <th style={{ padding: '0.85rem 1rem', width: '22%' }}>Header Name</th>
-                <th style={{ padding: '0.85rem 1rem', width: '38%' }}>Description</th>
-                <th style={{ padding: '0.85rem 1rem', width: '25%' }}>Example</th>
-                <th style={{ padding: '0.85rem 1rem', width: '15%', textAlign: 'center' }}>Requirement</th>
+                <th style={{ padding: '0.85rem 1rem', width: '22%' }}>{isEn ? 'Header Name' : 'اسم الرأس المعياري'}</th>
+                <th style={{ padding: '0.85rem 1rem', width: '38%' }}>{isEn ? 'Description & Security Purpose' : 'الوصف والغرض الأمني'}</th>
+                <th style={{ padding: '0.85rem 1rem', width: '25%' }}>{isEn ? 'Example' : 'مثال القيمة'}</th>
+                <th style={{ padding: '0.85rem 1rem', width: '15%', textAlign: 'center' }}>{isEn ? 'Requirement' : 'الإلزامية'}</th>
               </tr>
             </thead>
             <tbody>
@@ -187,7 +190,8 @@ export const HeadersTab: React.FC<HeadersTabProps> = ({ customHeaders }) => {
                       fontSize: '0.88rem',
                       background: 'rgba(56, 189, 248, 0.08)',
                       padding: '0.2rem 0.45rem',
-                      borderRadius: '4px'
+                      borderRadius: '4px',
+                      direction: 'ltr'
                     }}>
                       {h.name}
                     </code>
@@ -196,7 +200,7 @@ export const HeadersTab: React.FC<HeadersTabProps> = ({ customHeaders }) => {
                   {/* Description */}
                   <td style={{ padding: '0.85rem 1rem', color: 'var(--text-muted, #cbd5e1)', lineHeight: '1.5' }}>
                     {isEn && h.descEn ? h.descEn : h.desc}
-                    <div style={{ fontSize: '0.74rem', color: 'var(--text-dim, #94a3b8)', marginTop: '2px', fontFamily: 'var(--font-mono, monospace)' }}>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-dim, #94a3b8)', marginTop: '2px', fontFamily: 'var(--font-mono, monospace)', direction: 'ltr' }}>
                       Type: {h.type}
                     </div>
                   </td>
@@ -211,7 +215,8 @@ export const HeadersTab: React.FC<HeadersTabProps> = ({ customHeaders }) => {
                       padding: '0.35rem 0.6rem',
                       borderRadius: '6px',
                       border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.06))',
-                      gap: '0.5rem'
+                      gap: '0.5rem',
+                      direction: 'ltr'
                     }}>
                       <code style={{
                         fontFamily: 'var(--font-mono, monospace)',
@@ -236,7 +241,7 @@ export const HeadersTab: React.FC<HeadersTabProps> = ({ customHeaders }) => {
                           display: 'flex',
                           alignItems: 'center'
                         }}
-                        title="Copy Example"
+                        title={isEn ? 'Copy Example' : 'نسخ المثال'}
                       >
                         {copiedHeader === h.name ? <Check size={12} /> : <Copy size={12} />}
                       </button>
@@ -273,14 +278,17 @@ export const HeadersTab: React.FC<HeadersTabProps> = ({ customHeaders }) => {
         border: '1px solid rgba(245, 158, 11, 0.3)',
         display: 'flex',
         alignItems: 'flex-start',
-        gap: '0.75rem'
+        gap: '0.75rem',
+        textAlign: isRtl ? 'right' : 'left'
       }}>
         <AlertTriangle size={18} color="#f59e0b" style={{ flexShrink: 0, marginTop: '2px' }} />
         <div style={{ fontSize: '0.88rem', color: '#fde68a', lineHeight: '1.6' }}>
           <strong style={{ color: '#fbbf24', display: 'block', marginBottom: '0.25rem' }}>
-            Verification Note:
+            {isEn ? 'Verification Note:' : 'ملاحظة التحقق الأمني:'}
           </strong>
-          The exact raw request body sent in the payload must be used to generate the SHA-256 hash. Any mismatch (e.g., key reordering, spacing differences) will cause signature verification failure on the server.
+          {isEn
+            ? 'The exact raw request body sent in the payload must be used to generate the SHA-256 hash. Any mismatch (e.g., key reordering, spacing differences) will cause signature verification failure on the server.'
+            : 'يجب استخدام جسم الطلب الخام (Raw Request Body) الدقيق تماماً عند توليد تجزئة SHA-256. أي اختلاف في المسافات أو ترتيب المفاتيح سيؤدي إلى فشل مطابقة التوقيع الرقمي لدى السيرفر.'}
         </div>
       </div>
     </div>

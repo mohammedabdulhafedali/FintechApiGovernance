@@ -1,13 +1,17 @@
 import { ISectorRepository } from '../../domain/interfaces/ISectorRepository.js';
+import { SqliteSystemRepository } from '../../infrastructure/repositories/SqliteSystemRepository.js';
 import { ScreenActionType } from '../../domain/entities/ResourceCatalog.js';
 
 export interface DynamicPermissionDefinition {
   key: string;
   name: string;
   description: string;
-  category: 'CATALOG' | 'IAM' | 'SPEC' | 'FINTECH_OPERATIONS';
+  category: 'BASE_MODULES' | 'CENTRAL_SYSTEMS' | 'CATALOG' | 'IAM' | 'SPEC' | 'FINTECH_OPERATIONS';
   systemKey?: string;
   systemName?: string;
+  systemCode?: string;
+  sectorKey?: string;
+  sectorName?: string;
   screenKey?: string;
   action?: ScreenActionType;
 }
@@ -19,9 +23,20 @@ export interface DynamicScreenResource {
   systemKey: string;
   systemName: string;
   systemNameEn?: string;
-  category: 'BANKING_OPERATIONS' | 'INTEGRATION_APIS' | 'GOVERNANCE_SYSTEM';
+  systemCode?: string;
+  sectorKey?: string;
+  sectorName?: string;
+  category: 'BASE_MODULES' | 'CENTRAL_SYSTEMS' | 'BANKING_OPERATIONS' | 'INTEGRATION_APIS' | 'GOVERNANCE_SYSTEM' | string;
   description: string;
   supportedActions: ScreenActionType[];
+  endpointsCount?: number;
+  endpoints?: Array<{
+    id: string;
+    method: string;
+    path: string;
+    shortName: string;
+    desc?: string;
+  }>;
 }
 
 const ACTION_NAME_MAP: Record<ScreenActionType, string> = {
@@ -32,220 +47,295 @@ const ACTION_NAME_MAP: Record<ScreenActionType, string> = {
 };
 
 export class DynamicSystemPermissionService {
-  constructor(private readonly sectorRepository: ISectorRepository) {}
+  constructor(
+    private readonly sectorRepository: ISectorRepository,
+    private readonly systemRepository?: SqliteSystemRepository
+  ) {}
 
   /**
-   * توليد ديناميكي تلقائي 100% لكافة الصلاحيات مشتقة مباشرة من الأنظمة المسجلة في الكتالوج
+   * توليد ديناميكي تلقائي 100% لكافة الصلاحيات مشتقة مباشرة من الأنظمة والتكاملات والمسارات الحية
    */
   async getSystemPermissions(): Promise<DynamicPermissionDefinition[]> {
-    const sectors = await this.sectorRepository.getAllSectors();
     const permissions: DynamicPermissionDefinition[] = [];
 
-    // 1. توليد الصلاحيات التلقائية لكل نظام وخدماته وتكاملاته الحية
-    for (const [sectorKey, sector] of Object.entries(sectors)) {
-      const sysName = sector.name || sectorKey;
-
-      // صلاحية وصول عامة للنظام
-      permissions.push({
-        key: `system:${sectorKey}:access`,
-        name: `استعراض والوصول لنظام ${sysName}`,
-        description: `صلاحية استعراض وتصفح وثائق وعمليات نظام [${sysName}]`,
-        category: 'CATALOG',
-        systemKey: sectorKey,
-        systemName: sysName
-      });
-
-      // توليد صلاحيات العمليات التفصيلية لكل خدمة / تكامل مسجل في النظام
-      if (sector.services && typeof sector.services === 'object') {
-        for (const [srvKey, srv] of Object.entries(sector.services)) {
-          const srvTitle = srv.title || srv.name || srvKey;
-          const actions: ScreenActionType[] = ['read', 'create', 'update', 'delete'];
-
-          for (const action of actions) {
-            permissions.push({
-              key: `${sectorKey}:${srvKey}:${action}`,
-              name: `${ACTION_NAME_MAP[action]} - ${srvTitle} (${sysName})`,
-              description: `صلاحية ${ACTION_NAME_MAP[action]} في [${srvTitle}] ضمن نظام [${sysName}]`,
-              category: 'FINTECH_OPERATIONS',
-              systemKey: sectorKey,
-              systemName: sysName,
-              screenKey: `${sectorKey}:${srvKey}`,
-              action
-            });
-          }
-        }
-      }
-    }
-
-    // 2. الصلاحيات السيادية المركزية لإدارة المنظومة والحوكمة
-    const sovereignPermissions: DynamicPermissionDefinition[] = [
+    // 1. صلاحيات النماذج الأساسية للمنظومة
+    const baseModulePermissions: DynamicPermissionDefinition[] = [
+      {
+        key: 'dashboard:read',
+        name: 'استعراض لوحة الداشبورد',
+        description: 'صلاحية الدخول للداشبورد ومشاهدة مؤشرات الأداء والعمليات اللحظية',
+        category: 'BASE_MODULES',
+        systemKey: 'BASE_MODULES',
+        systemName: 'نماذج المنظومة الأساسية',
+        action: 'read'
+      },
+      {
+        key: 'catalog:create',
+        name: 'إضافة وتوثيق نظام جديد',
+        description: 'صلاحية فتح نموذج إضافة نظام أو توثيق برمجي وتكامل جديد',
+        category: 'BASE_MODULES',
+        systemKey: 'BASE_MODULES',
+        systemName: 'نماذج المنظومة الأساسية',
+        action: 'create'
+      },
+      {
+        key: 'documentation:systems:read',
+        name: 'استعراض التوثيق البرمجي للأنظمة',
+        description: 'الدخول واستعراض دليل التوثيق البرمجي الموحد للأنظمة',
+        category: 'BASE_MODULES',
+        systemKey: 'BASE_MODULES',
+        systemName: 'نماذج المنظومة الأساسية',
+        action: 'read'
+      },
       {
         key: 'iam:manage',
         name: 'إدارة المستخدمين والأدوار والصلاحيات',
         description: 'صلاحية كاملة لإدارة الهويات، المجموعات، ومصفوفة الصلاحيات السيادية',
-        category: 'IAM',
-        systemKey: 'GOVERNANCE_SYSTEM',
-        systemName: 'إدارة وحوكمة المنظومة'
-      },
-      {
-        key: 'iam:audit:view',
-        name: 'استعراض سجل التدقيق الأمني السيادي',
-        description: 'صلاحية الوصول لسجل العمليات والأحداث الأمنية غير القابل للتعديل',
-        category: 'IAM',
-        systemKey: 'GOVERNANCE_SYSTEM',
-        systemName: 'إدارة وحوكمة المنظومة'
-      },
-      {
-        key: 'governance:policy:manage',
-        name: 'إدارة سياسات الحوكمة ومسارات الاعتماد',
-        description: 'صلاحية ضبط وتعديل شروط اعتماد التغييرات وصانع القرار Maker-Checker',
-        category: 'IAM',
-        systemKey: 'GOVERNANCE_SYSTEM',
-        systemName: 'إدارة وحوكمة المنظومة'
+        category: 'BASE_MODULES',
+        systemKey: 'BASE_MODULES',
+        systemName: 'نماذج المنظومة الأساسية',
+        action: 'update'
       },
       {
         key: 'governance:inbox:approve',
         name: 'اعتماد ورفض طلبات الحوكمة والتغييرات',
         description: 'صلاحية المراجعة والتوقيع السيادي على طلبات التعديل المعلقة',
-        category: 'IAM',
-        systemKey: 'GOVERNANCE_SYSTEM',
-        systemName: 'إدارة وحوكمة المنظومة'
+        category: 'BASE_MODULES',
+        systemKey: 'BASE_MODULES',
+        systemName: 'نماذج المنظومة الأساسية',
+        action: 'update'
       },
       {
-        key: 'catalog:system:create',
-        name: 'إنشاء وتأسيس أنظمة جديدة في المنظومة',
-        description: 'صلاحية تأسيس نظام مصرفي أو قطاع مالي جديد وتوثيق خدماته',
-        category: 'CATALOG',
-        systemKey: 'GOVERNANCE_SYSTEM',
-        systemName: 'إدارة وحوكمة المنظومة'
+        key: 'iam:audit:view',
+        name: 'استعراض سجل التدقيق الأمني السيادي',
+        description: 'صلاحية الوصول لسجل العمليات والأحداث الأمنية غير القابل للتعديل',
+        category: 'BASE_MODULES',
+        systemKey: 'BASE_MODULES',
+        systemName: 'نماذج المنظومة الأساسية',
+        action: 'read'
       },
       {
-        key: 'catalog:system:delete',
-        name: 'حذف الأنظمة من المنظومة',
-        description: 'صلاحية حذف نظام مالي أو قطاع بالكامل',
-        category: 'CATALOG',
-        systemKey: 'GOVERNANCE_SYSTEM',
-        systemName: 'إدارة وحوكمة المنظومة'
-      },
-      {
-        key: 'catalog:endpoint:create',
-        name: 'إضافة وتوثيق واجهات برمجية API',
-        description: 'صلاحية إضافة نقاط وصول ومسارات برمجية جديدة وتوثيقها',
-        category: 'CATALOG',
-        systemKey: 'GOVERNANCE_SYSTEM',
-        systemName: 'إدارة وحوكمة المنظومة'
-      },
-      {
-        key: 'catalog:endpoint:delete',
-        name: 'حذف واجهات برمجية API',
-        description: 'صلاحية حذف نقاط وصول ومسارات الـ API',
-        category: 'CATALOG',
-        systemKey: 'GOVERNANCE_SYSTEM',
-        systemName: 'إدارة وحوكمة المنظومة'
-      },
-      {
-        key: 'catalog:spec:export',
-        name: 'تصدير المواصفات التقنية (OpenAPI / WSDL)',
-        description: 'صلاحية تصدير وثائق المواصفات التقنية بصيغة JSON / YAML',
-        category: 'SPEC',
-        systemKey: 'GOVERNANCE_SYSTEM',
-        systemName: 'إدارة وحوكمة المنظومة'
+        key: 'settings:general:read',
+        name: 'استعراض إعدادات المنظومة',
+        description: 'صلاحية قراءة إعدادات وتشغيل المنظومة العامة',
+        category: 'BASE_MODULES',
+        systemKey: 'BASE_MODULES',
+        systemName: 'نماذج المنظومة الأساسية',
+        action: 'read'
       }
     ];
 
-    return [...permissions, ...sovereignPermissions];
-  }
+    permissions.push(...baseModulePermissions);
 
-  /**
-   * توليد ديناميكي تلقائي 100% لكافة الموارد والشاشات مشتقة مباشرة من الأنظمة المسجلة في الكتالوج
-   */
-  async getSystemScreenResources(): Promise<DynamicScreenResource[]> {
-    const sectors = await this.sectorRepository.getAllSectors();
-    const resources: DynamicScreenResource[] = [];
+    // 2. توليد الصلاحيات المخصصة الهرمية من الأنظمة المركزية
+    if (this.systemRepository) {
+      const systems = await this.systemRepository.getAllSystems();
+      for (const [sysKey, sys] of Object.entries(systems)) {
+        // صلاحية شاملة للنظام بالكامل (Wildcard)
+        permissions.push({
+          key: `sys:${sysKey}:*`,
+          name: `التحكم الشامل بنظام ${sys.name} (*)`,
+          description: `صلاحية كاملة لجميع تكاملات ومسارات نظام [${sys.name}] (${sys.code})`,
+          category: 'CENTRAL_SYSTEMS',
+          systemKey: sysKey,
+          systemName: sys.name,
+          systemCode: sys.code
+        });
 
-    // 1. توليد الشاشات والموارد التابعة لكل نظام مسجل
-    for (const [sectorKey, sector] of Object.entries(sectors)) {
-      const sysName = sector.name || sectorKey;
-      const sysNameEn = sector.nameEn || sysName;
-
-      if (sector.services && typeof sector.services === 'object') {
-        for (const [srvKey, srv] of Object.entries(sector.services)) {
-          const srvTitle = srv.title || srv.name || srvKey;
-
-          resources.push({
-            key: `${sectorKey}:${srvKey}`,
-            name: `${sysNameEn} - ${srvTitle}`,
-            nameAr: `${srvTitle} - ${sysName}`,
-            systemKey: sectorKey,
-            systemName: sysName,
-            systemNameEn: sysNameEn,
-            category: 'BANKING_OPERATIONS',
-            description: `إدارة وتكاملات ${srvTitle} في نظام [${sysName}]`,
-            supportedActions: ['read', 'create', 'update', 'delete']
-          });
+        if (sys.integrations && typeof sys.integrations === 'object') {
+          for (const [intKey, int] of Object.entries(sys.integrations)) {
+            const intTitle = int.name || intKey;
+            for (const action of ['read', 'create', 'update', 'delete'] as ScreenActionType[]) {
+              permissions.push({
+                key: `sys:${sysKey}:int:${intKey}:${action}`,
+                name: `${ACTION_NAME_MAP[action]} - ${intTitle} (${sys.name})`,
+                description: `صلاحية ${ACTION_NAME_MAP[action]} في تكامل [${intTitle}] بنظام [${sys.name}]`,
+                category: 'CENTRAL_SYSTEMS',
+                systemKey: sysKey,
+                systemName: sys.name,
+                systemCode: sys.code,
+                sectorKey: intKey,
+                sectorName: intTitle,
+                screenKey: `sys:${sysKey}:int:${intKey}`,
+                action
+              });
+            }
+          }
         }
       }
     }
 
-    // 2. الشاشات السيادية المركزية لإدارة المنظومة
-    const sovereignResources: DynamicScreenResource[] = [
+    return permissions;
+  }
+
+  /**
+   * توليد ديناميكي تلقائي 100% لكافة الموارد والشاشات مشتقة مباشرة من الأنظمة وتكاملاتها ومساراتها
+   */
+  async getSystemScreenResources(): Promise<DynamicScreenResource[]> {
+    // 1. النماذج والشاشات الأساسية للمنظومة (المستوى الأول العام)
+    const baseModules: DynamicScreenResource[] = [
+      {
+        key: 'dashboard',
+        name: 'Dashboard Overview',
+        nameAr: 'لوحة الداشبورد',
+        systemKey: 'BASE_MODULES',
+        systemName: 'نماذج المنظومة الأساسية',
+        systemNameEn: 'Core Platform Modules',
+        systemCode: 'MOD_DASHBOARD',
+        category: 'BASE_MODULES',
+        description: 'استعراض الإحصائيات المركزية، النشاط اللحظي، ومؤشرات الأداء المصرفي',
+        supportedActions: ['read']
+      },
+      {
+        key: 'catalog:create',
+        name: 'Add Documentation / System',
+        nameAr: 'إضافة توثيق جديد',
+        systemKey: 'BASE_MODULES',
+        systemName: 'نماذج المنظومة الأساسية',
+        systemNameEn: 'Core Platform Modules',
+        systemCode: 'MOD_DOC_ADD',
+        category: 'BASE_MODULES',
+        description: 'صلاحية فتح نموذج إضافة نظام أو توثيق برمجي وتكامل جديد',
+        supportedActions: ['read', 'create']
+      },
+      {
+        key: 'documentation:systems',
+        name: 'Systems Documentation Hub',
+        nameAr: 'التوثيق البرمجي للأنظمة',
+        systemKey: 'BASE_MODULES',
+        systemName: 'نماذج المنظومة الأساسية',
+        systemNameEn: 'Core Platform Modules',
+        systemCode: 'MOD_DOCS',
+        category: 'BASE_MODULES',
+        description: 'الدخول واستعراض الدليل الموحد وتوثيقات الـ APIs لجميع الأنظمة المركزية',
+        supportedActions: ['read', 'create', 'update', 'delete']
+      },
       {
         key: 'iam:users',
         name: 'User & IAM Governance',
         nameAr: 'إدارة المستخدمين والصلاحيات',
-        systemKey: 'GOVERNANCE_SYSTEM',
-        systemName: 'إدارة وحوكمة المنظومة',
-        systemNameEn: 'Governance & Sovereign Management',
-        category: 'GOVERNANCE_SYSTEM',
-        description: 'إدارة هويات المستخدمين، المجموعات، والاستثناءات الفردية',
+        systemKey: 'BASE_MODULES',
+        systemName: 'نماذج المنظومة الأساسية',
+        systemNameEn: 'Core Platform Modules',
+        systemCode: 'MOD_IAM',
+        category: 'BASE_MODULES',
+        description: 'إدارة حسابات المستخدمين، المجموعات والأدوار، والاستثناءات الفردية',
         supportedActions: ['read', 'create', 'update', 'delete']
       },
       {
         key: 'governance:workflows',
         name: 'Governance & Approval Workflows',
-        nameAr: 'حوكمة مسارات الاعتماد وصانع القرار',
-        systemKey: 'GOVERNANCE_SYSTEM',
-        systemName: 'إدارة وحوكمة المنظومة',
-        systemNameEn: 'Governance & Sovereign Management',
-        category: 'GOVERNANCE_SYSTEM',
-        description: 'حوكمة الإجراءات الحساسة وسياسات التدقيق المزدوج Maker-Checker',
+        nameAr: 'مركز الحوكمة والاعتمادات',
+        systemKey: 'BASE_MODULES',
+        systemName: 'نماذج المنظومة الأساسية',
+        systemNameEn: 'Core Platform Modules',
+        systemCode: 'MOD_GOVERNANCE',
+        category: 'BASE_MODULES',
+        description: 'حوكمة مسارات الاعتماد، تدقيق Maker-Checker، وإقرار التغييرات السيادية',
         supportedActions: ['read', 'create', 'update']
-      },
-      {
-        key: 'catalog:apis',
-        name: 'API Governance & Catalog',
-        nameAr: 'دليل وحوكمة واجهات الـ APIs المصرفية',
-        systemKey: 'GOVERNANCE_SYSTEM',
-        systemName: 'إدارة وحوكمة المنظومة',
-        systemNameEn: 'Governance & Sovereign Management',
-        category: 'GOVERNANCE_SYSTEM',
-        description: 'دليل وتوثيق نقاط وصول ومواصفات الـ APIs المصرفية',
-        supportedActions: ['read', 'create', 'update', 'delete']
       },
       {
         key: 'audit:trail',
         name: 'Sovereign Audit Trail',
-        nameAr: 'سجل التدقيق الأمني والرقابي السيادي',
-        systemKey: 'GOVERNANCE_SYSTEM',
-        systemName: 'إدارة وحوكمة المنظومة',
-        systemNameEn: 'Governance & Sovereign Management',
-        category: 'GOVERNANCE_SYSTEM',
-        description: 'سجل العمليات والتحركات الأمنية غير القابل للتعديل',
+        nameAr: 'سجل التدقيق الأمني والرقابي',
+        systemKey: 'BASE_MODULES',
+        systemName: 'نماذج المنظومة الأساسية',
+        systemNameEn: 'Core Platform Modules',
+        systemCode: 'MOD_AUDIT',
+        category: 'BASE_MODULES',
+        description: 'سجل التدقيق الأمني السيادي الشامل للعمليات والأحداث الرقابية غير القابل للتعديل',
         supportedActions: ['read']
       },
       {
         key: 'settings:general',
         name: 'System Settings',
         nameAr: 'إعدادات المنظومة العامة',
-        systemKey: 'GOVERNANCE_SYSTEM',
-        systemName: 'إدارة وحوكمة المنظومة',
-        systemNameEn: 'Governance & Sovereign Management',
-        category: 'GOVERNANCE_SYSTEM',
-        description: 'إعدادات المنظومة العامة والمتغيرات التشغيلية',
+        systemKey: 'BASE_MODULES',
+        systemName: 'نماذج المنظومة الأساسية',
+        systemNameEn: 'Core Platform Modules',
+        systemCode: 'MOD_SETTINGS',
+        category: 'BASE_MODULES',
+        description: 'إعدادات وتفضيلات المنظومة والمعايير التشغيلية المصرفية',
         supportedActions: ['read', 'update']
       }
     ];
 
-    return [...resources, ...sovereignResources];
+    // 2. الصلاحيات المخصصة الهرمية للأنظمة المركزية (تحصيل، تنترة، المجمع)
+    const centralSystemResources: DynamicScreenResource[] = [];
+    if (this.systemRepository) {
+      const systems = await this.systemRepository.getAllSystems();
+      for (const [sysKey, sys] of Object.entries(systems)) {
+        if (sys.integrations && typeof sys.integrations === 'object') {
+          for (const [intKey, int] of Object.entries(sys.integrations)) {
+            const intTitle = int.name || intKey;
+            const endpoints = Array.isArray(int.endpoints) ? int.endpoints : [];
+
+            centralSystemResources.push({
+              key: `sys:${sysKey}:int:${intKey}`,
+              name: `${sys.nameEn || sys.name} - ${int.nameEn || intTitle}`,
+              nameAr: `${intTitle} - ${sys.name}`,
+              systemKey: sysKey,
+              systemName: sys.name,
+              systemNameEn: sys.nameEn || sysKey,
+              systemCode: sys.code || `SYS_${sysKey.toUpperCase()}`,
+              sectorKey: intKey,
+              sectorName: intTitle,
+              category: 'CENTRAL_SYSTEMS',
+              description: `تكامل [${intTitle}] ضمن نظام [${sys.name}] (${sys.code}) - يشمل ${endpoints.length} مسار API`,
+              supportedActions: ['read', 'create', 'update', 'delete'],
+              endpointsCount: endpoints.length,
+              endpoints: endpoints.map((ep: any) => ({
+                id: ep.id || ep.shortName,
+                method: ep.method || 'POST',
+                path: ep.path || '',
+                shortName: ep.shortName || ep.path,
+                desc: ep.desc || ep.descEn || ''
+              }))
+            });
+          }
+        }
+      }
+    }
+
+    // fallback إذا لم يكن هناك أنظمة مسجلة بعد في SQLite
+    if (centralSystemResources.length === 0) {
+      const sectors = await this.sectorRepository.getAllSectors();
+      for (const [sectorKey, sector] of Object.entries(sectors)) {
+        const sysName = sector.name || sectorKey;
+        const sysNameEn = sector.nameEn || sysName;
+
+        if (sector.services && typeof sector.services === 'object') {
+          for (const [srvKey, srv] of Object.entries(sector.services)) {
+            const srvTitle = srv.title || srv.name || srvKey;
+            const eps = Array.isArray(srv.endpoints) ? srv.endpoints : [];
+            centralSystemResources.push({
+              key: `${sectorKey}:${srvKey}`,
+              name: `${sysNameEn} - ${srvTitle}`,
+              nameAr: `${srvTitle} - ${sysName}`,
+              systemKey: sectorKey,
+              systemName: sysName,
+              systemNameEn: sysNameEn,
+              systemCode: sector.code,
+              sectorKey: srvKey,
+              sectorName: srvTitle,
+              category: 'CENTRAL_SYSTEMS',
+              description: `إدارة وتكاملات ${srvTitle} في نظام [${sysName}]`,
+              supportedActions: ['read', 'create', 'update', 'delete'],
+              endpointsCount: eps.length,
+              endpoints: eps.map((e: any) => ({
+                id: e.id,
+                method: e.method,
+                path: e.path,
+                shortName: e.shortName,
+                desc: e.desc
+              }))
+            });
+          }
+        }
+      }
+    }
+
+    return [...baseModules, ...centralSystemResources];
   }
 }
+

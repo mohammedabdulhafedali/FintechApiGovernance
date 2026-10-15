@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import { FileSectorRepository } from './repositories/FileSectorRepository.js';
+import { SqliteSectorRepository } from './repositories/SqliteSectorRepository.js';
+import { SqliteSystemRepository } from './repositories/SqliteSystemRepository.js';
 import { FileUserRepository } from './repositories/FileUserRepository.js';
 import { FileUserGroupRepository } from './repositories/FileUserGroupRepository.js';
 import { FileAuditLogRepository } from './repositories/FileAuditLogRepository.js';
@@ -58,7 +60,8 @@ export function createApp() {
 
   // Composition Root: Dependency Injection adhering to SOLID Principles
   // 1. Repositories
-  const sectorRepository = new FileSectorRepository();
+  const sectorRepository = new SqliteSectorRepository();
+  const systemRepository = new SqliteSystemRepository();
   const userRepository = new FileUserRepository();
   const userGroupRepository = new FileUserGroupRepository();
   const auditLogRepository = new FileAuditLogRepository();
@@ -174,7 +177,7 @@ export function createApp() {
   const deleteSectorUseCase = new DeleteSectorUseCase(sectorRepository);
 
   // 8. Dynamic Permission Discovery Engine
-  const dynamicPermissionService = new DynamicSystemPermissionService(sectorRepository);
+  const dynamicPermissionService = new DynamicSystemPermissionService(sectorRepository, systemRepository);
 
   // 9. Controllers
   const authController = new AuthController(
@@ -197,7 +200,8 @@ export function createApp() {
     getSectorEndpointsUseCase,
     createEndpointUseCase,
     createSectorUseCase,
-    deleteSectorUseCase
+    deleteSectorUseCase,
+    systemRepository
   );
 
   const governanceController = new GovernanceWorkflowController(governanceService);
