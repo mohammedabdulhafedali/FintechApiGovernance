@@ -7,6 +7,28 @@
     "status": "SUCCESS",
     "details": "تم تسجيل الدخول بنجاح - المجموعة: مدير النظام",
     "ip": "::1",
+    "id": "log_1792018056599_92705539",
+    "timestamp": "2026-10-14T22:47:36.599Z"
+  },
+  {
+    "userId": "usr_admin_01",
+    "username": "admin",
+    "action": "auth:login",
+    "resource": "iam:session",
+    "status": "FAILED",
+    "details": "فشل تسجيل الدخول: كلمة المرور غير صحيحة",
+    "ip": "::1",
+    "id": "log_1792018049284_e1228418",
+    "timestamp": "2026-10-14T22:47:29.285Z"
+  },
+  {
+    "userId": "usr_admin_01",
+    "username": "admin",
+    "action": "auth:login",
+    "resource": "iam:session",
+    "status": "SUCCESS",
+    "details": "تم تسجيل الدخول بنجاح - المجموعة: مدير النظام",
+    "ip": "::1",
     "id": "log_1791996019381_88a0abff",
     "timestamp": "2026-10-14T16:40:19.389Z"
   },

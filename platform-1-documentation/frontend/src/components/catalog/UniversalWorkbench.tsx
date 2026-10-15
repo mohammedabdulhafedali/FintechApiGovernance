@@ -7,7 +7,15 @@ import {
   CheckCircle2, 
   Copy, 
   Check,
-  Upload
+  Upload,
+  Code,
+  Globe,
+  Columns,
+  EyeOff,
+  Pin,
+  PinOff,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { UastDocument, IUastNode, type DataType } from '../../services/uast/types';
 import { Endpoint } from '../../types/schema';
@@ -24,6 +32,39 @@ interface UniversalWorkbenchProps {
 
 type WorkbenchTab = 'add' | 'drafts' | 'submissions';
 type FullscreenTarget = 'none' | 'all' | 'code' | 'web' | 'pdf';
+
+interface StudioSplitterProps {
+  onMouseDown: (e: React.MouseEvent) => void;
+  onDoubleClick: () => void;
+  isDragging: boolean;
+  title?: string;
+}
+
+const StudioSplitter: React.FC<StudioSplitterProps> = ({
+  onMouseDown,
+  onDoubleClick,
+  isDragging,
+  title = "اسحب لتعديل المسافة والعرض، أو انقر نقراً مزدوجاً لمساواة العرض"
+}) => {
+  return (
+    <div
+      className={`studio-resizer-handle ${isDragging ? 'is-dragging' : ''}`}
+      onMouseDown={onMouseDown}
+      onDoubleClick={onDoubleClick}
+      title={title}
+      role="separator"
+      tabIndex={0}
+      aria-orientation="vertical"
+    >
+      <div className="resizer-visual-line" />
+      <div className="resizer-visual-grip">
+        <span />
+        <span />
+        <span />
+      </div>
+    </div>
+  );
+};
 
 // Preset Templates
 const PRESETS = {
@@ -236,7 +277,101 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
 
   // Fullscreen controller for screens
   const [fullscreenTarget, setFullscreenTarget] = useState<FullscreenTarget>('none');
+  const fullscreenTargetRef = useRef<FullscreenTarget>('none');
+  fullscreenTargetRef.current = fullscreenTarget;
+
+  const [prevFullscreenTarget, setPrevFullscreenTarget] = useState<'none' | 'all'>('none');
+  const prevFullscreenTargetRef = useRef<'none' | 'all'>('none');
+  prevFullscreenTargetRef.current = prevFullscreenTarget;
+
   const [copiedSource, setCopiedSource] = useState<boolean>(false);
+
+  // ── Multi-Pane Visibility & Dynamic Resizing State ──
+  const [visiblePanes, setVisiblePanes] = useState<{ code: boolean; web: boolean; pdf: boolean }>({
+    code: true,
+    web: true,
+    pdf: true
+  });
+  const visiblePanesRef = useRef(visiblePanes);
+  visiblePanesRef.current = visiblePanes;
+
+  // Toolbar Auto-hide & Pin State (Default: Auto-hide / Unpinned for max screen area)
+  const [isToolbarPinned, setIsToolbarPinned] = useState<boolean>(false);
+  const [isToolbarHovered, setIsToolbarHovered] = useState<boolean>(false);
+  const toolbarHoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleToolbarMouseEnter = () => {
+    if (toolbarHoverTimeoutRef.current) {
+      clearTimeout(toolbarHoverTimeoutRef.current);
+      toolbarHoverTimeoutRef.current = null;
+    }
+    setIsToolbarHovered(true);
+  };
+
+  const handleToolbarMouseLeave = () => {
+    if (toolbarHoverTimeoutRef.current) {
+      clearTimeout(toolbarHoverTimeoutRef.current);
+    }
+    toolbarHoverTimeoutRef.current = setTimeout(() => {
+      setIsToolbarHovered(false);
+    }, 250);
+  };
+
+  const isToolbarVisible = isToolbarPinned || isToolbarHovered;
+
+  const [paneWeights, setPaneWeights] = useState<{ code: number; web: number; pdf: number }>({
+    code: 32,
+    web: 35,
+    pdf: 33
+  });
+  const paneWeightsRef = useRef(paneWeights);
+  paneWeightsRef.current = paneWeights;
+
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const isDraggingRef = useRef<boolean>(false);
+  const activeSplitterRef = useRef<number | null>(null);
+  const startXRef = useRef<number>(0);
+  const startWeightsRef = useRef<{ code: number; web: number; pdf: number }>({ code: 32, web: 35, pdf: 33 });
+  const gridContainerRef = useRef<HTMLDivElement>(null);
+
+  const togglePaneVisibility = (pane: 'code' | 'web' | 'pdf') => {
+    const current = visiblePanesRef.current;
+    const activeCount = (current.code ? 1 : 0) + (current.web ? 1 : 0) + (current.pdf ? 1 : 0);
+    
+    // Safety check: Don't allow closing the last remaining visible pane
+    if (current[pane] && activeCount <= 1) {
+      return;
+    }
+
+    const nextVisible = { ...current, [pane]: !current[pane] };
+    visiblePanesRef.current = nextVisible;
+    setVisiblePanes(nextVisible);
+
+    // Re-balance weights equally for visible panes
+    const nextActiveKeys = (['code', 'web', 'pdf'] as const).filter(k => nextVisible[k]);
+    if (nextActiveKeys.length > 0) {
+      const equalPercent = 100 / nextActiveKeys.length;
+      const nextWeights = { ...paneWeightsRef.current };
+      nextActiveKeys.forEach(k => {
+        nextWeights[k] = equalPercent;
+      });
+      paneWeightsRef.current = nextWeights;
+      setPaneWeights(nextWeights);
+    }
+  };
+
+  const handleResetEqualWidths = () => {
+    const current = visiblePanesRef.current;
+    const activeKeys = (['code', 'web', 'pdf'] as const).filter(k => current[k]);
+    if (activeKeys.length === 0) return;
+    const equalPercent = 100 / activeKeys.length;
+    const nextWeights = { ...paneWeightsRef.current };
+    activeKeys.forEach(k => {
+      nextWeights[k] = equalPercent;
+    });
+    paneWeightsRef.current = nextWeights;
+    setPaneWeights(nextWeights);
+  };
 
   // File Upload Reference and Format target
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -323,6 +458,214 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
   const [submissionsList, setSubmissionsList] = useState<UastDocument[]>([]);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
   const [subPdfFullscreen, setSubPdfFullscreen] = useState<boolean>(false);
+
+  // ── Handle Escape key to step back or exit fullscreen mode or return from editor ──
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isEscapeKey = e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27 || e.which === 27;
+      if (!isEscapeKey) return;
+
+      // 1. If Center Modal is open, close it
+      if (centerModal && centerModal.isOpen) {
+        e.preventDefault();
+        setCenterModal(null);
+        return;
+      }
+
+      const current = fullscreenTargetRef.current;
+      const prev = prevFullscreenTargetRef.current;
+
+      // 2. If single column is maximized
+      if (current === 'code' || current === 'web' || current === 'pdf') {
+        e.preventDefault();
+        e.stopPropagation();
+        // If we came from 3-column fullscreen ('all'), return to 'all'!
+        if (prev === 'all') {
+          fullscreenTargetRef.current = 'all';
+          prevFullscreenTargetRef.current = 'none';
+          setFullscreenTarget('all');
+          setPrevFullscreenTarget('none');
+        } else {
+          fullscreenTargetRef.current = 'none';
+          prevFullscreenTargetRef.current = 'none';
+          setFullscreenTarget('none');
+          setPrevFullscreenTarget('none');
+        }
+        return;
+      } 
+      
+      // 3. If all 3 columns are in fullscreen
+      if (current === 'all') {
+        e.preventDefault();
+        e.stopPropagation();
+        fullscreenTargetRef.current = 'none';
+        prevFullscreenTargetRef.current = 'none';
+        setFullscreenTarget('none');
+        setPrevFullscreenTarget('none');
+        return;
+      } 
+      
+      // 4. Drafts / Submissions modal fullscreen
+      if (draftPdfFullscreen) {
+        e.preventDefault();
+        setDraftPdfFullscreen(false);
+        return;
+      } 
+      if (subPdfFullscreen) {
+        e.preventDefault();
+        setSubPdfFullscreen(false);
+        return;
+      }
+
+      // 5. Native browser fullscreen element
+      if (typeof document !== 'undefined' && document.fullscreenElement) {
+        document.exitFullscreen?.().catch(() => {});
+      }
+
+      // 6. When in active editing view (the view shown in user's screenshots),
+      // pressing Escape exits back to import selection (العودة للاستيراد)
+      if (editorState === 'active_editing') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (document.activeElement && typeof (document.activeElement as HTMLElement).blur === 'function') {
+          (document.activeElement as HTMLElement).blur();
+        }
+        setEditorState('import_selection');
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [draftPdfFullscreen, subPdfFullscreen, editorState, centerModal]);
+
+  const handleToggleAllFullscreen = () => {
+    if (fullscreenTargetRef.current === 'all') {
+      fullscreenTargetRef.current = 'none';
+      prevFullscreenTargetRef.current = 'none';
+      setFullscreenTarget('none');
+      setPrevFullscreenTarget('none');
+    } else {
+      fullscreenTargetRef.current = 'all';
+      prevFullscreenTargetRef.current = 'none';
+      setFullscreenTarget('all');
+      setPrevFullscreenTarget('none');
+    }
+  };
+
+  const handleToggleColumnFullscreen = (col: 'code' | 'web' | 'pdf') => {
+    const current = fullscreenTargetRef.current;
+    if (current === col) {
+      // Return to whatever we were in before ('all' if came from 3-column fullscreen, else 'none')
+      const targetToReturn = prevFullscreenTargetRef.current === 'all' ? 'all' : 'none';
+      fullscreenTargetRef.current = targetToReturn;
+      prevFullscreenTargetRef.current = 'none';
+      setFullscreenTarget(targetToReturn);
+      setPrevFullscreenTarget('none');
+    } else {
+      const cameFromAll = current === 'all';
+      fullscreenTargetRef.current = col;
+      prevFullscreenTargetRef.current = cameFromAll ? 'all' : 'none';
+      setFullscreenTarget(col);
+      setPrevFullscreenTarget(cameFromAll ? 'all' : 'none');
+    }
+  };
+
+  // ── Splitter Mouse Dragging Handler with RTL & Safety Limits ──
+  const handleSplitterMouseDown = (splitterIndex: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isDraggingRef.current = true;
+    activeSplitterRef.current = splitterIndex;
+    startXRef.current = e.clientX;
+    startWeightsRef.current = { ...paneWeightsRef.current };
+    setIsDragging(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current || activeSplitterRef.current === null) return;
+      const container = gridContainerRef.current;
+      if (!container) return;
+
+      const containerWidth = container.getBoundingClientRect().width;
+      if (containerWidth <= 100) return;
+
+      // In RTL: dragging to left (e.clientX < startX) expands pane 0 and shrinks pane 1
+      const deltaX = isRtl ? (startXRef.current - e.clientX) : (e.clientX - startXRef.current);
+      const deltaPercent = (deltaX / containerWidth) * 100;
+
+      // Safety constraint: minimum width per pane (at least 260px in percent)
+      const minPercent = Math.max(16, (260 / containerWidth) * 100);
+
+      const activePanes = (['code', 'web', 'pdf'] as const).filter(k => visiblePanesRef.current[k]);
+      const splitterIdx = activeSplitterRef.current;
+
+      if (activePanes.length === 3) {
+        if (splitterIdx === 0) {
+          const combined = startWeightsRef.current.code + startWeightsRef.current.web;
+          let newCode = startWeightsRef.current.code + deltaPercent;
+          newCode = Math.max(minPercent, Math.min(combined - minPercent, newCode));
+          const newWeb = combined - newCode;
+
+          const updated = {
+            ...paneWeightsRef.current,
+            code: newCode,
+            web: newWeb
+          };
+          paneWeightsRef.current = updated;
+          setPaneWeights(updated);
+        } else if (splitterIdx === 1) {
+          const combined = startWeightsRef.current.web + startWeightsRef.current.pdf;
+          let newWeb = startWeightsRef.current.web + deltaPercent;
+          newWeb = Math.max(minPercent, Math.min(combined - minPercent, newWeb));
+          const newPdf = combined - newWeb;
+
+          const updated = {
+            ...paneWeightsRef.current,
+            web: newWeb,
+            pdf: newPdf
+          };
+          paneWeightsRef.current = updated;
+          setPaneWeights(updated);
+        }
+      } else if (activePanes.length === 2 && splitterIdx === 0) {
+        const p0 = activePanes[0];
+        const p1 = activePanes[1];
+        const combined = startWeightsRef.current[p0] + startWeightsRef.current[p1];
+        let newP0 = startWeightsRef.current[p0] + deltaPercent;
+        newP0 = Math.max(minPercent, Math.min(combined - minPercent, newP0));
+        const newP1 = combined - newP0;
+
+        const updated = {
+          ...paneWeightsRef.current,
+          [p0]: newP0,
+          [p1]: newP1
+        };
+        paneWeightsRef.current = updated;
+        setPaneWeights(updated);
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (isDraggingRef.current) {
+        isDraggingRef.current = false;
+        activeSplitterRef.current = null;
+        setIsDragging(false);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isRtl]);
 
   // Refresh lists on tab change
   const refreshStorageLists = () => {
@@ -841,8 +1184,8 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
 
             <button 
               className={`studio-icon-btn ${fullscreenTarget === 'all' ? 'is-active' : ''}`}
-              onClick={() => setFullscreenTarget(prev => prev === 'all' ? 'none' : 'all')}
-              title="ملء الشاشة للشاشات الثلاث"
+              onClick={handleToggleAllFullscreen}
+              title={fullscreenTarget === 'all' ? 'إنهاء ملء الشاشة (Esc)' : 'ملء الشاشة للشاشات الثلاث'}
               aria-label="ملء الشاشة للشاشات الثلاث"
             >
               {fullscreenTarget === 'all' ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
@@ -888,11 +1231,6 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
           ══════════════════════════════════════════════════════════════ */}
       {activeTab === 'add' && editorState === 'import_selection' && (
         <div className="import-selection-screen">
-          <div className="import-hero-title">
-            <h2>استيراد وتوثيق API جديد</h2>
-            <p>اختر الصيغة التي ترغب باستيرادها أو ابدأ التوثيق المباشر لفتح الشاشات الثلاث المتزامنة.</p>
-          </div>
-
           {/* Hidden File Input for Native File System Picking */}
           <input 
             type="file" 
@@ -903,199 +1241,204 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
 
           {/* Format Cards Grid */}
           <div className="format-cards-grid">
-            <div className="format-selection-card">
-              <span className="card-badge-format">JSON</span>
-              <h3>صيغة JSON</h3>
-              <p>استيراد نماذج طلبات واستجابات الـ JSON وتفكيك بنية الحقول تلقائياً.</p>
-              <div className="format-card-actions">
-                <button 
-                  className="btn-card-action is-upload"
-                  onClick={(e) => triggerFilePicker('json', e)}
-                >
-                  <Upload size={14} />
-                  <span>استيراد ملف JSON من جهازك</span>
-                </button>
-                <button 
-                  className="btn-card-secondary"
-                  onClick={() => handleSelectFormatCard('json')}
-                >
-                  استخدام نموذج افتراضي
-                </button>
+            {/* 1. JSON */}
+            <div 
+              className="format-selection-card"
+              onClick={(e) => triggerFilePicker('json', e)}
+              role="button"
+              tabIndex={0}
+              title="استيراد ملف JSON"
+            >
+              <div className="format-file-visual">
+                <FileText size={42} />
+                <span className="format-file-ext">JSON</span>
               </div>
             </div>
 
-            <div className="format-selection-card">
-              <span className="card-badge-format">MARKDOWN</span>
-              <h3>صيغة Markdown</h3>
-              <p>استخراج جداول الحقول ونماذج الأكواد الموثقة في ملفات الـ Markdown.</p>
-              <div className="format-card-actions">
-                <button 
-                  className="btn-card-action is-upload"
-                  onClick={(e) => triggerFilePicker('markdown', e)}
-                >
-                  <Upload size={14} />
-                  <span>استيراد ملف Markdown (.md)</span>
-                </button>
-                <button 
-                  className="btn-card-secondary"
-                  onClick={() => handleSelectFormatCard('markdown')}
-                >
-                  استخدام نموذج افتراضي
-                </button>
+            {/* 2. Markdown */}
+            <div 
+              className="format-selection-card"
+              onClick={(e) => triggerFilePicker('markdown', e)}
+              role="button"
+              tabIndex={0}
+              title="استيراد ملف Markdown"
+            >
+              <div className="format-file-visual">
+                <FileText size={42} />
+                <span className="format-file-ext">MD</span>
               </div>
             </div>
 
-            <div className="format-selection-card">
-              <span className="card-badge-format">SOAP / XML</span>
-              <h3>صيغة SOAP / XML</h3>
-              <p>تحليل أغلفة الـ SOAP المصرفية ورسائل WSDL وتفكيك الترويسات والمتن.</p>
-              <div className="format-card-actions">
-                <button 
-                  className="btn-card-action is-upload"
-                  onClick={(e) => triggerFilePicker('soap', e)}
-                >
-                  <Upload size={14} />
-                  <span>استيراد ملف WSDL / XML</span>
-                </button>
-                <button 
-                  className="btn-card-secondary"
-                  onClick={() => handleSelectFormatCard('soap')}
-                >
-                  استخدام نموذج افتراضي
-                </button>
+            {/* 3. SOAP / XML */}
+            <div 
+              className="format-selection-card"
+              onClick={(e) => triggerFilePicker('soap', e)}
+              role="button"
+              tabIndex={0}
+              title="استيراد ملف SOAP / XML"
+            >
+              <div className="format-file-visual">
+                <Code size={42} />
+                <span className="format-file-ext">XML</span>
               </div>
             </div>
 
-            <div className="format-selection-card">
-              <span className="card-badge-format">OPENAPI</span>
-              <h3>صيغة OpenAPI / Swagger</h3>
-              <p>قراءة مواصفات الـ REST والشروط والمسارات المعيارية (YAML أو JSON).</p>
-              <div className="format-card-actions">
-                <button 
-                  className="btn-card-action is-upload"
-                  onClick={(e) => triggerFilePicker('openapi', e)}
-                >
-                  <Upload size={14} />
-                  <span>استيراد مواصفات OpenAPI (.yaml/.json)</span>
-                </button>
-                <button 
-                  className="btn-card-secondary"
-                  onClick={() => handleSelectFormatCard('openapi')}
-                >
-                  استخدام نموذج افتراضي
-                </button>
+            {/* 4. OpenAPI / Swagger */}
+            <div 
+              className="format-selection-card"
+              onClick={(e) => triggerFilePicker('openapi', e)}
+              role="button"
+              tabIndex={0}
+              title="استيراد مواصفات OpenAPI / Swagger"
+            >
+              <div className="format-file-visual">
+                <Globe size={42} />
+                <span className="format-file-ext">YAML</span>
               </div>
             </div>
 
-            <div className="format-selection-card">
-              <span className="card-badge-format">POSTMAN</span>
-              <h3>مجموعات Postman</h3>
-              <p>استيراد ملفات Postman Collection الجاهزة وتحويل الطلبات لمواصفات معتمدة.</p>
-              <div className="format-card-actions">
-                <button 
-                  className="btn-card-action is-upload"
-                  onClick={(e) => triggerFilePicker('postman', e)}
-                >
-                  <Upload size={14} />
-                  <span>استيراد مجموعة Postman (.json)</span>
-                </button>
-                <button 
-                  className="btn-card-secondary"
-                  onClick={() => handleSelectFormatCard('postman')}
-                >
-                  استخدام نموذج افتراضي
-                </button>
+            {/* 5. Postman */}
+            <div 
+              className="format-selection-card"
+              onClick={(e) => triggerFilePicker('postman', e)}
+              role="button"
+              tabIndex={0}
+              title="استيراد مجموعة Postman"
+            >
+              <div className="format-file-visual">
+                <Upload size={42} />
+                <span className="format-file-ext">POSTMAN</span>
               </div>
             </div>
 
-            <div className="format-selection-card">
-              <span className="card-badge-format">MANUAL</span>
-              <h3>إدخال يدوي مباشر</h3>
-              <p>فتح الشاشات الثلاث بنموذج فارغ للبدء بكتابة وتوثيق الـ API من الصفر.</p>
-              <div className="format-card-actions">
-                <button 
-                  className="btn-card-action"
-                  onClick={handleStartNewDoc}
-                  style={{ width: '100%' }}
-                >
-                  فتح الشاشات الثلاث (نموذج فارغ)
-                </button>
+            {/* 6. Manual Entry */}
+            <div 
+              className="format-selection-card is-manual"
+              onClick={handleStartNewDoc}
+              role="button"
+              tabIndex={0}
+              title="فتح الشاشات الثلاث بنموذج فارغ"
+            >
+              <div className="format-file-visual">
+                <PlusCircle size={42} />
+                <span className="format-file-ext">يدوي</span>
               </div>
-            </div>
-          </div>
-
-          {/* Quick Bank Presets */}
-          <div className="quick-presets-box">
-            <span className="presets-label">نماذج بنكية وطنية سريعة للاختبار المباشر:</span>
-            <div className="presets-buttons-row">
-              <button onClick={() => handleSelectFormatCard('json', PRESETS.json.code)}>التحويل المالي اللحظي IPS</button>
-              <button onClick={() => handleSelectFormatCard('soap', PRESETS.soap.code)}>استعلام الرصيد SOAP</button>
-              <button onClick={() => handleSelectFormatCard('openapi', PRESETS.openapi.code)}>حماية الأجور WPS</button>
-              <button onClick={() => handleSelectFormatCard('markdown', PRESETS.markdown.code)}>بطاقات الخصم Markdown</button>
             </div>
           </div>
         </div>
       )}
 
       {/* ══════════════════════════════════════════════════════════════
-          TAB 1: [إضافة توثيق] - 2. STUDIO 3 SCREENS (Strictly matching Image 2)
-          Single Screen, Zero Page Scroll
+          TAB 1: [إضافة توثيق] - 2. STUDIO DYNAMIC WORKSPACE
+          Zero Page Scroll, Dynamic Multi-Pane Visibility & Resizing
           ══════════════════════════════════════════════════════════════ */}
       {activeTab === 'add' && editorState === 'active_editing' && activeDoc && (
         <div className={`studio-workbench-container fs-${fullscreenTarget}`}>
           
-          {/* Studio 3 Split Screens */}
-          <div className="studio-screens-grid">
-            
-            {/* ── SCREEN 1: SOURCE CODE (كود المصدر مع قائمة الصيغ المنسدلة) ── */}
-            <div className={`studio-screen-card screen-source ${fullscreenTarget === 'code' ? 'is-maximized' : ''}`}>
-              <div className="studio-card-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span className="studio-pane-pill">1. كود المصدر (Source Code)</span>
-                  
-                  {/* Space-Saving Compact Dropdown Menu matching Image 2 */}
-                  <select 
-                    className="studio-format-select"
-                    value={sourceFormat}
-                    onChange={(e) => handleSelectFormat(e.target.value as any)}
-                  >
-                    <option value="json">صيغة JSON</option>
-                    <option value="markdown">صيغة Markdown</option>
-                    <option value="soap">صيغة SOAP / XML</option>
-                    <option value="openapi">صيغة OpenAPI / Swagger</option>
-                    <option value="postman">مجموعة Postman Collection</option>
-                    <option value="manual">إدخال يدوي مباشر</option>
-                  </select>
+          {/* ── FLOATING MULTI-PANE VISIBILITY TOOLBAR (AUTO-HIDE & PIN) ── */}
+          {(fullscreenTarget === 'none' || fullscreenTarget === 'all') && (
+            <div 
+              className={`studio-floating-toolbar-wrapper ${isToolbarPinned ? 'is-pinned' : 'is-unpinned'} ${isToolbarVisible ? 'is-visible' : 'is-collapsed'}`}
+              onMouseEnter={handleToolbarMouseEnter}
+              onMouseLeave={handleToolbarMouseLeave}
+            >
+              {/* Minimalist Peek Tab when collapsed (only 10px high at top edge) */}
+              <div 
+                className="studio-toolbar-peek-strip"
+                onClick={() => setIsToolbarPinned(prev => !prev)}
+                title="مرر الماوس لإظهار شريط التحكم بالشاشات أو انقر للتثبيت"
+              >
+                <div className="tab-pill-line" />
+                <ChevronDown size={11} className="tab-arrow-icon" />
+              </div>
 
-                  <span 
-                    style={{
-                      fontSize: '0.68rem',
-                      color: '#10b981',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                      border: '1px solid rgba(16, 185, 129, 0.25)',
-                      padding: '2px 7px',
-                      borderRadius: '10px'
-                    }}
-                    title="التعديلات التي تجريها في الكود تنعكس مباشرة في شاشتي المعاينة"
+              {/* Full Floating Visibility Toolbar (Ultra-slim, single-tier) */}
+              <div className="studio-floating-visibility-toolbar" role="toolbar" aria-label="التحكم في عرض الشاشات">
+                <div className="visibility-pills-group">
+                  <button
+                    type="button"
+                    className={`visibility-toggle-btn ${visiblePanes.code ? 'is-active' : ''}`}
+                    onClick={() => togglePaneVisibility('code')}
+                    title={visiblePanes.code ? 'إخفاء كود المصدر' : 'إظهار كود المصدر'}
                   >
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }}></span>
-                    تعديل مباشر
-                  </span>
+                    <Code size={13} />
+                    <span>كود المصدر</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`visibility-toggle-btn ${visiblePanes.web ? 'is-active' : ''}`}
+                    onClick={() => togglePaneVisibility('web')}
+                    title={visiblePanes.web ? 'إخفاء معاينة البوابة' : 'إظهار معاينة البوابة'}
+                  >
+                    <Globe size={13} />
+                    <span>معاينة البوابة</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`visibility-toggle-btn ${visiblePanes.pdf ? 'is-active' : ''}`}
+                    onClick={() => togglePaneVisibility('pdf')}
+                    title={visiblePanes.pdf ? 'إخفاء الوثيقة الرسمية' : 'إظهار الوثيقة الرسمية'}
+                  >
+                    <FileText size={13} />
+                    <span>الوثيقة الرسمية</span>
+                  </button>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <div className="visibility-toolbar-divider" />
+
+                <button
+                  type="button"
+                  className="visibility-reset-btn"
+                  onClick={handleResetEqualWidths}
+                  title="إعادة توزيع المسافات والأبعاد بالتساوي"
+                >
+                  <Columns size={13} />
+                  <span>مساواة العرض</span>
+                </button>
+
+                <div className="visibility-toolbar-divider" />
+
+                {/* Pin / Unpin button */}
+                <button
+                  type="button"
+                  className={`visibility-pin-btn ${isToolbarPinned ? 'is-active' : ''}`}
+                  onClick={() => setIsToolbarPinned(prev => !prev)}
+                  title={isToolbarPinned ? 'إلغاء التثبيت (العودة للطي التلقائي)' : 'تثبيت الشريط لأسفل دائماً'}
+                >
+                  {isToolbarPinned ? <Pin size={13} /> : <PinOff size={13} />}
+                  <span>{isToolbarPinned ? 'مثبت' : 'تثبيت'}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Studio Dynamic Split Screens */}
+          <div 
+            ref={gridContainerRef}
+            className={`studio-screens-grid has-splitters ${isDragging ? 'is-resizing' : ''}`}
+          >
+            
+            {/* ── SCREEN 1: SOURCE CODE (كود المصدر) ── */}
+            {visiblePanes.code && (
+              <div 
+                className={`studio-screen-card screen-source ${fullscreenTarget === 'code' ? 'is-maximized' : ''}`}
+                style={fullscreenTarget === 'code' ? undefined : {
+                  width: (!visiblePanes.web && !visiblePanes.pdf) ? '100%' : `${paneWeights.code}%`,
+                  flex: (!visiblePanes.web && !visiblePanes.pdf) ? '1 1 100%' : `0 0 ${paneWeights.code}%`
+                }}
+              >
+                {/* Floating Action Controls */}
+                <div className="studio-floating-actions">
                   <button 
                     className="studio-icon-btn"
                     onClick={() => triggerFilePicker(sourceFormat)}
                     title="استيراد ملف من جهازك"
                     aria-label="استيراد ملف"
-                    style={{ gap: '4px', padding: '0.2rem 0.55rem', fontSize: '0.75rem', color: '#38bdf8' }}
+                    style={{ color: '#38bdf8' }}
                   >
-                    <Upload size={13} />
-                    <span>استيراد ملف</span>
+                    <Upload size={14} />
                   </button>
 
                   <button 
@@ -1113,78 +1456,134 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
 
                   <button 
                     className="studio-icon-btn"
-                    onClick={() => setFullscreenTarget(prev => prev === 'code' ? 'none' : 'code')}
-                    title="ملء شاشة الكود"
+                    onClick={() => handleToggleColumnFullscreen('code')}
+                    title={fullscreenTarget === 'code' ? (prevFullscreenTarget === 'all' ? 'العودة للشاشات الثلاث (Esc)' : 'تصغير (Esc)') : 'ملء شاشة الكود'}
                     aria-label="ملء شاشة الكود"
                   >
                     {fullscreenTarget === 'code' ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                   </button>
+
+                  {((visiblePanes.web ? 1 : 0) + (visiblePanes.pdf ? 1 : 0) >= 1) && (
+                    <button 
+                      className="studio-icon-btn"
+                      onClick={() => togglePaneVisibility('code')}
+                      title="إخفاء كود المصدر"
+                      aria-label="إخفاء كود المصدر"
+                    >
+                      <EyeOff size={14} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="studio-card-body-editor">
+                  <textarea 
+                    className="studio-code-textarea"
+                    value={sourceCode}
+                    onChange={handleCodeChange}
+                    placeholder="اكتب أو الصق كود الـ API هنا..."
+                    dir="ltr"
+                    spellCheck={false}
+                  />
                 </div>
               </div>
+            )}
 
-              <div className="studio-card-body-editor">
-                <textarea 
-                  className="studio-code-textarea"
-                  value={sourceCode}
-                  onChange={handleCodeChange}
-                  placeholder="اكتب أو الصق كود الـ API هنا..."
-                  dir="ltr"
-                  spellCheck={false}
-                />
-              </div>
-            </div>
+            {/* Splitter between Code and Next Pane */}
+            {visiblePanes.code && (visiblePanes.web || visiblePanes.pdf) && (fullscreenTarget === 'none' || fullscreenTarget === 'all') && (
+              <StudioSplitter
+                isDragging={isDragging && activeSplitterRef.current === 0}
+                onMouseDown={(e) => handleSplitterMouseDown(0, e)}
+                onDoubleClick={handleResetEqualWidths}
+              />
+            )}
 
-            {/* ── SCREEN 2: LIVE WEB PREVIEW (معاينة حقيقية كاملة للموقع كأنك داخل النظام) ── */}
-            <div 
-              className={`studio-screen-card screen-web studio-card-active ${fullscreenTarget === 'web' ? 'is-maximized' : ''}`}
-              style={{
-                border: '2px solid #10b981',
-                boxShadow: '0 0 16px rgba(16, 185, 129, 0.15)'
-              }}
-            >
-              <div className="studio-card-header" style={{ borderBottomColor: 'rgba(16, 185, 129, 0.25)' }}>
-                <span className="studio-pane-pill" style={{ color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
-                  2. معاينة البوابة (Live Portal)
-                </span>
-                
-                <button 
-                  className="studio-icon-btn"
-                  onClick={() => setFullscreenTarget(prev => prev === 'web' ? 'none' : 'web')}
-                  title="ملء شاشة الموقع"
-                  aria-label="ملء شاشة الموقع"
-                >
-                  {fullscreenTarget === 'web' ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                </button>
-              </div>
+            {/* ── SCREEN 2: LIVE WEB PREVIEW (معاينة البوابة) ── */}
+            {visiblePanes.web && (
+              <div 
+                className={`studio-screen-card screen-web ${fullscreenTarget === 'web' ? 'is-maximized' : ''}`}
+                style={fullscreenTarget === 'web' ? undefined : {
+                  width: !visiblePanes.pdf ? undefined : `${paneWeights.web}%`,
+                  flex: !visiblePanes.pdf ? '1 1 0%' : `0 0 ${paneWeights.web}%`
+                }}
+              >
+                {/* Floating Action Controls */}
+                <div className="studio-floating-actions">
+                  <button 
+                    className="studio-icon-btn"
+                    onClick={() => handleToggleColumnFullscreen('web')}
+                    title={fullscreenTarget === 'web' ? (prevFullscreenTarget === 'all' ? 'العودة للشاشات الثلاث (Esc)' : 'تصغير (Esc)') : 'ملء شاشة الموقع'}
+                    aria-label="ملء شاشة الموقع"
+                  >
+                    {fullscreenTarget === 'web' ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                  </button>
 
-              {/* Full Detailed Spec Viewer inside the panel */}
-              <div className="studio-card-body-scroll spec-viewer-contained">
-                {endpointPreview ? (
-                  <SpecViewer 
-                    key={activeDoc.documentId} 
-                    endpoint={endpointPreview} 
-                    highlightedField={highlightedField} 
-                  />
-                ) : (
-                  <div className="empty-state-notice">جاري تجهيز بيانات المعاينة...</div>
-                )}
-              </div>
-            </div>
+                  {((visiblePanes.code ? 1 : 0) + (visiblePanes.pdf ? 1 : 0) >= 1) && (
+                    <button 
+                      className="studio-icon-btn"
+                      onClick={() => togglePaneVisibility('web')}
+                      title="إخفاء معاينة البوابة"
+                      aria-label="إخفاء معاينة البوابة"
+                    >
+                      <EyeOff size={14} />
+                    </button>
+                  )}
+                </div>
 
-            {/* ── SCREEN 3: LIVE PDF DOCUMENT PREVIEW (الوثيقة الرسمية الكاملة) ── */}
-            <div className={`studio-screen-card screen-pdf ${fullscreenTarget === 'pdf' ? 'is-maximized' : ''}`}>
-              <div className="studio-card-header">
-                <span className="studio-pane-pill">3. الوثيقة الرسمية (A4 Banking PDF)</span>
-                
-                <button 
-                  className="studio-icon-btn"
-                  onClick={() => setFullscreenTarget(prev => prev === 'pdf' ? 'none' : 'pdf')}
-                  title="ملء شاشة الـ PDF"
-                  aria-label="ملء شاشة الـ PDF"
-                >
-                  {fullscreenTarget === 'pdf' ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                </button>
+                {/* Full Detailed Spec Viewer inside the panel */}
+                <div className="studio-card-body-scroll spec-viewer-contained">
+                  {endpointPreview ? (
+                    <SpecViewer 
+                      key={activeDoc.documentId} 
+                      endpoint={endpointPreview} 
+                      highlightedField={highlightedField} 
+                    />
+                  ) : (
+                    <div className="empty-state-notice">جاري تجهيز بيانات المعاينة...</div>
+                  )}
+                </div>
               </div>
+            )}
+
+            {/* Splitter between Web and PDF */}
+            {visiblePanes.web && visiblePanes.pdf && (fullscreenTarget === 'none' || fullscreenTarget === 'all') && (
+              <StudioSplitter
+                isDragging={isDragging && activeSplitterRef.current === (visiblePanes.code ? 1 : 0)}
+                onMouseDown={(e) => handleSplitterMouseDown(visiblePanes.code ? 1 : 0, e)}
+                onDoubleClick={handleResetEqualWidths}
+              />
+            )}
+
+            {/* ── SCREEN 3: LIVE PDF DOCUMENT PREVIEW (الوثيقة الرسمية) ── */}
+            {visiblePanes.pdf && (
+              <div 
+                className={`studio-screen-card screen-pdf ${fullscreenTarget === 'pdf' ? 'is-maximized' : ''}`}
+                style={fullscreenTarget === 'pdf' ? undefined : {
+                  flex: '1 1 0%',
+                  width: undefined
+                }}
+              >
+                {/* Floating Action Controls */}
+                <div className="studio-floating-actions">
+                  <button 
+                    className="studio-icon-btn"
+                    onClick={() => handleToggleColumnFullscreen('pdf')}
+                    title={fullscreenTarget === 'pdf' ? (prevFullscreenTarget === 'all' ? 'العودة للشاشات الثلاث (Esc)' : 'تصغير (Esc)') : 'ملء شاشة الـ PDF'}
+                    aria-label="ملء شاشة الـ PDF"
+                  >
+                    {fullscreenTarget === 'pdf' ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                  </button>
+
+                  {((visiblePanes.code ? 1 : 0) + (visiblePanes.web ? 1 : 0) >= 1) && (
+                    <button 
+                      className="studio-icon-btn"
+                      onClick={() => togglePaneVisibility('pdf')}
+                      title="إخفاء الوثيقة الرسمية"
+                      aria-label="إخفاء الوثيقة الرسمية"
+                    >
+                      <EyeOff size={14} />
+                    </button>
+                  )}
+                </div>
 
               <div className="studio-card-body-scroll studio-pdf-scroll">
                 <div className="pdf-paper-sheet">
@@ -1216,12 +1615,10 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
                     <table className="pdf-formal-table">
                       <thead>
                         <tr>
-                          <th>اسم الحقل</th>
-                          <th>نوع البيانات</th>
-                          <th>الإلزام</th>
-                          <th>القيمة الحية (Live Value)</th>
-                          <th>مستوى السرية</th>
-                          <th>الوصف والشروط الرقابية</th>
+                          <th style={{ width: '30%' }}>اسم الحقل</th>
+                          <th style={{ width: '20%', whiteSpace: 'nowrap' }}>النوع</th>
+                          <th style={{ width: '18%', whiteSpace: 'nowrap' }}>الإلزام</th>
+                          <th style={{ width: '32%' }}>القيمة الحية / الوصف</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1235,17 +1632,17 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
                     <table className="pdf-formal-table">
                       <thead>
                         <tr>
-                          <th>المفتاح</th>
-                          <th>النوع</th>
-                          <th>الوصف</th>
+                          <th style={{ width: '35%' }}>المفتاح</th>
+                          <th style={{ width: '25%', whiteSpace: 'nowrap' }}>النوع</th>
+                          <th style={{ width: '40%' }}>الوصف</th>
                         </tr>
                       </thead>
                       <tbody>
                         {activeDoc.headers.map((h, i) => (
                           <tr key={i}>
-                            <td className="code-font" dir="ltr">{h.semantics.name}</td>
-                            <td>{h.semantics.dataType}</td>
-                            <td>{h.semantics.description}</td>
+                            <td className="code-font" dir="ltr" style={{ fontSize: '0.70rem' }}>{h.semantics.name}</td>
+                            <td style={{ whiteSpace: 'nowrap', fontSize: '0.68rem' }}>{h.semantics.dataType}</td>
+                            <td style={{ fontSize: '0.68rem' }}>{h.semantics.description}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1294,8 +1691,11 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
                     </div>
                   </div>
                 </div>
+                {/* Permanent Bottom Safety Bar - stays visible during all scrolling */}
+                <div className="preview-permanent-bottom-safe-bar" />
               </div>
             </div>
+            )}
 
           </div>
         </div>
@@ -1394,10 +1794,10 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
                       <table className="pdf-formal-table">
                         <thead>
                           <tr>
-                            <th>الحقل</th>
-                            <th>النوع</th>
-                            <th>الإلزام</th>
-                            <th>الوصف</th>
+                            <th style={{ width: '30%' }}>اسم الحقل</th>
+                            <th style={{ width: '20%', whiteSpace: 'nowrap' }}>النوع</th>
+                            <th style={{ width: '18%', whiteSpace: 'nowrap' }}>الإلزام</th>
+                            <th style={{ width: '32%' }}>القيمة الحية / الوصف</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1477,15 +1877,15 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
           <div className={`studio-preview-column ${subPdfFullscreen ? 'is-fullscreen' : ''}`}>
             {selectedSubmission ? (
               <div className="preview-side-wrapper">
-                <div className="studio-card-header">
-                  <span className="studio-pane-pill">{selectedSubmission.serviceCode} - {selectedSubmission.serviceName}</span>
+                {/* Floating Action Controls */}
+                <div className="studio-floating-actions">
                   <button 
                     className="studio-icon-btn"
                     onClick={() => setSubPdfFullscreen(prev => !prev)}
                     title="تكبير المعاينة"
                     aria-label="تكبير المعاينة"
                   >
-                    {subPdfFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+                    {subPdfFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                   </button>
                 </div>
 
@@ -1513,10 +1913,10 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
                       <table className="pdf-formal-table">
                         <thead>
                           <tr>
-                            <th>الحقل</th>
-                            <th>النوع</th>
-                            <th>الإلزام</th>
-                            <th>الوصف</th>
+                            <th style={{ width: '30%' }}>اسم الحقل</th>
+                            <th style={{ width: '20%', whiteSpace: 'nowrap' }}>النوع</th>
+                            <th style={{ width: '18%', whiteSpace: 'nowrap' }}>الإلزام</th>
+                            <th style={{ width: '32%' }}>القيمة الحية / الوصف</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1526,6 +1926,9 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
                     </div>
                   </div>
                 </div>
+
+                {/* Permanent Bottom Safety Bar - stays visible during all scrolling */}
+                <div className="preview-permanent-bottom-safe-bar" />
               </div>
             ) : (
               <div className="empty-state-notice">
@@ -1547,7 +1950,7 @@ function renderPdfTableRows(node: IUastNode, depth = 0, highlightedField?: strin
   if (node.structure.path && node.structure.path !== '$') {
     const val = node.governance?.exampleValue !== undefined && node.governance?.exampleValue !== null 
       ? String(node.governance.exampleValue) 
-      : '-';
+      : '';
     const isHighlighted = highlightedField === node.semantics.name;
     rows.push(
       <tr 
@@ -1555,17 +1958,54 @@ function renderPdfTableRows(node: IUastNode, depth = 0, highlightedField?: strin
         id={`col3-field-${node.semantics.name}`}
         className={isHighlighted ? 'row-live-highlight' : ''}
       >
-        <td className="code-font" dir="ltr" style={{ paddingRight: `${depth * 14 + 8}px` }}>
-          {depth > 0 && '└─ '}
-          {node.semantics.name}
+        <td>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', paddingRight: `${depth * 8}px` }}>
+            {depth > 0 && <span style={{ color: '#94a3b8', fontSize: '0.65rem' }}>└─</span>}
+            <code className="code-font" dir="ltr" style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.72rem' }}>
+              {node.semantics.name}
+            </code>
+          </span>
         </td>
-        <td>{node.semantics.dataType}</td>
-        <td>{node.constraints.required ? 'إجباري' : 'اختياري'}</td>
-        <td className="code-font" dir="ltr" style={{ color: '#059669', fontWeight: 700 }}>
-          {val}
+        <td style={{ whiteSpace: 'nowrap' }}>
+          <span className="mono" style={{ fontSize: '0.68rem', color: '#475569', fontWeight: 600 }}>
+            {node.semantics.dataType}
+          </span>
         </td>
-        <td>{node.governance.securityLevel === 'CONFIDENTIAL_MASKED' ? 'محجوب PII' : 'عام'}</td>
-        <td>{node.semantics.description}</td>
+        <td style={{ whiteSpace: 'nowrap' }}>
+          <span style={{
+            display: 'inline-block',
+            padding: '0.10rem 0.45rem',
+            borderRadius: '3px',
+            fontSize: '0.64rem',
+            fontWeight: 700,
+            whiteSpace: 'nowrap',
+            backgroundColor: node.constraints.required ? '#fef2f2' : '#f0fdf4',
+            color: node.constraints.required ? '#b91c1c' : '#15803d',
+            border: `1px solid ${node.constraints.required ? '#fecaca' : '#bbf7d0'}`
+          }}>
+            {node.constraints.required ? 'إجباري' : 'اختياري'}
+          </span>
+        </td>
+        <td>
+          {val && val !== '-' ? (
+            <code className="code-font" dir="ltr" style={{ 
+              color: '#059669', 
+              fontWeight: 700, 
+              backgroundColor: '#ecfdf5', 
+              padding: '0.10rem 0.35rem', 
+              borderRadius: '3px',
+              fontSize: '0.70rem',
+              display: 'inline-block',
+              border: '1px solid #a7f3d0'
+            }}>
+              {val}
+            </code>
+          ) : (
+            <span style={{ fontSize: '0.68rem', color: '#64748b', lineHeight: 1.3 }}>
+              {node.semantics.description || '-'}
+            </span>
+          )}
+        </td>
       </tr>
     );
   }

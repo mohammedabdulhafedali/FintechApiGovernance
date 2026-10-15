@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Endpoint } from '../../types/schema';
-import { Copy, Check, ShieldCheck, AlertTriangle, FileDown, ArrowDownLeft, ArrowUpRight, Smartphone, Server, BookOpen, X, Table, Code } from 'lucide-react';
+import { Copy, Check, ShieldCheck, AlertTriangle, FileDown, ArrowDownLeft, ArrowUpRight, Smartphone, Server, BookOpen, X, Table, Code, Braces } from 'lucide-react';
 import { useLanguage } from '../../i18n';
 
 interface SpecViewerProps {
@@ -21,6 +21,7 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
   const [copiedReq, setCopiedReq] = useState(false);
   const [copiedRes, setCopiedRes] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
+  const [fieldsOnly, setFieldsOnly] = useState(false);
 
   // Auto-scroll to modified field in Screen 2
   useEffect(() => {
@@ -205,6 +206,39 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
     };
   };
 
+  const getCleanPayload = () => {
+    const isGet = endpoint.method.toUpperCase() === 'GET';
+    const reqObj = getRealisticRequestObj();
+    if (isGet || !reqObj) {
+      return isEn 
+        ? '// No request body (GET query parameters only)' 
+        : '// لا توجد حقول في جسم الطلب (معاملات استعلام GET فقط)';
+    }
+
+    const rootReqName = (endpoint.shortName ? endpoint.shortName.charAt(0).toUpperCase() + endpoint.shortName.slice(1) : 'Transfer') + 'Request';
+
+    if (currentExampleFormat === 'xml') {
+      return jsonToXml(reqObj, rootReqName);
+    } else if (currentExampleFormat === 'yaml') {
+      return jsonToYaml(reqObj);
+    } else {
+      return JSON.stringify(reqObj, null, 2);
+    }
+  };
+
+  const getCleanResponse = () => {
+    const resObj = getRealisticResponseObj();
+    const rootResName = (endpoint.shortName ? endpoint.shortName.charAt(0).toUpperCase() + endpoint.shortName.slice(1) : 'Transfer') + 'Response';
+
+    if (currentExampleFormat === 'xml') {
+      return jsonToXml(resObj, rootResName);
+    } else if (currentExampleFormat === 'yaml') {
+      return jsonToYaml(resObj);
+    } else {
+      return JSON.stringify(resObj, null, 2);
+    }
+  };
+
   const getFormattedPayload = () => {
     const isGet = endpoint.method.toUpperCase() === 'GET';
     const reqObj = getRealisticRequestObj();
@@ -291,29 +325,57 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
       {/* Ultra-Slim Consolidated Single-Row Header Bar (Image 3) */}
       <div className="spec-slim-toolbar">
         <div className="spec-slim-meta">
-          <div className="spec-slim-path-wrap" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div className="spec-slim-path-wrap">
             <span className={`method-badge method-${endpoint.method.toLowerCase()}`}>
               {endpoint.method}
             </span>
-            <span className="mono spec-slim-path" dir="ltr" style={{ color: '#38bdf8', fontWeight: 700, fontSize: '0.92rem' }}>
+            <span className="mono spec-slim-path" dir="ltr" title={endpoint.path}>
               {endpoint.path}
             </span>
 
-            {/* Quick Copy Path Button right next to path instead of certified badge */}
-            <button 
-              className="btn btn-ghost btn-slim-action" 
-              onClick={() => handleCopy(endpoint.path, 'path')} 
-              title={t('spec.copyEndpoint')}
-              style={{ padding: '0.25rem 0.45rem', borderRadius: '6px', color: copiedPath ? 'var(--emerald)' : 'var(--text-dim)' }}
-            >
-              {copiedPath ? <Check size={13} style={{ color: 'var(--emerald)' }} /> : <Copy size={13} />}
-            </button>
+            <div className="spec-path-actions">
+              {/* Quick Copy Path Button */}
+              <button 
+                className="btn btn-ghost btn-slim-action" 
+                onClick={() => handleCopy(endpoint.path, 'path')} 
+                title={t('spec.copyEndpoint')}
+                style={{ padding: '0.25rem 0.45rem', borderRadius: '6px', color: copiedPath ? 'var(--emerald)' : 'var(--text-dim)' }}
+              >
+                {copiedPath ? <Check size={13} style={{ color: 'var(--emerald)' }} /> : <Copy size={13} />}
+              </button>
+
+              {/* Download Spec Button */}
+              <button 
+                className="btn btn-ghost btn-slim-action" 
+                onClick={handleDownloadSpec} 
+                title={t('docHub.exportEndpointJson')}
+                style={{ padding: '0.25rem 0.45rem', borderRadius: '6px', color: 'var(--blue)' }}
+              >
+                <FileDown size={13} />
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="spec-slim-controls" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div className="spec-slim-controls">
           {activeTab === 'example' && (
             <div className="spec-format-switcher">
+              <button 
+                className={`format-mini-btn ${fieldsOnly ? 'active' : ''}`}
+                onClick={() => setFieldsOnly(!fieldsOnly)}
+                title={isEn ? 'Toggle Fields Only / Full Wire' : 'تبديل: حقول البيانات فقط / الاستدعاء السلكي الكامل'}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  color: fieldsOnly ? '#38bdf8' : undefined,
+                  borderColor: fieldsOnly ? 'rgba(56, 189, 248, 0.5)' : undefined,
+                  background: fieldsOnly ? 'rgba(14, 165, 233, 0.15)' : undefined
+                }}
+              >
+                <Braces size={12} />
+                <span>{fieldsOnly ? (isEn ? 'Full Wire' : 'الاستدعاء الكامل') : (isEn ? 'Fields Only' : 'حقول فقط')}</span>
+              </button>
               <button 
                 className={`format-mini-btn ${currentExampleFormat === 'json' ? 'active' : ''}`}
                 onClick={() => setCurrentExampleFormat('json')}
@@ -358,15 +420,6 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
               {activeTab === 'example' && <span className="spec-tab-indicator" />}
             </button>
           </div>
-
-          <button 
-            className="btn btn-ghost btn-slim-action" 
-            onClick={handleDownloadSpec} 
-            title={t('docHub.exportEndpointJson')}
-            style={{ color: 'var(--blue)' }}
-          >
-            <FileDown size={13} />
-          </button>
         </div>
       </div>
 
@@ -524,53 +577,59 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
       {/* PANE 2: FULL WORKING EXAMPLE & CODE PLAYGROUND */}
       {activeTab === 'example' && (
         <div className="full-example-grid">
-          {/* Column 1: Full Request Example */}
+          {/* Column 1: Request Example */}
           <div className="example-box-card">
-            <div className="example-box-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <strong style={{ fontSize: '0.85rem', color: 'var(--text)' }}>
-                  {isEn ? 'Full Wire Request' : 'الطلب الكامل (Full Wire Request)'}
-                </strong>
-                <span className="badge-pill badge-iso">
-                  {endpoint.method} / {currentExampleFormat.toUpperCase()}
-                </span>
-              </div>
+            <div className="example-box-floating-bar">
               <button 
-                className="btn btn-ghost" 
-                style={{ padding: '0.2rem 0.55rem', fontSize: '0.75rem' }} 
-                onClick={() => handleCopy(getFormattedPayload(), 'req')}
+                className={`btn-example-floating ${fieldsOnly ? 'active' : ''}`}
+                onClick={() => setFieldsOnly(!fieldsOnly)}
+                title={fieldsOnly 
+                  ? (isEn ? 'Switch to Full Wire Request' : 'التبديل إلى الاستدعاء السلكي الكامل')
+                  : (isEn ? 'Show Request Fields Only' : 'عرض حقول الطلب فقط')
+                }
+              >
+                <Braces size={13} />
+                <span>{fieldsOnly ? (isEn ? 'Full Wire' : 'الطلب الكامل') : (isEn ? 'Fields Only' : 'حقول فقط')}</span>
+              </button>
+              <button 
+                className="btn-example-floating" 
+                onClick={() => handleCopy(fieldsOnly ? getCleanPayload() : getFormattedPayload(), 'req')}
+                title={isEn ? `Copy (${currentExampleFormat.toUpperCase()})` : `نسخ (${currentExampleFormat.toUpperCase()})`}
               >
                 {copiedReq ? <Check size={13} style={{ color: 'var(--emerald)' }} /> : <Copy size={13} />}
-                <span>{isEn ? `Copy Request (${currentExampleFormat.toUpperCase()})` : `نسخ الطلب (${currentExampleFormat.toUpperCase()})`}</span>
+                <span>{copiedReq ? (isEn ? 'Copied' : 'تم النسخ') : (isEn ? 'Copy' : 'نسخ')}</span>
               </button>
             </div>
             <div className="example-code-pane">
-              {getFormattedPayload()}
+              {fieldsOnly ? getCleanPayload() : getFormattedPayload()}
             </div>
           </div>
 
-          {/* Column 2: Full Response Example */}
+          {/* Column 2: Response Example */}
           <div className="example-box-card">
-            <div className="example-box-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <strong style={{ fontSize: '0.85rem', color: 'var(--text)' }}>
-                  {isEn ? 'Full Wire Response' : 'الاستجابة الكاملة (Full Wire Response)'}
-                </strong>
-                <span className="badge-pill badge-fin">
-                  HTTP 200 / {currentExampleFormat.toUpperCase()}
-                </span>
-              </div>
+            <div className="example-box-floating-bar">
               <button 
-                className="btn btn-ghost" 
-                style={{ padding: '0.2rem 0.55rem', fontSize: '0.75rem' }} 
-                onClick={() => handleCopy(getFormattedResponse(), 'res')}
+                className={`btn-example-floating ${fieldsOnly ? 'active' : ''}`}
+                onClick={() => setFieldsOnly(!fieldsOnly)}
+                title={fieldsOnly 
+                  ? (isEn ? 'Switch to Full Wire Response' : 'التبديل إلى الاستجابة السلكية الكاملة')
+                  : (isEn ? 'Show Response Fields Only' : 'عرض حقول الاستجابة فقط')
+                }
+              >
+                <Braces size={13} />
+                <span>{fieldsOnly ? (isEn ? 'Full Wire' : 'الاستجابة الكاملة') : (isEn ? 'Fields Only' : 'حقول فقط')}</span>
+              </button>
+              <button 
+                className="btn-example-floating" 
+                onClick={() => handleCopy(fieldsOnly ? getCleanResponse() : getFormattedResponse(), 'res')}
+                title={isEn ? `Copy (${currentExampleFormat.toUpperCase()})` : `نسخ (${currentExampleFormat.toUpperCase()})`}
               >
                 {copiedRes ? <Check size={13} style={{ color: 'var(--emerald)' }} /> : <Copy size={13} />}
-                <span>{isEn ? `Copy Response (${currentExampleFormat.toUpperCase()})` : `نسخ الاستجابة (${currentExampleFormat.toUpperCase()})`}</span>
+                <span>{copiedRes ? (isEn ? 'Copied' : 'تم النسخ') : (isEn ? 'Copy' : 'نسخ')}</span>
               </button>
             </div>
             <div className="example-code-pane" style={{ color: '#a7f3d0' }}>
-              {getFormattedResponse()}
+              {fieldsOnly ? getCleanResponse() : getFormattedResponse()}
             </div>
           </div>
         </div>
