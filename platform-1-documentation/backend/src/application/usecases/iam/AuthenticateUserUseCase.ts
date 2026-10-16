@@ -5,6 +5,7 @@ import { ITokenService } from '../../../domain/services/ITokenService.js';
 import { IPermissionEvaluator } from '../../../domain/services/IPermissionEvaluator.js';
 import { IAuditLogRepository } from '../../../domain/repositories/IAuditLogRepository.js';
 import { UserPublicProfile } from '../../../domain/entities/User.js';
+import { UserGroup } from '../../../domain/entities/UserGroup.js';
 
 export interface LoginResult {
   token: string;
@@ -74,26 +75,39 @@ export class AuthenticateUserUseCase {
       throw new Error(genericErrorMessage);
     }
 
-    // Resolve User Group
-    let group = await this.userGroupRepository.findById(user.groupId);
-    if (!group) {
+    // Resolve User Groups
+    const targetGroupIds = user.groupIds && user.groupIds.length > 0
+      ? user.groupIds
+      : (user.groupId ? [user.groupId] : []);
+
+    const allGroups = await this.userGroupRepository.findAll();
+    const groupMap = new Map<string, UserGroup>(allGroups.map(g => [g.id, g]));
+    let userGroups = targetGroupIds
+      .map(id => groupMap.get(id))
+      .filter((g): g is UserGroup => Boolean(g));
+
+    if (userGroups.length === 0) {
       // Fallback to default viewers group if assigned group was somehow missing
       const viewers = await this.userGroupRepository.findByKey('VIEWERS_GROUP');
       if (viewers) {
-        group = viewers;
+        userGroups = [viewers];
       } else {
         throw new Error('مجموعة المستخدم غير معرّفة في النظام.');
       }
     }
 
-    // Calculate effective permissions combining Group and Individual Overrides
+    const primaryGroup = userGroups[0];
+
+    // Calculate effective permissions combining all Groups and Individual Overrides (Union)
     const effectivePermissions = this.permissionEvaluator.calculateEffectivePermissions(
       user,
-      group
+      userGroups
     );
 
     // Issue cryptographic token
-    const token = this.tokenService.issueToken(user, group, effectivePermissions);
+    const token = this.tokenService.issueToken(user, primaryGroup, effectivePermissions);
+
+    const groupNamesList = userGroups.map(g => g.name).join(' + ');
 
     // Record success audit log
     await this.auditLogRepository.record({
@@ -102,7 +116,7 @@ export class AuthenticateUserUseCase {
       action: 'auth:login',
       resource: 'iam:session',
       status: 'SUCCESS',
-      details: `تم تسجيل الدخول بنجاح - المجموعة: ${group.name}`,
+      details: `تم تسجيل الدخول بنجاح - المجموعات: ${groupNamesList}`,
       ip: clientIp
     });
 
@@ -111,13 +125,15 @@ export class AuthenticateUserUseCase {
       username: user.username,
       email: user.email,
       fullName: user.fullName,
-      groupId: group.id,
-      groupName: group.name,
+      groupId: primaryGroup.id,
+      groupIds: targetGroupIds,
+      groupName: groupNamesList,
+      groupNames: userGroups.map(g => g.name),
       status: user.status,
-      userType: user.userType || group.groupType || 'INTERNAL',
+      userType: user.userType || primaryGroup.groupType || 'INTERNAL',
       organizationId: user.organizationId,
       organizationName: user.organizationName,
-      accessScope: user.accessScope || group.defaultScope || {
+      accessScope: user.accessScope || primaryGroup.defaultScope || {
         allowedEntityIds: user.userType === 'EXTERNAL' ? (user.organizationId ? [user.organizationId] : []) : ['*'],
         allowedSystemIds: ['*']
       },

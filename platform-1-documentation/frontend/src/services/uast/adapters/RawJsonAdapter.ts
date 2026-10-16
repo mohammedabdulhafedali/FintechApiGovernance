@@ -30,9 +30,75 @@ export class RawJsonAdapter implements IFormatAdapter {
     const serviceNameEn = (typeof parsedData?.serviceNameEn === 'string' && parsedData.serviceNameEn) || defaultMeta?.serviceNameEn || 'Custom API Service';
     const semver = (typeof parsedData?.version === 'string' && parsedData.version) || (typeof parsedData?.semver === 'string' && parsedData.semver) || defaultMeta?.semver || '1.0.0';
     
+    // Channel resolution
     const endpointPath = parsedData?.channel?.endpointPath || parsedData?.endpointPath || parsedData?.path || defaultMeta?.channel?.endpointPath || '/api/v1/endpoint';
     const method = ((parsedData?.channel?.method || parsedData?.method || defaultMeta?.channel?.method || 'POST')).toUpperCase() as any;
     const protocol = ((parsedData?.channel?.protocol || parsedData?.protocol || defaultMeta?.channel?.protocol || 'REST')).toUpperCase() as any;
+
+    // Overview & BaseUrl
+    const overviewText = parsedData?.overview || parsedData?.overviewText || defaultMeta?.overviewText;
+    const baseUrl = parsedData?.baseUrl || defaultMeta?.baseUrl;
+
+    // Parse Endpoints (Canonical Array)
+    const rawEndpoints = parsedData?.endpoints || parsedData?.allEndpoints;
+    let allEndpoints: any[] = [];
+    if (Array.isArray(rawEndpoints) && rawEndpoints.length > 0) {
+      allEndpoints = rawEndpoints.map((ep: any) => ({
+        method: (ep.method || method || 'POST').toUpperCase(),
+        path: ep.path || endpointPath || '/api/v1/endpoint',
+        summary: ep.summary || ep.description || '',
+        description: ep.description || '',
+        requestFields: Array.isArray(ep.parameters || ep.requestFields) 
+          ? (ep.parameters || ep.requestFields).map((p: any) => ({
+              name: p.name || 'param',
+              type: (p.type || 'STRING').toUpperCase(),
+              required: p.required !== false,
+              description: p.description || '',
+              example: p.example !== undefined ? String(p.example) : ''
+            }))
+          : [],
+        responseFields: Array.isArray(ep.responseFields)
+          ? ep.responseFields.map((rf: any) => ({
+              name: rf.name || 'status',
+              type: (rf.type || 'STRING').toUpperCase(),
+              description: rf.description || '',
+              example: rf.example !== undefined ? String(rf.example) : ''
+            }))
+          : []
+      }));
+    } else if (defaultMeta?.allEndpoints && defaultMeta.allEndpoints.length > 0) {
+      allEndpoints = defaultMeta.allEndpoints;
+    } else {
+      allEndpoints = [{
+        method,
+        path: endpointPath,
+        summary: serviceName,
+        requestFields: [],
+        responseFields: []
+      }];
+    }
+
+    // Parse Headers
+    let importedHeaders: any[] = defaultMeta?.importedHeaders || [];
+    if (Array.isArray(parsedData?.headers)) {
+      importedHeaders = parsedData.headers.map((h: any) => ({
+        name: h.name || h.key || 'X-Header',
+        description: h.description || '',
+        example: h.example !== undefined ? String(h.example) : '',
+        required: h.required !== false
+      }));
+    }
+
+    // Parse Error Codes
+    let errorCodes: any[] = defaultMeta?.errorCodes || [];
+    if (Array.isArray(parsedData?.errorCodes)) {
+      errorCodes = parsedData.errorCodes.map((err: any) => ({
+        code: String(err.code || 'ERR_UNKNOWN'),
+        message: err.message || 'Error occurred',
+        action: err.action || 'Check request payload and credentials',
+        httpStatus: typeof err.httpStatus === 'number' ? err.httpStatus : 400
+      }));
+    }
 
     // Detect if JSON is wrapped in a request/payload object
     let payloadData = parsedData;
@@ -41,6 +107,13 @@ export class RawJsonAdapter implements IFormatAdapter {
         payloadData = parsedData.request;
       } else if (parsedData.payload && typeof parsedData.payload === 'object') {
         payloadData = parsedData.payload;
+      } else if (allEndpoints.length > 0 && allEndpoints[0].requestFields && allEndpoints[0].requestFields.length > 0) {
+        // Synthesize request object from endpoint parameters if no explicit request object
+        const syntheticObj: Record<string, any> = {};
+        allEndpoints[0].requestFields.forEach((f: any) => {
+          syntheticObj[f.name] = f.example || (f.type === 'NUMBER' ? 100 : f.type === 'BOOLEAN' ? true : `sample_${f.name}`);
+        });
+        payloadData = syntheticObj;
       }
     }
 
@@ -55,15 +128,19 @@ export class RawJsonAdapter implements IFormatAdapter {
       lifecycleStage: 'ACTIVE',
       channel: {
         protocol,
-        method,
-        endpointPath,
+        method: allEndpoints[0]?.method || method,
+        endpointPath: allEndpoints[0]?.path || endpointPath,
         environments: defaultMeta?.channel?.environments || {}
       },
       headers: defaultMeta?.headers || [],
+      importedHeaders,
+      allEndpoints,
+      overviewText,
+      baseUrl,
       requestTree: rootNode,
       response200Tree: defaultMeta?.response200Tree,
       response422Tree: defaultMeta?.response422Tree,
-      errorCodes: defaultMeta?.errorCodes || [],
+      errorCodes,
       rawSource: rawContent,
       rawFormat: 'json',
       updatedAt: new Date().toISOString(),

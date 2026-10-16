@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Endpoint } from '../../types/schema';
 import { Copy, Check, ShieldCheck, AlertTriangle, FileDown, ArrowDownLeft, ArrowUpRight, Smartphone, Server, BookOpen, X, Table, Code, Braces } from 'lucide-react';
 import { useLanguage } from '../../i18n';
+import { Can } from '../auth/Can';
 
 interface SpecViewerProps {
   endpoint: Endpoint;
@@ -385,14 +386,16 @@ export const SpecViewer: React.FC<SpecViewerProps> = ({
               </button>
 
               {/* Download Spec Button */}
-              <button 
-                className="btn btn-ghost btn-slim-action" 
-                onClick={handleDownloadSpec} 
-                title={t('docHub.exportEndpointJson')}
-                style={{ padding: '0.25rem 0.45rem', borderRadius: '6px', color: 'var(--blue)' }}
-              >
-                <FileDown size={13} />
-              </button>
+              <Can perform="catalog:spec:export">
+                <button 
+                  className="btn btn-ghost btn-slim-action" 
+                  onClick={handleDownloadSpec} 
+                  title={t('docHub.exportEndpointJson')}
+                  style={{ padding: '0.25rem 0.45rem', borderRadius: '6px', color: 'var(--blue)' }}
+                >
+                  <FileDown size={13} />
+                </button>
+              </Can>
             </div>
           </div>
         </div>

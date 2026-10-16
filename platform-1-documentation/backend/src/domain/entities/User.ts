@@ -18,6 +18,7 @@ export interface User {
   passwordHash: string;
   passwordSalt: string;
   groupId: string;
+  groupIds?: string[];
   status: 'ACTIVE' | 'SUSPENDED';
   userType?: UserType;
   organizationId?: string;
@@ -34,7 +35,9 @@ export interface UserPublicProfile {
   email: string;
   fullName: string;
   groupId: string;
+  groupIds?: string[];
   groupName?: string;
+  groupNames?: string[];
   status: 'ACTIVE' | 'SUSPENDED';
   userType?: UserType;
   organizationId?: string;

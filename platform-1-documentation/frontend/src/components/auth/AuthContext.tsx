@@ -58,7 +58,107 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     for (const p of perms) {
       if (p.endsWith(':*')) {
         const prefix = p.slice(0, -2);
-        if (permission.startsWith(prefix + ':')) return true;
+        if (permission.startsWith(prefix + ':') || permission === prefix) return true;
+      }
+    }
+
+    // Bidirectional Aliasing & Hierarchical Bridging
+    const aliasesMap: Record<string, string[]> = {
+      'iam:manage': [
+        'iam:users:read',
+        'iam:users:create',
+        'iam:users:update',
+        'iam:users:delete',
+        'iam:users:*',
+        'iam:*'
+      ],
+      'iam:audit:view': [
+        'iam:audit:read',
+        'iam:audit:*',
+        'audit:trail:read',
+        'audit:trail:*',
+        'audit:*',
+        'iam:manage',
+        'iam:*'
+      ],
+      'catalog:endpoint:create': [
+        'catalog:create:create',
+        'catalog:create:read',
+        'catalog:create',
+        'catalog:create:*',
+        'catalog:*'
+      ],
+      'catalog:system:create': [
+        'catalog:create:create',
+        'catalog:create',
+        'catalog:create:*',
+        'catalog:*'
+      ],
+      'catalog:system:delete': [
+        'catalog:delete',
+        'catalog:delete:delete',
+        'catalog:*'
+      ],
+      'catalog:read': [
+        'catalog:view',
+        'documentation:systems:read',
+        'documentation:systems:*',
+        'catalog:spec:export',
+        'catalog:*'
+      ],
+      'catalog:view': [
+        'catalog:read',
+        'documentation:systems:read',
+        'documentation:systems:*',
+        'catalog:spec:export',
+        'catalog:*'
+      ],
+      'catalog:spec:export': [
+        'catalog:spec:*',
+        'catalog:read',
+        'catalog:view',
+        'documentation:systems:read',
+        'catalog:*'
+      ],
+      'documentation:systems:read': [
+        'catalog:read',
+        'catalog:view',
+        'catalog:spec:export',
+        'catalog:*'
+      ],
+      'governance:inbox:approve': [
+        'governance:workflows:update',
+        'governance:workflows:create',
+        'governance:workflows:*',
+        'governance:inbox:update',
+        'governance:inbox:*',
+        'governance:*'
+      ],
+      'governance:inbox:read': [
+        'governance:workflows:read',
+        'governance:workflows:*',
+        'governance:inbox:read',
+        'governance:inbox:*',
+        'governance:*'
+      ],
+      'dashboard:read': [
+        'dashboard:*'
+      ],
+      'settings:general:read': [
+        'settings:general:*',
+        'settings:*'
+      ]
+    };
+
+    const directAliases = aliasesMap[permission];
+    if (directAliases && directAliases.some(alias => perms.includes(alias))) {
+      return true;
+    }
+
+    // Reverse check
+    for (const [key, aliases] of Object.entries(aliasesMap)) {
+      if (perms.includes(key) && (aliases.includes(permission) || key === permission)) {
+        return true;
       }
     }
 
@@ -66,29 +166,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user]);
 
   const canAccess = useCallback(
-    (permission: string, context?: { entityId?: string; systemId?: string }): boolean => {
-      // 1. Basic permission check
-      if (!hasPermission(permission)) return false;
+    (permission: string, context?: { entityId?: string; systemId?: string; integrationId?: string }): boolean => {
+      // 1. Super Admin wildcard always has full access
+      if (hasPermission('*')) return true;
 
+      const perms = user?.effectivePermissions || [];
+
+      // 2. Direct permission check or known aliases
+      let hasBase = hasPermission(permission);
+
+      // 3. Dynamic system-specific and integration-specific checking
+      if (context?.systemId) {
+        const sysWildcard = `sys:${context.systemId}:*`;
+        if (hasPermission(sysWildcard) || hasPermission('sys:*')) {
+          hasBase = true;
+        } else if (context.integrationId) {
+          const intPrefix = `sys:${context.systemId}:int:${context.integrationId}`;
+          if (perms.some(p => p.startsWith(intPrefix) || p === intPrefix)) {
+            hasBase = true;
+          }
+        } else if (context.entityId) {
+          const intPrefix = `sys:${context.systemId}:int:${context.entityId}`;
+          if (perms.some(p => p.startsWith(intPrefix) || p === intPrefix)) {
+            hasBase = true;
+          }
+        } else {
+          // If checking system level without integration: allowed if user has ANY permission in this system
+          if (perms.some(p => p.startsWith(`sys:${context.systemId}:`))) {
+            hasBase = true;
+          }
+        }
+      }
+
+      if (!hasBase) return false;
+
+      // 4. Scope checks (if configured)
       if (!user) return false;
-      const isExternal = user.userType === 'EXTERNAL';
-      if (!isExternal && !user.accessScope) return true;
-
       const scope = user.accessScope;
-      if (!scope) return !isExternal;
+      if (!scope) return true;
 
-      // Check entity scope
-      if (context?.entityId) {
-        const allowed = scope.allowedEntityIds || [];
-        if (!allowed.includes('*') && !allowed.includes(context.entityId)) {
+      // Check system scope
+      if (context?.systemId) {
+        const allowedSystems = scope.allowedSystemIds || [];
+        if (!allowedSystems.includes('*') && !allowedSystems.includes(context.systemId)) {
           return false;
         }
       }
 
-      // Check system scope
-      if (context?.systemId) {
-        const allowed = scope.allowedSystemIds || [];
-        if (!allowed.includes('*') && !allowed.includes(context.systemId)) {
+      // Check entity scope (only when explicit entityId is provided)
+      if (context?.entityId && !context?.integrationId) {
+        const allowedEntities = scope.allowedEntityIds || [];
+        if (!allowedEntities.includes('*') && !allowedEntities.includes(context.entityId)) {
           return false;
         }
       }

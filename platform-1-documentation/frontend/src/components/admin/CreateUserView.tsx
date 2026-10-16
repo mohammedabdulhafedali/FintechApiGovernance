@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
-  Building2,
-  Globe,
   Sparkles,
-  CheckCircle2
+  CheckCircle2,
+  Shield,
+  Layers,
+  Building,
+  Check,
+  Info
 } from 'lucide-react';
-import { UserGroup, UserType } from '../../types/auth';
+import { UserGroup } from '../../types/auth';
 import { iamService } from '../../services/iamService';
 import { useLanguage } from '../../i18n';
 
@@ -26,21 +29,65 @@ export const CreateUserView: React.FC<CreateUserViewProps> = ({
 }) => {
   const { isRtl } = useLanguage();
 
-  // Form State
-  const [userType, setUserType] = useState<UserType>('INTERNAL');
+  // Basic Information State
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('Welcome@2026');
-  const [selectedGroupId, setSelectedGroupId] = useState<string>(groups[0]?.id || '');
 
-  // External Scoped State
-  const [organizationId, setOrganizationId] = useState('banking');
-  const [organizationName, setOrganizationName] = useState('بنك اليمن والكويت');
-  const [allowedSystems, setAllowedSystems] = useState<string[]>(['collection']);
-  const [allowedEntities, setAllowedEntities] = useState<string[]>(['banking']);
+  // Organization & Entity Information (General Optional Metadata)
+  const [organizationName, setOrganizationName] = useState('');
+  const [organizationSector, setOrganizationSector] = useState('banking');
+
+  // Dynamic Multi-Group Selection (Permission Templates)
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(
+    groups.length > 0 ? [groups[0].id] : []
+  );
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Toggle group selection (Multi-group support)
+  const toggleGroup = (groupId: string) => {
+    setSelectedGroupIds((prev) => {
+      if (prev.includes(groupId)) {
+        // Keep at least one group if desired, or allow toggling
+        if (prev.length === 1) {
+          if (onNotify) {
+            onNotify(
+              isRtl ? 'تنبيه' : 'Notice',
+              isRtl ? 'يجب أن ينتمي المستخدم إلى مجموعة صلاحيات واحدة على الأقل' : 'User must belong to at least one group',
+              'warning'
+            );
+          }
+          return prev;
+        }
+        return prev.filter((id) => id !== groupId);
+      } else {
+        return [...prev, groupId];
+      }
+    });
+  };
+
+  // Calculate Cumulative Effective Permissions (Union of all selected groups)
+  const effectivePermissionData = useMemo(() => {
+    const selectedGroups = groups.filter((g) => selectedGroupIds.includes(g.id));
+    const allPermissions = new Set<string>();
+    let hasSuperAdmin = false;
+
+    selectedGroups.forEach((g) => {
+      if ((g.permissions || []).includes('*')) {
+        hasSuperAdmin = true;
+      }
+      (g.permissions || []).forEach((p) => allPermissions.add(p));
+    });
+
+    return {
+      selectedGroups,
+      hasSuperAdmin,
+      permissionsList: Array.from(allPermissions),
+      totalCount: hasSuperAdmin ? 'شامل (*)' : allPermissions.size
+    };
+  }, [groups, selectedGroupIds]);
 
   // Helper: Generate Secure Password
   const generateStrongPassword = () => {
@@ -58,9 +105,16 @@ export const CreateUserView: React.FC<CreateUserViewProps> = ({
   // Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim() || !email.trim() || !fullName.trim() || !selectedGroupId) {
+    if (!username.trim() || !email.trim() || !fullName.trim()) {
       if (onNotify) {
-        onNotify('بيانات ناقصة', 'يرجى استكمال جميع الحقول الإلزامية قبل المتابعة', 'warning');
+        onNotify('بيانات ناقصة', 'يرجى استكمال الحقول الأساسية المطلوبة', 'warning');
+      }
+      return;
+    }
+
+    if (selectedGroupIds.length === 0) {
+      if (onNotify) {
+        onNotify('مجموعة الصلاحيات', 'يرجى تحديد مجموعة صلاحيات واحدة على الأقل للمستخدم', 'warning');
       }
       return;
     }
@@ -72,21 +126,22 @@ export const CreateUserView: React.FC<CreateUserViewProps> = ({
         email: email.trim(),
         fullName: fullName.trim(),
         password: password || 'Welcome@2026',
-        groupId: selectedGroupId,
-        userType: userType,
-        organizationId: userType === 'EXTERNAL' ? organizationId : undefined,
-        organizationName: userType === 'EXTERNAL' ? organizationName.trim() : undefined,
-        accessScope: userType === 'EXTERNAL' ? {
-          allowedEntityIds: allowedEntities,
-          allowedSystemIds: allowedSystems
-        } : {
+        groupId: selectedGroupIds[0],
+        groupIds: selectedGroupIds,
+        organizationName: organizationName.trim() || undefined,
+        organizationId: organizationSector || undefined,
+        accessScope: {
           allowedEntityIds: ['*'],
           allowedSystemIds: ['*']
         }
       });
 
       if (onNotify) {
-        onNotify('تم الحفظ', `تم إنشاء المستخدم (${fullName}) بنجاح`, 'success');
+        onNotify(
+          'تم الحفظ',
+          `تم إنشاء المستخدم (${fullName}) بنجاح مع ربطه بـ (${selectedGroupIds.length}) قوالب صلاحيات`,
+          'success'
+        );
       }
       onSuccess(created);
     } catch (err: any) {
@@ -113,7 +168,7 @@ export const CreateUserView: React.FC<CreateUserViewProps> = ({
   return (
     <div
       style={{
-        maxWidth: '820px',
+        maxWidth: '900px',
         margin: '0 auto',
         background: 'var(--bg-card, #111827)',
         border: '1px solid var(--border, rgba(255, 255, 255, 0.1))',
@@ -123,79 +178,29 @@ export const CreateUserView: React.FC<CreateUserViewProps> = ({
         boxShadow: '0 20px 45px -15px rgba(0, 0, 0, 0.5)'
       }}
     >
-      {/* ── 1. COMPACT HEADER & ACCOUNT TYPE TABS ── */}
+      {/* ── 1. UNIFIED HEADER ── */}
       <div 
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '1.25rem',
-          paddingBottom: '0.85rem',
+          marginBottom: '1.5rem',
+          paddingBottom: '0.9rem',
           borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
           gap: '1rem',
           flexWrap: 'wrap'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-          <h2 style={{ margin: 0, fontSize: '1.18rem', fontWeight: 800, color: 'var(--text-main, #ffffff)' }}>
-            {isRtl ? 'إضافة مستخدم جديد' : 'Add New User'}
+        <div>
+          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main, #ffffff)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Shield size={20} style={{ color: '#3b82f6' }} />
+            <span>{isRtl ? 'إضافة مستخدم جديد وقوالب الصلاحيات' : 'Add New User & Assign Roles'}</span>
           </h2>
-
-          {/* Segmented Account Type Tabs */}
-          <div
-            style={{
-              display: 'inline-flex',
-              padding: '0.2rem',
-              background: 'rgba(0, 0, 0, 0.3)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '8px',
-              gap: '0.25rem'
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setUserType('INTERNAL')}
-              style={{
-                padding: '0.35rem 0.85rem',
-                borderRadius: '6px',
-                border: 'none',
-                background: userType === 'INTERNAL' ? '#3b82f6' : 'transparent',
-                color: userType === 'INTERNAL' ? '#ffffff' : '#94a3b8',
-                fontWeight: userType === 'INTERNAL' ? 700 : 500,
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <Building2 size={14} />
-              <span>{isRtl ? 'مستخدم داخلي' : 'Internal'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setUserType('EXTERNAL')}
-              style={{
-                padding: '0.35rem 0.85rem',
-                borderRadius: '6px',
-                border: 'none',
-                background: userType === 'EXTERNAL' ? '#a855f7' : 'transparent',
-                color: userType === 'EXTERNAL' ? '#ffffff' : '#94a3b8',
-                fontWeight: userType === 'EXTERNAL' ? 700 : 500,
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <Globe size={14} />
-              <span>{isRtl ? 'شريك خارجي' : 'External'}</span>
-            </button>
-          </div>
+          <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8rem', color: '#94a3b8' }}>
+            {isRtl
+              ? 'نموذج موحد لإدارة هوية المستخدم، وربطه بمجموعة أو عدة مجموعات صلاحيات تراكمية'
+              : 'Unified user identity management with cumulative multi-group role templates'}
+          </p>
         </div>
 
         <button
@@ -222,72 +227,9 @@ export const CreateUserView: React.FC<CreateUserViewProps> = ({
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.4rem' }}>
 
-
-          {/* ── 3. EXTERNAL PARTNER SCOPE (CONDITIONAL) ── */}
-          {userType === 'EXTERNAL' && (
-            <div
-              style={{
-                background: 'rgba(168, 85, 247, 0.06)',
-                border: '1px solid rgba(168, 85, 247, 0.25)',
-                borderRadius: '10px',
-                padding: '1.1rem',
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: '1rem'
-              }}
-            >
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem', color: '#e9d5ff' }}>
-                  {isRtl ? 'اسم الجهة / البنك الشريك *' : 'Partner Organization *'}
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={organizationName}
-                  onChange={(e) => setOrganizationName(e.target.value)}
-                  placeholder={isRtl ? 'مثال: بنك اليمن والكويت' : 'e.g. Bank of Yemen & Kuwait'}
-                  style={inputStyle}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem', color: '#e9d5ff' }}>
-                  {isRtl ? 'القطاع / الكيان *' : 'Entity / Sector *'}
-                </label>
-                <select
-                  value={organizationId}
-                  onChange={(e) => {
-                    setOrganizationId(e.target.value);
-                    setAllowedEntities([e.target.value]);
-                  }}
-                  style={{ ...inputStyle, cursor: 'pointer', fontWeight: 600 }}
-                >
-                  <option value="banking">{isRtl ? 'قطاع البنوك والمصارف (banking)' : 'Banking Sector'}</option>
-                  <option value="merchants">{isRtl ? 'شبكة التجار والمدفوعات (merchants)' : 'Merchants Network'}</option>
-                  <option value="erp">{isRtl ? 'أنظمة ERP والربط المؤسسي (erp)' : 'ERP Systems'}</option>
-                  <option value="aml">{isRtl ? 'وحدات الامتثال (aml)' : 'Compliance Units'}</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem', color: '#e9d5ff' }}>
-                  {isRtl ? 'الأنظمة المتاحة *' : 'Allowed Systems *'}
-                </label>
-                <select
-                  value={allowedSystems[0] || 'collection'}
-                  onChange={(e) => setAllowedSystems([e.target.value])}
-                  style={{ ...inputStyle, cursor: 'pointer', fontWeight: 600 }}
-                >
-                  <option value="collection">{isRtl ? 'نظام التحصيل فقط (SYS_TAHSEEL)' : 'Tahseel Collection System'}</option>
-                  <option value="*">{isRtl ? 'كافة الأنظمة المصرح بها (*)' : 'All Authorized Systems (*)'}</option>
-                </select>
-              </div>
-            </div>
-          )}
-
-          {/* ── 4. BASIC USER INFORMATION ── */}
+          {/* ── 2. BASIC USER IDENTITY ── */}
           <div
             style={{
               display: 'grid',
@@ -304,7 +246,7 @@ export const CreateUserView: React.FC<CreateUserViewProps> = ({
                 required
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                placeholder={isRtl ? 'مثال: أحمد عبد الله' : 'e.g. Ahmed Abdullah'}
+                placeholder={isRtl ? 'مثال: محمد عبد الحافظ' : 'e.g. Mohamed Abdulhafed'}
                 style={inputStyle}
               />
             </div>
@@ -318,7 +260,7 @@ export const CreateUserView: React.FC<CreateUserViewProps> = ({
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="ahmed.ali"
+                placeholder="mohamed.ali"
                 dir="ltr"
                 style={{ ...inputStyle, textAlign: isRtl ? 'right' : 'left' }}
               />
@@ -333,7 +275,7 @@ export const CreateUserView: React.FC<CreateUserViewProps> = ({
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="ahmed@example.com"
+                placeholder="mohamed@example.com"
                 dir="ltr"
                 style={{ ...inputStyle, textAlign: isRtl ? 'right' : 'left' }}
               />
@@ -375,26 +317,218 @@ export const CreateUserView: React.FC<CreateUserViewProps> = ({
             </div>
           </div>
 
-          {/* ── 5. ROLE ASSIGNMENT ── */}
+          {/* ── 3. GENERAL ORGANIZATION / ENTITY (OPTIONAL METADATA) ── */}
+          <div
+            style={{
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '10px',
+              padding: '1rem 1.25rem',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+              gap: '1rem'
+            }}
+          >
+            <div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem', color: '#cbd5e1' }}>
+                <Building size={14} style={{ color: '#38bdf8' }} />
+                <span>{isRtl ? 'الجهة / المؤسسة / الإدارة التابع لها (اختياري)' : 'Organization / Department (Optional)'}</span>
+              </label>
+              <input
+                type="text"
+                value={organizationName}
+                onChange={(e) => setOrganizationName(e.target.value)}
+                placeholder={isRtl ? 'مثال: بنك اليمن والكويت، أو إدارة تقنية المعلومات الداخلية' : 'e.g. Bank of Yemen & Kuwait, or Internal IT Dept'}
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem', color: '#cbd5e1' }}>
+                {isRtl ? 'القطاع / مجال العمل' : 'Sector / Business Domain'}
+              </label>
+              <select
+                value={organizationSector}
+                onChange={(e) => setOrganizationSector(e.target.value)}
+                style={{ ...inputStyle, cursor: 'pointer', fontWeight: 600 }}
+              >
+                <option value="internal">{isRtl ? 'المنظومة الداخلية وفريق العمل' : 'Internal Platform & Team'}</option>
+                <option value="banking">{isRtl ? 'قطاع البنوك والمصارف (Banking)' : 'Banking Sector'}</option>
+                <option value="merchants">{isRtl ? 'شبكة التجار وبوابات الدفع (Fintech & Merchants)' : 'Merchants & Payments'}</option>
+                <option value="regulatory">{isRtl ? 'الهيئات الرقابية والتدقيق (Regulatory & Audit)' : 'Regulatory & Audit'}</option>
+                <option value="telecom">{isRtl ? 'شركات الاتصالات ومزودي الخدمات' : 'Telecom & Service Providers'}</option>
+              </select>
+            </div>
+          </div>
+
+          {/* ── 4. DYNAMIC MULTI-GROUP SELECTION (PERMISSION TEMPLATES) ── */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.4rem', color: '#e2e8f0' }}>
-              {isRtl ? 'الدور المسند *' : 'Assigned Role *'}
-            </label>
-            <select
-              value={selectedGroupId}
-              onChange={(e) => setSelectedGroupId(e.target.value)}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+              <div>
+                <label style={{ fontSize: '0.88rem', fontWeight: 800, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Layers size={16} style={{ color: '#a855f7' }} />
+                  <span>{isRtl ? 'مجموعات المستخدم وقوالب الصلاحيات (User Groups / Roles)' : 'User Groups & Role Templates'}</span>
+                  <span style={{ fontSize: '0.72rem', background: '#3b82f6', color: '#fff', padding: '0.1rem 0.45rem', borderRadius: '10px' }}>
+                    {selectedGroupIds.length} {isRtl ? 'مختارة' : 'selected'}
+                  </span>
+                </label>
+                <span style={{ fontSize: '0.76rem', color: '#94a3b8' }}>
+                  {isRtl
+                    ? 'يمكن اختيار أكثر من مجموعة، وسيرث المستخدم تلقائياً حاصل جمع صلاحيات المجموعات المحددة'
+                    : 'Select one or more groups. The user automatically receives the cumulative union of all permissions.'}
+                </span>
+              </div>
+            </div>
+
+            {/* Dynamic Group Cards Grid */}
+            <div
               style={{
-                ...inputStyle,
-                cursor: 'pointer',
-                fontWeight: 600
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                gap: '0.75rem',
+                maxHeight: '260px',
+                overflowY: 'auto',
+                padding: '0.3rem'
               }}
             >
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name} ({g.key}) {g.permissions.includes('*') ? (isRtl ? '— صلاحيات كاملة (*)' : '— Full Access (*)') : `— ${g.permissions.length} ${isRtl ? 'صلاحيات' : 'permissions'}`}
-                </option>
-              ))}
-            </select>
+              {groups.map((group) => {
+                const isSelected = selectedGroupIds.includes(group.id);
+                const hasAll = (group.permissions || []).includes('*');
+
+                return (
+                  <div
+                    key={group.id}
+                    onClick={() => toggleGroup(group.id)}
+                    style={{
+                      background: isSelected ? 'rgba(59, 130, 246, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                      border: isSelected ? '1.5px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.08)',
+                      borderRadius: '10px',
+                      padding: '0.8rem 1rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.35rem'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 700, color: isSelected ? '#60a5fa' : '#f1f5f9', fontSize: '0.88rem' }}>
+                        {group.name}
+                      </span>
+                      <div
+                        style={{
+                          width: '18px',
+                          height: '18px',
+                          borderRadius: '4px',
+                          border: isSelected ? 'none' : '1.5px solid rgba(255, 255, 255, 0.3)',
+                          background: isSelected ? '#3b82f6' : 'transparent',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#fff'
+                        }}
+                      >
+                        {isSelected && <Check size={12} strokeWidth={3} />}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          fontSize: '0.68rem',
+                          background: 'rgba(255, 255, 255, 0.08)',
+                          color: '#94a3b8',
+                          padding: '0.1rem 0.4rem',
+                          borderRadius: '4px',
+                          fontFamily: 'monospace'
+                        }}
+                      >
+                        {group.key}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '0.68rem',
+                          background: hasAll ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.12)',
+                          color: hasAll ? '#f87171' : '#34d399',
+                          padding: '0.1rem 0.4rem',
+                          borderRadius: '4px',
+                          fontWeight: 600
+                        }}
+                      >
+                        {hasAll ? (isRtl ? 'صلاحيات شاملة (*)' : 'Full Wildcard (*)') : `${group.permissions.length} ${isRtl ? 'صلاحية' : 'permissions'}`}
+                      </span>
+                    </div>
+
+                    {group.description && (
+                      <div style={{ fontSize: '0.74rem', color: '#64748b', lineHeight: 1.3, marginTop: '0.1rem' }}>
+                        {group.description}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── 5. LIVE CUMULATIVE PERMISSIONS PREVIEW (UNION DISPLAY) ── */}
+          <div
+            style={{
+              background: 'rgba(15, 23, 42, 0.65)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '10px',
+              padding: '0.9rem 1.1rem'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Info size={14} style={{ color: '#38bdf8' }} />
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#e2e8f0' }}>
+                  {isRtl ? 'ملخص الصلاحيات التراكمية الناتجة (Cumulative Permissions Union):' : 'Effective Permissions Union:'}
+                </span>
+              </div>
+              <span style={{ fontSize: '0.78rem', color: '#38bdf8', fontWeight: 700 }}>
+                {isRtl ? `إجمالي: ${effectivePermissionData.totalCount} صلاحية فريدة` : `Total: ${effectivePermissionData.totalCount} unique permissions`}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', maxHeight: '110px', overflowY: 'auto' }}>
+              {effectivePermissionData.hasSuperAdmin ? (
+                <span
+                  style={{
+                    padding: '0.25rem 0.6rem',
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    color: '#fca5a5',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700
+                  }}
+                >
+                  * {isRtl ? '(صلاحيات إدارية عليا غير مقيدة لكافة شاشات وموارد المنظومة)' : '(Full unrestricted administrative access)'}
+                </span>
+              ) : effectivePermissionData.permissionsList.length === 0 ? (
+                <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                  {isRtl ? 'لا توجد صلاحيات مسندة في المجموعات المحددة' : 'No permissions assigned in selected groups'}
+                </span>
+              ) : (
+                effectivePermissionData.permissionsList.map((perm) => (
+                  <span
+                    key={perm}
+                    style={{
+                      padding: '0.18rem 0.5rem',
+                      background: 'rgba(59, 130, 246, 0.1)',
+                      border: '1px solid rgba(59, 130, 246, 0.2)',
+                      color: '#93c5fd',
+                      borderRadius: '5px',
+                      fontSize: '0.72rem',
+                      fontFamily: 'monospace'
+                    }}
+                  >
+                    {perm}
+                  </span>
+                ))
+              )}
+            </div>
           </div>
 
           {/* ── 6. ACTIONS & SUBMIT ── */}
@@ -404,8 +538,7 @@ export const CreateUserView: React.FC<CreateUserViewProps> = ({
               justifyContent: 'flex-end',
               alignItems: 'center',
               gap: '0.75rem',
-              paddingTop: '1.25rem',
-              marginTop: '0.5rem',
+              paddingTop: '1rem',
               borderTop: '1px solid rgba(255, 255, 255, 0.08)'
             }}
           >
@@ -435,7 +568,7 @@ export const CreateUserView: React.FC<CreateUserViewProps> = ({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '0.45rem',
-                padding: '0.6rem 1.5rem',
+                padding: '0.6rem 1.6rem',
                 borderRadius: '8px',
                 border: 'none',
                 background: '#10b981',
@@ -452,7 +585,7 @@ export const CreateUserView: React.FC<CreateUserViewProps> = ({
               <span>
                 {isSubmitting
                   ? (isRtl ? 'جاري الحفظ...' : 'Saving...')
-                  : (isRtl ? 'حفظ المستخدم' : 'Save User')}
+                  : (isRtl ? 'حفظ المستخدم وتطبيق القوالب' : 'Save User & Apply Templates')}
               </span>
             </button>
           </div>

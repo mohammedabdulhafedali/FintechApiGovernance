@@ -24,7 +24,9 @@ export type AppViewMode =
   | 'add-api'
   | 'workbench'
   | 'iam'
-  | 'governance';
+  | 'governance'
+  | 'workflow-policies'
+  | 'dynamic-docs';
 
 interface SidebarProps {
   activeView: AppViewMode;
@@ -66,7 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onAutoDismiss,
 }) => {
   const { t, getLocalized, isRtl } = useLanguage();
-  const { hasPermission } = useAuth();
+  const { hasPermission, canAccess } = useAuth();
 
   const [isDocSectionOpen, setIsDocSectionOpen] = useState(false);
   const [pendingGovCount, setPendingGovCount] = useState<number>(0);
@@ -147,7 +149,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const alignStyle = { textAlign: isRtl ? 'right' : 'left' } as const;
-  const systemEntries = Object.entries(systems);
+
+  // Check if user has permission to access the API Documentation Hub
+  const canAccessDocumentation = 
+    hasPermission('documentation:systems:read') || 
+    hasPermission('catalog:read') || 
+    hasPermission('catalog:spec:export') ||
+    hasPermission('*') ||
+    Object.keys(systems).some(sysKey => canAccess('catalog:read', { systemId: sysKey }));
+
+  // Filter accessible systems for the documentation tree
+  const accessibleSystemEntries = Object.entries(systems).filter(([sysKey]) => {
+    return canAccess('catalog:read', { systemId: sysKey });
+  });
 
   return (
     <>
@@ -221,14 +235,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         <nav className="sidebar-menu">
           {/* Tab 1: Dashboard */}
-          <button
-            className={`nav-btn ${activeView === 'dashboard' ? 'active' : ''}`}
-            onClick={() => handleNavClick('dashboard')}
-            title={t('sidebar.dashboard')}
-          >
-            <PieChart size={15} />
-            <span style={{ flex: 1, ...alignStyle }}>{t('sidebar.dashboard')}</span>
-          </button>
+          {hasPermission('dashboard:read') && (
+            <button
+              className={`nav-btn ${activeView === 'dashboard' ? 'active' : ''}`}
+              onClick={() => handleNavClick('dashboard')}
+              title={t('sidebar.dashboard')}
+            >
+              <PieChart size={15} />
+              <span style={{ flex: 1, ...alignStyle }}>{t('sidebar.dashboard')}</span>
+            </button>
+          )}
 
           {/* Tab 2: Add New Documentation (Text-only sovereign button) */}
           {hasPermission('catalog:endpoint:create') && (
@@ -257,139 +273,180 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
 
           {/* Tab 4: Sovereign Governance & Dual-Control (تبويب لحاله مثل أداة الصلاحيات) */}
-          <button
-            className={`nav-btn ${activeView === 'governance' ? 'active' : ''}`}
-            onClick={() => handleNavClick('governance')}
-            title={isRtl ? 'مركز الحوكمة والاعتمادات' : 'Governance & Approvals Hub'}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-          >
-            <span style={{ flex: 1, ...alignStyle, fontWeight: 700 }}>
-              {isRtl ? 'مركز الحوكمة والاعتمادات' : 'Governance & Approvals Hub'}
-            </span>
-            {pendingGovCount > 0 && (
-              <span
-                style={{
-                  background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                  color: '#000000',
-                  borderRadius: '999px',
-                  fontSize: '0.68rem',
-                  padding: '0.1rem 0.45rem',
-                  fontWeight: 900
-                }}
-              >
-                {pendingGovCount}
-              </span>
-            )}
-          </button>
-
-          {/* Soft Divider */}
-          <hr className="nav-divider" />
-
-          {/* ── COLLAPSIBLE DOCS SECTION HEADER WITH ICON ACTION ── */}
-          <div className="sidebar-section-row">
+          {(hasPermission('governance:inbox:approve') || hasPermission('governance:inbox:read') || hasPermission('governance:*') || hasPermission('*')) && (
             <button
-              className="sidebar-section-toggle"
-              onClick={() => setIsDocSectionOpen(prev => !prev)}
-              aria-expanded={isDocSectionOpen}
+              className={`nav-btn ${activeView === 'governance' ? 'active' : ''}`}
+              onClick={() => handleNavClick('governance')}
+              title={isRtl ? 'مركز الحوكمة والاعتمادات' : 'Governance & Approvals Hub'}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
             >
-              <BookOpen size={14} className="sidebar-section-icon" />
-              <span style={{ flex: 1, ...alignStyle }}>
-                {isRtl ? 'التوثيق البرمجي للأنظمة' : 'API Documentation Hub'}
+              <span style={{ flex: 1, ...alignStyle, fontWeight: 700 }}>
+                {isRtl ? 'مركز الحوكمة والاعتمادات' : 'Governance & Approvals Hub'}
               </span>
-              <span className="sidebar-section-chevron">
-                {isDocSectionOpen
-                  ? <ChevronDown size={14} />
-                  : isRtl ? <ChevronLeft size={14} /> : <ChevronRight size={14} />
-                }
+              {pendingGovCount > 0 && (
+                <span
+                  style={{
+                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                    color: '#000000',
+                    borderRadius: '999px',
+                    fontSize: '0.68rem',
+                    padding: '0.1rem 0.45rem',
+                    fontWeight: 900
+                  }}
+                >
+                  {pendingGovCount}
+                </span>
+              )}
+            </button>
+          )}
+
+          {/* Tab 4.5: Sovereign Workflow Policies Studio (فصل مسار وسياسات الاعتماد في تبويب مستقل) */}
+          {(hasPermission('iam:manage') || hasPermission('governance:*') || hasPermission('*')) && (
+            <button
+              className={`nav-btn ${activeView === 'workflow-policies' ? 'active' : ''}`}
+              onClick={() => handleNavClick('workflow-policies')}
+              title={isRtl ? 'سياسات ومسارات الاعتماد' : 'Workflow Policies'}
+            >
+              <span style={{ flex: 1, ...alignStyle, fontWeight: 700 }}>
+                {isRtl ? 'سياسات ومسارات الاعتماد' : 'Workflow Policies'}
               </span>
             </button>
+          )}
 
-            {/* Quick icon-only action to fold/unfold systems — keeps maximum space */}
-            {isDocSectionOpen && (
-              <button
-                type="button"
-                className="sidebar-icon-action-btn"
-                onClick={handleToggleAllSystems}
-                title={isAllCollapsed 
-                  ? (isRtl ? 'فتح المسارات' : 'Expand All') 
-                  : (isRtl ? 'ضم المسارات' : 'Collapse All')
-                }
-                aria-label="Toggle all systems"
-              >
-                {isAllCollapsed ? <ChevronsUpDown size={13} /> : <ChevronsDownUp size={13} />}
-              </button>
-            )}
-          </div>
+          {/* Tab 5: Sovereign Dynamic Multi-Mode Documentation Studio */}
+          {(hasPermission('catalog:spec:export') || hasPermission('documentation:systems:read') || hasPermission('catalog:read') || hasPermission('*')) && (
+            <button
+              className={`nav-btn ${activeView === 'dynamic-docs' ? 'active' : ''}`}
+              onClick={() => handleNavClick('dynamic-docs')}
+              title={isRtl ? 'التوثيق الديناميكي متعدد الأوضاع' : 'Dynamic Documentation Studio'}
+            >
+              <span style={{ flex: 1, ...alignStyle, fontWeight: 700 }}>
+                {isRtl ? 'التوثيق الديناميكي' : 'Dynamic Documentation'}
+              </span>
+            </button>
+          )}
 
-          {/* ── SYSTEMS TREE (shown only when docs section is open) ── */}
-          {isDocSectionOpen && (
-            <div id="sidebar-systems-tree" className="sidebar-systems-tree">
-              {systemEntries.map(([sysKey, sys]) => {
-                const isExpanded = !!expandedSystems[sysKey];
-                const isSystemSelected = activeSystemKey === sysKey && activeView === 'sector-spec';
-                const localizedSysName = getLocalized({ ar: sys.name, en: sys.nameEn }, sys.name);
-                const integrationsList = sys.integrations ? Object.entries(sys.integrations) : [];
+          {/* ── COLLAPSIBLE DOCS SECTION (Totally hidden if user has no documentation permission) ── */}
+          {canAccessDocumentation && accessibleSystemEntries.length > 0 && (
+            <>
+              {/* Soft Divider */}
+              <hr className="nav-divider" />
 
-                return (
-                  <div 
-                    key={sysKey} 
-                    className={`sidebar-system-group ${isSystemSelected ? 'system-group-active' : ''} ${isExpanded ? 'is-expanded' : ''}`}
+              {/* ── COLLAPSIBLE DOCS SECTION HEADER WITH ICON ACTION ── */}
+              <div className="sidebar-section-row">
+                <button
+                  className="sidebar-section-toggle"
+                  onClick={() => setIsDocSectionOpen(prev => !prev)}
+                  aria-expanded={isDocSectionOpen}
+                >
+                  <BookOpen size={14} className="sidebar-section-icon" />
+                  <span style={{ flex: 1, ...alignStyle }}>
+                    {isRtl ? 'التوثيق البرمجي للأنظمة' : 'API Documentation Hub'}
+                  </span>
+                  <span className="sidebar-section-chevron">
+                    {isDocSectionOpen
+                      ? <ChevronDown size={14} />
+                      : isRtl ? <ChevronLeft size={14} /> : <ChevronRight size={14} />
+                    }
+                  </span>
+                </button>
+
+                {/* Quick icon-only action to fold/unfold systems — keeps maximum space */}
+                {isDocSectionOpen && (
+                  <button
+                    type="button"
+                    className="sidebar-icon-action-btn"
+                    onClick={handleToggleAllSystems}
+                    title={isAllCollapsed 
+                      ? (isRtl ? 'فتح المسارات' : 'Expand All') 
+                      : (isRtl ? 'ضم المسارات' : 'Collapse All')
+                    }
+                    aria-label="Toggle all systems"
                   >
-                    {/* Level 1: System Node Header */}
-                    <div
-                      className={`system-node-btn ${isSystemSelected ? 'system-active' : ''}`}
-                      onClick={(e) => toggleSystemExpand(sysKey, e)}
-                      title={localizedSysName}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => { if (e.key === 'Enter') toggleSystemExpand(sysKey, e as any); }}
-                    >
-                      <span className="system-node-label" style={{ ...alignStyle }}>
-                        {localizedSysName}
-                      </span>
+                    {isAllCollapsed ? <ChevronsUpDown size={13} /> : <ChevronsDownUp size={13} />}
+                  </button>
+                )}
+              </div>
 
-                      {/* Expand / Collapse Chevron */}
-                      <span className="system-node-chevron">
-                        {isExpanded
-                          ? <ChevronDown size={12} />
-                          : isRtl ? <ChevronLeft size={12} /> : <ChevronRight size={12} />
-                        }
-                      </span>
-                    </div>
+              {/* ── SYSTEMS TREE (shown only when docs section is open) ── */}
+              {isDocSectionOpen && (
+                <div id="sidebar-systems-tree" className="sidebar-systems-tree">
+                  {accessibleSystemEntries.map(([sysKey, sys]) => {
+                    const isExpanded = !!expandedSystems[sysKey];
+                    const isSystemSelected = activeSystemKey === sysKey && activeView === 'sector-spec';
+                    const localizedSysName = getLocalized({ ar: sys.name, en: sys.nameEn }, sys.name);
+                    const rawIntegrations = sys.integrations ? Object.entries(sys.integrations) : [];
+                    const integrationsList = rawIntegrations.filter(([intKey]) => {
+                      return canAccess('catalog:read', { systemId: sysKey, integrationId: intKey });
+                    });
 
-                    {/* Level 2: Nested Integrations */}
-                    {isExpanded && integrationsList.length > 0 && (
-                      <div className="sidebar-integrations-sublist">
-                        {integrationsList.map(([intKey, integration]) => {
-                          const isIntegrationActive =
-                            activeView === 'sector-spec' &&
-                            activeSystemKey === sysKey &&
-                            activeIntegrationKey === intKey;
+                    // Hide system only if it has integrations defined and user is not allowed to access any of them
+                    if (rawIntegrations.length > 0 && integrationsList.length === 0 && !hasPermission('*')) {
+                      return null;
+                    }
 
-                          const localizedIntName = getLocalized(
-                            { ar: integration.name, en: integration.nameEn },
-                            integration.name
-                          );
+                    return (
+                      <div 
+                        key={sysKey} 
+                        className={`sidebar-system-group ${isSystemSelected ? 'system-group-active' : ''} ${isExpanded ? 'is-expanded' : ''}`}
+                      >
+                        {/* Level 1: System Node Header */}
+                        <div
+                          className={`system-node-btn ${isSystemSelected ? 'system-active' : ''}`}
+                          onClick={(e) => toggleSystemExpand(sysKey, e)}
+                          title={localizedSysName}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => { if (e.key === 'Enter') toggleSystemExpand(sysKey, e as any); }}
+                        >
+                          <span className="system-node-label" style={{ ...alignStyle }}>
+                            {localizedSysName}
+                          </span>
 
-                          return (
-                            <button
-                              key={intKey}
-                              className={`sub-nav-btn ${isIntegrationActive ? 'active' : ''}`}
-                              onClick={() => handleIntegrationClick(sysKey, intKey)}
-                              title={localizedIntName}
-                            >
-                              <span style={{ flex: 1, ...alignStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {localizedIntName}
-                              </span>
-                            </button>
-                          );
-                        })}
+                          {/* Expand / Collapse Chevron */}
+                          <span className="system-node-chevron">
+                            {isExpanded
+                              ? <ChevronDown size={12} />
+                              : isRtl ? <ChevronLeft size={12} /> : <ChevronRight size={12} />
+                            }
+                          </span>
+                        </div>
+
+                        {/* Level 2: Nested Integrations */}
+                        {isExpanded && integrationsList.length > 0 && (
+                          <div className="sidebar-integrations-sublist">
+                            {integrationsList.map(([intKey, integration]) => {
+                              const isIntegrationActive =
+                                activeView === 'sector-spec' &&
+                                activeSystemKey === sysKey &&
+                                activeIntegrationKey === intKey;
+
+                              const localizedIntName = getLocalized(
+                                { ar: integration.name, en: integration.nameEn },
+                                integration.name
+                              );
+
+                              return (
+                                <button
+                                  key={intKey}
+                                  className={`sub-nav-btn ${isIntegrationActive ? 'active' : ''}`}
+                                  onClick={() => handleIntegrationClick(sysKey, intKey)}
+                                  title={localizedIntName}
+                                >
+                                  <span style={{ flex: 1, ...alignStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {localizedIntName}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
 
         </nav>

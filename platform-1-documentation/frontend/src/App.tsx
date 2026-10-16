@@ -13,7 +13,10 @@ import { FloatingAlertCard, FloatingAlertState } from './components/common/Float
 import { DeleteSectorModal } from './components/common/DeleteSectorModal';
 import { IamManagementView } from './components/admin/IamManagementView';
 import { GovernanceManagementView } from './components/admin/GovernanceManagementView';
+import { WorkflowPoliciesView } from './components/admin/WorkflowPoliciesView';
+import { DynamicWorkbench } from './components/dynamic-docs/DynamicWorkbench';
 import { AuthProvider, useAuth } from './components/auth/AuthContext';
+import { BreadcrumbProvider } from './context/BreadcrumbContext';
 import { LoginView } from './components/auth/LoginView';
 import { Can } from './components/auth/Can';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
@@ -27,7 +30,7 @@ import { useLanguage } from './i18n';
 
 const AppContent: React.FC = () => {
   const { direction, isRtl, t, getLocalized } = useLanguage();
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, hasPermission, canAccess } = useAuth();
 
   // Navigation State: 'dashboard' is the default landing view
   const [activeView, setActiveView] = useState<AppViewMode>('dashboard');
@@ -35,6 +38,22 @@ const AppContent: React.FC = () => {
   const [activeIntegrationKey, setActiveIntegrationKey] = useState<string>('banking');
   const [activeEndpointIndex, setActiveEndpointIndex] = useState<number>(0);
   const [currentVersion, setCurrentVersion] = useState<string>('v2026.2');
+
+  // Auto-route to the first permitted view if current view is restricted
+  useEffect(() => {
+    if (!isAuthenticated || loading) return;
+    if (activeView === 'dashboard' && !hasPermission('dashboard:read')) {
+      if (hasPermission('catalog:read') || hasPermission('documentation:systems:read')) {
+        setActiveView('sector-spec');
+      } else if (hasPermission('catalog:endpoint:create')) {
+        setActiveView('workbench');
+      } else if (hasPermission('iam:manage')) {
+        setActiveView('iam');
+      } else if (hasPermission('governance:inbox:approve') || hasPermission('governance:inbox:read')) {
+        setActiveView('governance');
+      }
+    }
+  }, [isAuthenticated, loading, activeView, hasPermission]);
   
   // Persistent Pin State: Reads from localStorage
   const [isSidebarPinned, setIsSidebarPinned] = useState<boolean>(() => {
@@ -726,140 +745,357 @@ const AppContent: React.FC = () => {
         <main className="app-content-main">
           {/* VIEW 1: SYSTEMS COMMAND DASHBOARD */}
           {activeView === 'dashboard' && (
-            <DashboardView
-              systems={systems}
-              sectors={masterSectors}
-              onSelectSystemIntegration={handleSelectSystemIntegration}
-              onAddSystem={handleAddSystem}
-              onUpdateSystem={handleUpdateSystem}
-              onDeleteSystem={(sysKey) => {
-                const sysName = systems[sysKey]?.name || sysKey;
-                catalogService.deleteSystem(sysKey);
-                setSystems(prev => {
-                  const updated = { ...prev };
-                  delete updated[sysKey];
-                  return updated;
-                });
-                showFloatingAlert(
-                  isRtl ? 'تم حذف النظام بنجاح' : 'System Removed',
-                  isRtl ? `تمت إزالة نظام [${sysName}] من المنظومة.` : `System [${sysName}] removed successfully.`,
-                  'info'
-                );
-              }}
-              onSaveSector={handleSaveSector}
-              onDeleteSector={handleDeleteSector}
-            />
+            hasPermission('dashboard:read') ? (
+              <DashboardView
+                systems={systems}
+                sectors={masterSectors}
+                onSelectSystemIntegration={handleSelectSystemIntegration}
+                onAddSystem={handleAddSystem}
+                onUpdateSystem={handleUpdateSystem}
+                onDeleteSystem={(sysKey) => {
+                  const sysName = systems[sysKey]?.name || sysKey;
+                  catalogService.deleteSystem(sysKey);
+                  setSystems(prev => {
+                    const updated = { ...prev };
+                    delete updated[sysKey];
+                    return updated;
+                  });
+                  showFloatingAlert(
+                    isRtl ? 'تم حذف النظام بنجاح' : 'System Removed',
+                    isRtl ? `تمت إزالة نظام [${sysName}] من المنظومة.` : `System [${sysName}] removed successfully.`,
+                    'info'
+                  );
+                }}
+                onSaveSector={handleSaveSector}
+                onDeleteSector={handleDeleteSector}
+              />
+            ) : (
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '4rem 2rem',
+                textAlign: 'center'
+              }}>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text)', marginBottom: '0.5rem' }}>
+                  {isRtl ? 'الوصول إلى لوحة التحكم مقيد' : 'Dashboard Access Restricted'}
+                </h3>
+                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+                  {isRtl ? 'حسابك الحالي لا يمتلك صلاحية استعراض لوحة الداشبورد (dashboard:read).' : 'Your account does not possess permission to view the dashboard.'}
+                </p>
+              </div>
+            )
           )}
 
           {/* VIEW 2: UNIVERSAL SOVEREIGN 3-PANE WORKBENCH & DRAFT ENGINE */}
           {(activeView === 'workbench' || activeView === 'add-api') && (
-            <UniversalWorkbench
-              systems={systems}
-              activeSystemKey={activeSystemKey}
-              activeIntegrationKey={activeIntegrationKey}
-              onAddSystem={handleAddSystem}
-              onAddIntegration={(sysKey, newInt) => {
-                setSystems(prev => {
-                  const updated = { ...prev };
-                  if (updated[sysKey]) {
-                    const existingIntegrations = updated[sysKey].integrations || {};
-                    updated[sysKey] = {
-                      ...updated[sysKey],
-                      integrations: {
-                        ...existingIntegrations,
-                        [newInt.entityId]: newInt
-                      }
-                    };
-                    catalogService.saveIntegration(sysKey, newInt);
-                  }
-                  return updated;
-                });
-                showFloatingAlert(
-                  isRtl ? 'تم إضافة الجهة بنجاح' : 'Entity Created Successfully',
-                  isRtl ? `تم تسجيل الجهة [${newInt.name}] تحت النظام [${systems[sysKey]?.name || sysKey}].` : `Entity [${newInt.nameEn || newInt.name}] added under system.`,
-                  'success'
-                );
-              }}
-              onPublishSuccess={(publishedDoc, targetSysKey, targetIntKey) => {
-                const finalSysKey = targetSysKey || publishedDoc.systemKey || activeSystemKey;
-                const finalIntKey = targetIntKey || publishedDoc.entityId || activeIntegrationKey;
-                const endpointsList = uastDocToEndpoints(publishedDoc, finalSysKey, finalIntKey);
-                handleAddEndpointFromHub(finalIntKey, endpointsList, endpointsList.length > 1, finalSysKey, publishedDoc.rawSource, true);
-                const sysName = systems[finalSysKey]?.name || finalSysKey;
-                const intName = systems[finalSysKey]?.integrations?.[finalIntKey]?.name || finalIntKey;
-                showFloatingAlert(
-                  isRtl ? 'تم اعتماد ونشر الـ API بنجاح' : 'API Published Successfully',
-                  isRtl 
-                    ? `تم اعتماد وتجميد ${endpointsList.length} نقطة نهاية (Endpoints) للإصدار v${publishedDoc.semver} في الكتالوج المعتمد تحت [${sysName}] ← [${intName}].` 
-                    : `${endpointsList.length} Endpoints published to catalog under [${sysName}] ← [${intName}].`,
-                  'success',
-                  endpointsList[0]?.path
-                );
-              }}
-              onBackToCatalog={() => setActiveView('dashboard')}
-            />
+            (hasPermission('catalog:endpoint:create') || hasPermission('catalog:system:create') || hasPermission('catalog:create') || hasPermission('*')) ? (
+              <UniversalWorkbench
+                systems={systems}
+                activeSystemKey={activeSystemKey}
+                activeIntegrationKey={activeIntegrationKey}
+                onAddSystem={handleAddSystem}
+                onAddIntegration={(sysKey, newInt) => {
+                  setSystems(prev => {
+                    const updated = { ...prev };
+                    if (updated[sysKey]) {
+                      const existingIntegrations = updated[sysKey].integrations || {};
+                      updated[sysKey] = {
+                        ...updated[sysKey],
+                        integrations: {
+                          ...existingIntegrations,
+                          [newInt.entityId]: newInt
+                        }
+                      };
+                      catalogService.saveIntegration(sysKey, newInt);
+                    }
+                    return updated;
+                  });
+                  showFloatingAlert(
+                    isRtl ? 'تم إضافة الجهة بنجاح' : 'Entity Created Successfully',
+                    isRtl ? `تم تسجيل الجهة [${newInt.name}] تحت النظام [${systems[sysKey]?.name || sysKey}].` : `Entity [${newInt.nameEn || newInt.name}] added under system.`,
+                    'success'
+                  );
+                }}
+                onPublishSuccess={(publishedDoc, targetSysKey, targetIntKey) => {
+                  const finalSysKey = targetSysKey || publishedDoc.systemKey || activeSystemKey;
+                  const finalIntKey = targetIntKey || publishedDoc.entityId || activeIntegrationKey;
+                  const endpointsList = uastDocToEndpoints(publishedDoc, finalSysKey, finalIntKey);
+                  handleAddEndpointFromHub(finalIntKey, endpointsList, endpointsList.length > 1, finalSysKey, publishedDoc.rawSource, true);
+                  const sysName = systems[finalSysKey]?.name || finalSysKey;
+                  const intName = systems[finalSysKey]?.integrations?.[finalIntKey]?.name || finalIntKey;
+                  showFloatingAlert(
+                    isRtl ? 'تم اعتماد ونشر الـ API بنجاح' : 'API Published Successfully',
+                    isRtl 
+                      ? `تم اعتماد وتجميد ${endpointsList.length} نقطة نهاية (Endpoints) للإصدار v${publishedDoc.semver} في الكتالوج المعتمد تحت [${sysName}] ← [${intName}].` 
+                      : `${endpointsList.length} Endpoints published to catalog under [${sysName}] ← [${intName}].`,
+                    'success',
+                    endpointsList[0]?.path
+                  );
+                }}
+                onBackToCatalog={() => setActiveView('dashboard')}
+              />
+            ) : (
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '4rem 2rem',
+                textAlign: 'center'
+              }}>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text)', marginBottom: '0.5rem' }}>
+                  {isRtl ? 'إضافة وتوثيق الأنظمة مقيد' : 'Workbench Access Restricted'}
+                </h3>
+                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+                  {isRtl ? 'حسابك لا يمتلك صلاحية إنشاء وتوثيق الواجهات البرمجية (catalog:endpoint:create مطلوب).' : 'You do not have permission to access the workbench.'}
+                </p>
+                <button 
+                  className="btn btn-primary"
+                  onClick={() => setActiveView('dashboard')}
+                  style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem', fontWeight: 700 }}
+                >
+                  {isRtl ? 'العودة إلى لوحة الداشبورد' : 'Back to Dashboard'}
+                </button>
+              </div>
+            )
           )}
 
           {/* VIEW 3: SECTOR / INTEGRATION SPEC VIEWER */}
           {activeView === 'sector-spec' && (
-            <>
-              {currentEndpoints.length > 0 ? (
-                <ApiDocumentationView
-                  endpoints={currentEndpoints}
-                  activeEndpointIndex={activeEndpointIndex}
-                  onSelectEndpoint={setActiveEndpointIndex}
-                  systemName={localizedSysName}
-                  integrationName={localizedIntName}
-                  onAddNewEndpoint={() => setActiveView('add-api')}
-                  rawSource={currentIntegration?.rawDocSource || currentEndpoints[activeEndpointIndex]?.docSource || currentEndpoints[activeEndpointIndex]?.payload}
-                />
-              ) : (
-                <div style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '3rem'
-                }}>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text)', marginBottom: '0.5rem' }}>
-                    {t('spec.noEndpoints')}
-                  </h3>
-                  <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-                    {t('spec.noEndpointsSub')}
-                  </p>
-                  <div style={{ display: 'flex', gap: '0.75rem' }}>
-                    <Can perform="catalog:endpoint:create">
-                      <button className="btn btn-emerald" onClick={() => setActiveView('add-api')}>
-                        {t('spec.addNewEndpointBtn')}
-                      </button>
-                    </Can>
-                    <Can perform="catalog:system:delete">
-                      <button
-                        className="btn btn-rose"
-                        onClick={() => handleOpenDeleteIntegration(activeIntegrationKey)}
-                      >
-                        {isRtl ? 'حذف هذا التكامل' : 'Delete Integration'}
-                      </button>
-                    </Can>
+            (hasPermission('documentation:systems:read') || hasPermission('catalog:read') || hasPermission('*') || canAccess('catalog:read', { systemId: activeSystemKey, entityId: activeIntegrationKey })) ? (
+              <>
+                {currentEndpoints.length > 0 ? (
+                  <ApiDocumentationView
+                    endpoints={currentEndpoints}
+                    activeEndpointIndex={activeEndpointIndex}
+                    onSelectEndpoint={setActiveEndpointIndex}
+                    systemName={localizedSysName}
+                    integrationName={localizedIntName}
+                    onAddNewEndpoint={() => setActiveView('add-api')}
+                    rawSource={currentIntegration?.rawDocSource || currentEndpoints[activeEndpointIndex]?.docSource || currentEndpoints[activeEndpointIndex]?.payload}
+                  />
+                ) : (
+                  <div style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '3rem'
+                  }}>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text)', marginBottom: '0.5rem' }}>
+                      {t('spec.noEndpoints')}
+                    </h3>
+                    <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                      {t('spec.noEndpointsSub')}
+                    </p>
+                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                      <Can perform="catalog:endpoint:create">
+                        <button className="btn btn-emerald" onClick={() => setActiveView('add-api')}>
+                          {t('spec.addNewEndpointBtn')}
+                        </button>
+                      </Can>
+                      <Can perform="catalog:system:delete">
+                        <button
+                          className="btn btn-rose"
+                          onClick={() => handleOpenDeleteIntegration(activeIntegrationKey)}
+                        >
+                          {isRtl ? 'حذف هذا التكامل' : 'Delete Integration'}
+                        </button>
+                      </Can>
+                    </div>
                   </div>
-                </div>
-              )}
-            </>
+                )}
+              </>
+            ) : (
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '4rem 2rem',
+                textAlign: 'center'
+              }}>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text)', marginBottom: '0.5rem' }}>
+                  {isRtl ? 'الاطلاع على التوثيق البرمجي مقيد' : 'API Documentation Restricted'}
+                </h3>
+                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+                  {isRtl ? 'حسابك لا يمتلك صلاحية استعراض وتوثيق الأنظمة والواجهات البرمجية.' : 'Your account does not possess permission to view API documentation.'}
+                </p>
+                <button 
+                  className="btn btn-primary"
+                  onClick={() => setActiveView('dashboard')}
+                  style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem', fontWeight: 700 }}
+                >
+                  {isRtl ? 'العودة إلى لوحة الداشبورد' : 'Back to Dashboard'}
+                </button>
+              </div>
+            )
           )}
 
           {/* VIEW 4: DEDICATED IAM GOVERNANCE CONSOLE */}
           {activeView === 'iam' && (
-            <IamManagementView
-              onNotify={(title, msg, type) => showFloatingAlert(title, msg, type)}
-            />
+            hasPermission('iam:manage') ? (
+              <IamManagementView
+                onNotify={(title, msg, type) => showFloatingAlert(title, msg, type)}
+              />
+            ) : (
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '4rem 2rem',
+                textAlign: 'center'
+              }}>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text)', marginBottom: '0.5rem' }}>
+                  {isRtl ? 'الوصول إلى إدارة الهويات مقيد' : 'IAM Governance Restricted'}
+                </h3>
+                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+                  {isRtl ? 'لا تمتلك الصلاحية الكافية لإدارة المستخدمين والأدوار (iam:manage).' : 'You do not have permission to manage IAM users and roles.'}
+                </p>
+              </div>
+            )
           )}
 
           {/* VIEW 5: DEDICATED SOVEREIGN GOVERNANCE & APPROVALS PIPELINES (تبويب مستقل كامل) */}
           {activeView === 'governance' && (
-            <GovernanceManagementView
-              onNotify={(title, msg, type) => showFloatingAlert(title, msg, type)}
-            />
+            (hasPermission('governance:inbox:approve') || hasPermission('governance:inbox:read') || hasPermission('governance:*') || hasPermission('*')) ? (
+              <GovernanceManagementView
+                systems={systems}
+                onNavigateToDoc={(sysKey, intKey) => handleSelectSystemIntegration(sysKey, intKey)}
+                onNavigateToEditor={(sysKey, intKey) => {
+                  setActiveSystemKey(sysKey);
+                  setActiveIntegrationKey(intKey);
+                  setActiveView('dynamic-docs');
+                }}
+                onNotify={(title, msg, type) => showFloatingAlert(title, msg, type)}
+              />
+            ) : (
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '4rem 2rem',
+                textAlign: 'center'
+              }}>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text)', marginBottom: '0.5rem' }}>
+                  {isRtl ? 'الوصول إلى مركز الحوكمة مقيد' : 'Governance Hub Restricted'}
+                </h3>
+                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+                  {isRtl ? 'لا تمتلك صلاحية مراجعة واعتماد طلبات الحوكمة.' : 'You do not have permission to access governance inbox.'}
+                </p>
+              </div>
+            )
+          )}
+
+          {/* VIEW 5.5: SOVEREIGN WORKFLOW POLICIES STUDIO (تبويب مستقل بالكامل) */}
+          {activeView === 'workflow-policies' && (
+            (hasPermission('iam:manage') || hasPermission('governance:*') || hasPermission('*')) ? (
+              <WorkflowPoliciesView
+                onNotify={(title, msg, type) => showFloatingAlert(title, msg, type)}
+              />
+            ) : (
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '4rem 2rem',
+                textAlign: 'center'
+              }}>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text)', marginBottom: '0.5rem' }}>
+                  {isRtl ? 'الوصول إلى مسارات الاعتماد مقيد' : 'Workflow Policies Restricted'}
+                </h3>
+                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+                  {isRtl ? 'لا تمتلك صلاحية تخصيص سياسات ومسارات الحوكمة (iam:manage).' : 'You do not have permission to configure workflow policies.'}
+                </p>
+              </div>
+            )
+          )}
+
+          {/* VIEW 6: SOVEREIGN DYNAMIC MULTI-MODE DOCUMENTATION (COMPLETELY INDEPENDENT) */}
+          {activeView === 'dynamic-docs' && (
+            (hasPermission('catalog:spec:export') || hasPermission('documentation:systems:read') || hasPermission('catalog:read') || hasPermission('catalog:endpoint:create') || hasPermission('*')) ? (
+              <DynamicWorkbench
+                systems={systems}
+                activeSystemKey={activeSystemKey}
+                activeIntegrationKey={activeIntegrationKey}
+                onAddSystem={handleAddSystem}
+                onAddIntegration={(sysKey, newInt) => {
+                  setSystems(prev => {
+                    const updated = { ...prev };
+                    if (updated[sysKey]) {
+                      const existingIntegrations = updated[sysKey].integrations || {};
+                      updated[sysKey] = {
+                        ...updated[sysKey],
+                        integrations: {
+                          ...existingIntegrations,
+                          [newInt.entityId]: newInt
+                        }
+                      };
+                      catalogService.saveIntegration(sysKey, newInt);
+                    }
+                    return updated;
+                  });
+                  showFloatingAlert(
+                    isRtl ? 'تم إضافة الجهة بنجاح' : 'Entity Created Successfully',
+                    isRtl ? `تم تسجيل الجهة [${newInt.name}] تحت النظام [${systems[sysKey]?.name || sysKey}].` : `Entity [${newInt.nameEn || newInt.name}] added under system.`,
+                    'success'
+                  );
+                }}
+                onPublishSuccess={(publishedDoc, targetSysKey, targetIntKey) => {
+                  const finalSysKey = targetSysKey || publishedDoc.systemKey || activeSystemKey;
+                  const finalIntKey = targetIntKey || publishedDoc.entityId || activeIntegrationKey;
+                  const endpointsList = uastDocToEndpoints(publishedDoc, finalSysKey, finalIntKey);
+                  handleAddEndpointFromHub(finalIntKey, endpointsList, endpointsList.length > 1, finalSysKey, publishedDoc.rawSource, true);
+                  const sysName = systems[finalSysKey]?.name || finalSysKey;
+                  const intName = systems[finalSysKey]?.integrations?.[finalIntKey]?.name || finalIntKey;
+                  showFloatingAlert(
+                    isRtl ? 'تم اعتماد ونشر الـ API بنجاح' : 'API Published Successfully',
+                    isRtl 
+                      ? `تم اعتماد وتجميد ${endpointsList.length} نقطة نهاية (Endpoints) للإصدار v${publishedDoc.semver} في الكتالوج المعتمد تحت [${sysName}] ← [${intName}].` 
+                      : `${endpointsList.length} Endpoints published to catalog under [${sysName}] ← [${intName}].`,
+                    'success',
+                    endpointsList[0]?.path
+                  );
+                }}
+                onBackToCatalog={() => setActiveView('dashboard')}
+              />
+            ) : (
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '4rem 2rem',
+                textAlign: 'center'
+              }}>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text)', marginBottom: '0.5rem' }}>
+                  {isRtl ? 'الوصول إلى التوثيق الديناميكي مقيد' : 'Dynamic Docs Access Restricted'}
+                </h3>
+                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+                  {isRtl ? 'حسابك لا يمتلك صلاحية استعراض وتخصيص قوالب التوثيق.' : 'You do not have permission to access dynamic docs studio.'}
+                </p>
+                <button 
+                  className="btn btn-primary"
+                  onClick={() => setActiveView('dashboard')}
+                  style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem', fontWeight: 700 }}
+                >
+                  {isRtl ? 'العودة إلى لوحة الداشبورد' : 'Back to Dashboard'}
+                </button>
+              </div>
+            )
           )}
         </main>
       </div>
@@ -889,7 +1125,9 @@ export const App: React.FC = () => {
       fallbackMessage="واجه التطبيق تعارضاً في معالجة أحد العناصر البرمجية. يرجى مراجعة تفاصيل الخطأ التقني الموضح أو إعادة المحاولة."
     >
       <AuthProvider>
-        <AppContent />
+        <BreadcrumbProvider>
+          <AppContent />
+        </BreadcrumbProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

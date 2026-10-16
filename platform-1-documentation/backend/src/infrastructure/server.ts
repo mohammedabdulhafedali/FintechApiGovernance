@@ -7,6 +7,7 @@ import { FileUserRepository } from './repositories/FileUserRepository.js';
 import { FileUserGroupRepository } from './repositories/FileUserGroupRepository.js';
 import { FileAuditLogRepository } from './repositories/FileAuditLogRepository.js';
 import { FileGovernanceRepository } from './repositories/FileGovernanceRepository.js';
+import { FileDynamicDocRepository } from './repositories/FileDynamicDocRepository.js';
 
 import { CryptoPasswordHasher } from './security/CryptoPasswordHasher.js';
 import { JwtTokenService } from './security/JwtTokenService.js';
@@ -22,6 +23,7 @@ import { GetSectorEndpointsUseCase } from '../application/usecases/GetSectorEndp
 import { CreateEndpointUseCase } from '../application/usecases/CreateEndpointUseCase.js';
 import { CreateSectorUseCase } from '../application/usecases/CreateSectorUseCase.js';
 import { DeleteSectorUseCase } from '../application/usecases/DeleteSectorUseCase.js';
+import { DynamicDocUseCases } from '../application/usecases/dynamic-docs/DynamicDocUseCases.js';
 
 import { ActionRegistry } from '../application/governance/ActionRegistry.js';
 import { GovernanceWorkflowService } from '../application/governance/GovernanceWorkflowService.js';
@@ -34,11 +36,13 @@ import { CatalogController } from '../presentation/controllers/CatalogController
 import { AuthController } from '../presentation/controllers/AuthController.js';
 import { IamController } from '../presentation/controllers/IamController.js';
 import { GovernanceWorkflowController } from '../presentation/controllers/GovernanceWorkflowController.js';
+import { DynamicDocController } from '../presentation/controllers/DynamicDocController.js';
 
 import { createCatalogRouter } from '../presentation/routes/catalogRoutes.js';
 import { createAuthRouter } from '../presentation/routes/authRoutes.js';
 import { createIamRouter } from '../presentation/routes/iamRoutes.js';
 import { createGovernanceRouter } from '../presentation/routes/governanceRoutes.js';
+import { createDynamicDocRouter } from '../presentation/routes/dynamicDocRoutes.js';
 
 export function createApp() {
   const app = express();
@@ -66,6 +70,7 @@ export function createApp() {
   const userGroupRepository = new FileUserGroupRepository();
   const auditLogRepository = new FileAuditLogRepository();
   const governanceRepository = new FileGovernanceRepository();
+  const dynamicDocRepository = new FileDynamicDocRepository();
 
   // 2. Security Infrastructure Services
   const passwordHasher = new CryptoPasswordHasher();
@@ -205,6 +210,8 @@ export function createApp() {
   );
 
   const governanceController = new GovernanceWorkflowController(governanceService);
+  const dynamicDocUseCases = new DynamicDocUseCases(dynamicDocRepository);
+  const dynamicDocController = new DynamicDocController(dynamicDocUseCases);
 
   // Health check
   app.get('/health', (_req, res) => {
@@ -223,7 +230,8 @@ export function createApp() {
     '/api/v1',
     createCatalogRouter(catalogController, authMiddleware, requirePermission, governanceService)
   );
-  app.use('/api/v1/governance', createGovernanceRouter(governanceController, authMiddleware));
+  app.use('/api/v1/governance', createGovernanceRouter(governanceController, authMiddleware, requirePermission));
+  app.use('/api/v1/dynamic-docs', createDynamicDocRouter(dynamicDocController, authMiddleware, requirePermission));
 
   return app;
 }

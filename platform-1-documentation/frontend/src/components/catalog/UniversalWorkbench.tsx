@@ -46,6 +46,7 @@ import { ErrorBoundary } from '../common/ErrorBoundary';
 import { FloatingAlertCard, FloatingAlertState } from '../common/FloatingAlertCard';
 import { formatSyntaxError } from '../../utils/syntaxErrorFormatter';
 import { useLanguage } from '../../i18n';
+import { pdfApiParser } from '../../services/pdfApiParser';
 
 interface UniversalWorkbenchProps {
   initialDocument?: UastDocument;
@@ -625,44 +626,23 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
     const baseName = file.name.replace(/\.[^/.]+$/, "");
     const ext = file.name.split('.').pop()?.toLowerCase();
 
-    // Direct PDF Document handling (preserves original binary PDF 100%)
+    // Enterprise-grade Dynamic PDF Decomposer: extracts live API schema, endpoints & tables
     if (ext === 'pdf' || file.type === 'application/pdf') {
-      const blobUrl = URL.createObjectURL(file);
-      setPdfBlobUrl(blobUrl);
-      setSourceFormat('pdf');
-      setSourceCode(`/* ملف وثيقة PDF الرسمية: ${file.name} */\n// الحجم: ${(file.size / 1024).toFixed(1)} KB\n// يتم عرض الملف الأصلي في شاشة الوثيقة والمعاينة بجودة 100% بدون أي نقصان أو تعديل.`);
-      
-      const doc: any = {
-        documentId: `doc_${Date.now()}`,
-        version: '1.0.0',
+      pdfApiParser.parsePdfFile(file, {
         systemKey: selectedSystemKey,
         entityId: selectedEntityId,
-        serviceName: baseName || 'وثيقة PDF معتمدة',
-        serviceCode: baseName.toUpperCase().replace(/[^A-Z0-9_]/g, '_') || 'PDF_DOC',
-        channel: {
-          protocol: 'REST',
-          method: 'GET',
-          endpointPath: `/${baseName.toLowerCase().replace(/[^a-z0-9_]/g, '_')}`,
-          environments: {}
-        },
-        rawFormat: 'pdf',
-        rawSource: `[PDF Document: ${file.name}]`,
-        headers: [],
-        requestTree: {
-          nodeId: 'root',
-          kind: 'OBJECT',
-          structure: { path: '$', depth: 0, isCollection: false },
-          semantics: { name: 'root', dataType: 'OBJECT' },
-          constraints: { required: true, nullable: false },
-          children: []
-        },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        status: 'PRIVATE_DRAFT'
-      };
-      setActiveDoc(doc);
-      setPdfViewMode('full_doc');
-      setEditorState('active_editing');
+        serviceName: baseName
+      }).then(parsedResult => {
+        setPdfBlobUrl(null);
+        setSourceFormat('markdown');
+        setSourceCode(parsedResult.markdown);
+        setActiveDoc(parsedResult.doc);
+        setSelectedEndpointIndex(0);
+        setPdfViewMode('full_doc');
+        setEditorState('active_editing');
+      }).catch(err => {
+        console.error('Error parsing PDF file in UniversalWorkbench:', err);
+      });
       return;
     }
 
@@ -1479,8 +1459,8 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
               padding: '0.75rem 1.25rem',
               border: 'none',
               background: 'none',
-              borderBottom: activeTab === 'add' ? '2px solid #10b981' : '2px solid transparent',
-              color: activeTab === 'add' ? '#10b981' : 'var(--text-dim, #9ca3af)',
+              borderBottom: activeTab === 'add' ? '2px solid var(--primary, #6366f1)' : '2px solid transparent',
+              color: activeTab === 'add' ? 'var(--primary, #818cf8)' : 'var(--text-dim, #9ca3af)',
               fontWeight: 700,
               fontSize: '0.92rem',
               cursor: 'pointer',
@@ -1500,8 +1480,8 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
               padding: '0.75rem 1.25rem',
               border: 'none',
               background: 'none',
-              borderBottom: activeTab === 'drafts' ? '2px solid #10b981' : '2px solid transparent',
-              color: activeTab === 'drafts' ? '#10b981' : 'var(--text-dim, #9ca3af)',
+              borderBottom: activeTab === 'drafts' ? '2px solid var(--primary, #6366f1)' : '2px solid transparent',
+              color: activeTab === 'drafts' ? 'var(--primary, #818cf8)' : 'var(--text-dim, #9ca3af)',
               fontWeight: 700,
               fontSize: '0.92rem',
               cursor: 'pointer',
@@ -1517,9 +1497,9 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
               style={{
                 fontSize: '0.75rem',
                 padding: '0.1rem 0.5rem',
-                background: 'var(--overlay-subtle, rgba(255, 255, 255, 0.08))',
+                background: activeTab === 'drafts' ? 'rgba(99, 102, 241, 0.20)' : 'var(--overlay-subtle, rgba(255, 255, 255, 0.08))',
                 borderRadius: '999px',
-                color: activeTab === 'drafts' ? '#10b981' : 'var(--text-main, #cbd5e1)'
+                color: activeTab === 'drafts' ? '#c7d2fe' : 'var(--text-main, #cbd5e1)'
               }}
             >
               {draftsList.length}
@@ -1532,8 +1512,8 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
               padding: '0.75rem 1.25rem',
               border: 'none',
               background: 'none',
-              borderBottom: activeTab === 'submissions' ? '2px solid #10b981' : '2px solid transparent',
-              color: activeTab === 'submissions' ? '#10b981' : 'var(--text-dim, #9ca3af)',
+              borderBottom: activeTab === 'submissions' ? '2px solid var(--primary, #6366f1)' : '2px solid transparent',
+              color: activeTab === 'submissions' ? 'var(--primary, #818cf8)' : 'var(--text-dim, #9ca3af)',
               fontWeight: 700,
               fontSize: '0.92rem',
               cursor: 'pointer',
@@ -1549,9 +1529,9 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
               style={{
                 fontSize: '0.75rem',
                 padding: '0.1rem 0.5rem',
-                background: 'var(--overlay-subtle, rgba(255, 255, 255, 0.08))',
+                background: activeTab === 'submissions' ? 'rgba(99, 102, 241, 0.20)' : 'var(--overlay-subtle, rgba(255, 255, 255, 0.08))',
                 borderRadius: '999px',
-                color: activeTab === 'submissions' ? '#10b981' : 'var(--text-main, #cbd5e1)'
+                color: activeTab === 'submissions' ? '#c7d2fe' : 'var(--text-main, #cbd5e1)'
               }}
             >
               {submissionsList.length}

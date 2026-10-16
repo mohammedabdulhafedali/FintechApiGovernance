@@ -233,11 +233,21 @@ export const MarkdownDocumentRenderer: React.FC<MarkdownDocumentRendererProps> =
 
         const nonSep = tableLines.filter(l => !/^[|\s:-]+$/.test(l));
         if (nonSep.length > 0) {
-          const parseRow = (l: string) =>
-            l.split('|').map(c => c.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
-          const headers = parseRow(nonSep[0]);
-          const rows = nonSep.slice(1).map(parseRow);
-          blocks.push({ type: 'table', headers, rows });
+        const parseRow = (l: string, targetColCount?: number) => {
+          const safe = l.replace(/\\\|/g, '__ESCAPED_PIPE__');
+          const raw = safe.split('|').map(c => c.trim().replace(/__ESCAPED_PIPE__/g, '|'));
+          let cells = raw.filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
+          if (targetColCount && cells.length > targetColCount) {
+            // Merge overflow back into last cell so columns don't shift
+            const merged = [...cells.slice(0, targetColCount - 1), cells.slice(targetColCount - 1).join(' \\ ')];
+            return merged;
+          }
+          return cells;
+        };
+
+        const headers = parseRow(nonSep[0]);
+        const rows = nonSep.slice(1).map(r => parseRow(r, headers.length));
+        blocks.push({ type: 'table', headers, rows });
         }
         continue;
       }

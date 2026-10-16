@@ -22,16 +22,8 @@ export function createCatalogRouter(
   // Scoped Catalog & Systems reading
   router.get('/catalog', optionalAuth, controller.getCatalog);
   router.get('/sectors', optionalAuth, controller.getCatalog);
-  router.post('/sectors', optionalAuth, controller.createSector);
-  router.put('/sectors/:sectorKey', optionalAuth, controller.updateSector);
-  router.delete('/sectors/:sectorKey', optionalAuth, controller.deleteSector);
   router.get('/sectors/:sectorKey/endpoints', optionalAuth, controller.getSectorEndpoints);
   router.get('/systems', optionalAuth, controller.getSystems);
-  router.post('/systems', optionalAuth, controller.createSystem);
-  router.put('/systems/:systemKey', optionalAuth, controller.updateSystem);
-  router.delete('/systems/:systemKey', optionalAuth, controller.deleteSystem);
-  router.post('/systems/:systemKey/integrations', optionalAuth, controller.saveIntegration);
-  router.delete('/systems/:systemKey/integrations/:entityId', optionalAuth, controller.deleteIntegration);
 
   // Helper middleware for dynamic governance interception
   const intercept = (resourceKey: string, actionType: 'CREATE' | 'UPDATE' | 'DELETE', descGen: (req: any) => { ar: string; en: string }) => {
@@ -46,7 +38,7 @@ export function createCatalogRouter(
           actionType,
           actionDescriptionAr: desc.ar,
           actionDescriptionEn: desc.en,
-          targetResourceId: (req.params.sectorKey || req.body?.id || req.body?.code) ? String(req.params.sectorKey || req.body?.id || req.body?.code) : undefined,
+          targetResourceId: (req.params.sectorKey || req.params.systemKey || req.body?.id || req.body?.code) ? String(req.params.sectorKey || req.params.systemKey || req.body?.id || req.body?.code) : undefined,
           payload: req.body,
           user: {
             id: p?.userId || 'anon',
@@ -73,7 +65,7 @@ export function createCatalogRouter(
     };
   };
 
-  // Protected Actions
+  // Protected Mutation Actions (Strict RBAC & Governance Interception)
   if (authMiddleware && requirePermission) {
     router.post(
       '/endpoints',
@@ -118,11 +110,51 @@ export function createCatalogRouter(
       })),
       controller.deleteSector
     );
+
+    router.post(
+      '/systems',
+      authMiddleware,
+      requirePermission('catalog:system:create'),
+      controller.createSystem
+    );
+
+    router.put(
+      '/systems/:systemKey',
+      authMiddleware,
+      requirePermission('catalog:system:create'),
+      controller.updateSystem
+    );
+
+    router.delete(
+      '/systems/:systemKey',
+      authMiddleware,
+      requirePermission('catalog:system:delete'),
+      controller.deleteSystem
+    );
+
+    router.post(
+      '/systems/:systemKey/integrations',
+      authMiddleware,
+      requirePermission('catalog:system:create'),
+      controller.saveIntegration
+    );
+
+    router.delete(
+      '/systems/:systemKey/integrations/:entityId',
+      authMiddleware,
+      requirePermission('catalog:system:delete'),
+      controller.deleteIntegration
+    );
   } else {
     router.post('/endpoints', controller.createEndpoint);
     router.post('/sectors', controller.createSector);
     router.put('/sectors/:sectorKey', controller.updateSector);
     router.delete('/sectors/:sectorKey', controller.deleteSector);
+    router.post('/systems', controller.createSystem);
+    router.put('/systems/:systemKey', controller.updateSystem);
+    router.delete('/systems/:systemKey', controller.deleteSystem);
+    router.post('/systems/:systemKey/integrations', controller.saveIntegration);
+    router.delete('/systems/:systemKey/integrations/:entityId', controller.deleteIntegration);
   }
 
   return router;

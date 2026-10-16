@@ -46,6 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
   activeIntegration,
   activeSystem,
   apiContext,
+  onBackToDashboard,
   onToggleMobileMenu,
   isSidebarCollapsed = false,
   onToggleSidebarCollapse,

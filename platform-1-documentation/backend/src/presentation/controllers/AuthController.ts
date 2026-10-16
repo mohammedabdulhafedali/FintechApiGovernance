@@ -49,10 +49,22 @@ export class AuthController {
         return;
       }
 
-      const group = await this.userGroupRepository.findById(user.groupId);
-      const effectivePermissions = group
-        ? this.permissionEvaluator.calculateEffectivePermissions(user, group)
-        : [];
+      const targetGroupIds = user.groupIds && user.groupIds.length > 0
+        ? user.groupIds
+        : (user.groupId ? [user.groupId] : []);
+
+      const allGroups = await this.userGroupRepository.findAll();
+      const groupMap = new Map(allGroups.map(g => [g.id, g]));
+      const userGroups = targetGroupIds
+        .map(id => groupMap.get(id))
+        .filter(Boolean) as any[];
+
+      const effectivePermissions = this.permissionEvaluator.calculateEffectivePermissions(
+        user,
+        userGroups
+      );
+
+      const groupNames = userGroups.map(g => g.name);
 
       res.status(200).json({
         success: true,
@@ -62,8 +74,14 @@ export class AuthController {
           email: user.email,
           fullName: user.fullName,
           groupId: user.groupId,
-          groupName: group?.name || 'غير محدد',
+          groupIds: targetGroupIds,
+          groupName: groupNames.join(' + ') || 'غير محدد',
+          groupNames: groupNames,
           status: user.status,
+          userType: user.userType,
+          organizationId: user.organizationId,
+          organizationName: user.organizationName,
+          accessScope: user.accessScope,
           overrides: user.overrides,
           effectivePermissions,
           createdAt: user.createdAt

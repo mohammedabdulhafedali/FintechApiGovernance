@@ -12,7 +12,8 @@ export interface CreateUserInput {
   email: string;
   fullName: string;
   password?: string;
-  groupId: string;
+  groupId?: string;
+  groupIds?: string[];
   userType?: UserType;
   organizationId?: string;
   organizationName?: string;
@@ -35,23 +36,35 @@ export class ManageUsersUseCase {
     const groupMap = new Map<string, UserGroup>(groups.map((g: UserGroup) => [g.id, g]));
 
     return users.map((u: User) => {
-      const group = groupMap.get(u.groupId);
-      const effectivePermissions = group
-        ? this.permissionEvaluator.calculateEffectivePermissions(u, group)
-        : [];
+      const userGroupIds = u.groupIds && u.groupIds.length > 0
+        ? u.groupIds
+        : (u.groupId ? [u.groupId] : []);
+      const userGroups = userGroupIds
+        .map(id => groupMap.get(id))
+        .filter((g): g is UserGroup => Boolean(g));
+
+      const effectivePermissions = this.permissionEvaluator.calculateEffectivePermissions(
+        u,
+        userGroups
+      );
+
+      const groupNames = userGroups.map(g => g.name);
+      const primaryGroup = userGroups[0];
 
       return {
         id: u.id,
         username: u.username,
         email: u.email,
         fullName: u.fullName,
-        groupId: u.groupId,
-        groupName: group?.name || 'غير محدد',
+        groupId: u.groupId || primaryGroup?.id || '',
+        groupIds: userGroupIds,
+        groupName: groupNames.join(' + ') || 'غير محدد',
+        groupNames: groupNames,
         status: u.status,
-        userType: u.userType || group?.groupType || 'INTERNAL',
+        userType: u.userType || primaryGroup?.groupType || 'INTERNAL',
         organizationId: u.organizationId,
         organizationName: u.organizationName,
-        accessScope: u.accessScope || group?.defaultScope || {
+        accessScope: u.accessScope || primaryGroup?.defaultScope || {
           allowedEntityIds: u.userType === 'EXTERNAL' ? (u.organizationId ? [u.organizationId] : []) : ['*'],
           allowedSystemIds: ['*']
         },
@@ -68,17 +81,33 @@ export class ManageUsersUseCase {
       throw new Error(`اسم المستخدم [${input.username}] مستخدم بالفعل.`);
     }
 
-    const group = await this.userGroupRepository.findById(input.groupId);
-    if (!group) {
-      throw new Error(`المجموعة المحددة غير موجودة.`);
+    const targetGroupIds = input.groupIds && input.groupIds.length > 0
+      ? input.groupIds
+      : (input.groupId ? [input.groupId] : []);
+
+    if (targetGroupIds.length === 0) {
+      throw new Error(`يجب تحديد مجموعة صلاحيات واحدة على الأقل.`);
     }
 
+    const allGroups = await this.userGroupRepository.findAll();
+    const groupMap = new Map<string, UserGroup>(allGroups.map(g => [g.id, g]));
+    const userGroups: UserGroup[] = [];
+
+    for (const gid of targetGroupIds) {
+      const g = groupMap.get(gid);
+      if (!g) {
+        throw new Error(`المجموعة المحددة [${gid}] غير موجودة.`);
+      }
+      userGroups.push(g);
+    }
+
+    const primaryGroup = userGroups[0];
     const salt = this.passwordHasher.generateSalt();
     const defaultPassword = input.password || 'Welcome@2026';
     const hash = this.passwordHasher.hash(defaultPassword, salt);
 
-    const userType: UserType = input.userType || group.groupType || 'INTERNAL';
-    const accessScope: ResourceScope = input.accessScope || group.defaultScope || {
+    const userType: UserType = input.userType || primaryGroup.groupType || 'INTERNAL';
+    const accessScope: ResourceScope = input.accessScope || primaryGroup.defaultScope || {
       allowedEntityIds: userType === 'EXTERNAL' ? (input.organizationId ? [input.organizationId] : []) : ['*'],
       allowedSystemIds: ['*']
     };
@@ -90,7 +119,8 @@ export class ManageUsersUseCase {
       fullName: input.fullName.trim(),
       passwordHash: hash,
       passwordSalt: salt,
-      groupId: input.groupId,
+      groupId: primaryGroup.id,
+      groupIds: targetGroupIds,
       status: 'ACTIVE',
       userType,
       organizationId: input.organizationId,
@@ -106,18 +136,20 @@ export class ManageUsersUseCase {
 
     await this.userRepository.save(newUser);
 
+    const groupNamesList = userGroups.map(g => g.name).join(' + ');
+
     await this.auditLogRepository.record({
       userId: actorUsername,
       username: actorUsername,
       action: 'iam:user:create',
       resource: `user:${newUser.username}`,
       status: 'SUCCESS',
-      details: `تم إنشاء المستخدم [${newUser.fullName}] نوع [${userType}] وربطه بمجموعة [${group.name}]`
+      details: `تم إنشاء المستخدم [${newUser.fullName}] وربطه بمجموعات الصلاحيات: [${groupNamesList}]`
     });
 
     const effectivePermissions = this.permissionEvaluator.calculateEffectivePermissions(
       newUser,
-      group
+      userGroups
     );
 
     return {
@@ -125,8 +157,10 @@ export class ManageUsersUseCase {
       username: newUser.username,
       email: newUser.email,
       fullName: newUser.fullName,
-      groupId: group.id,
-      groupName: group.name,
+      groupId: primaryGroup.id,
+      groupIds: targetGroupIds,
+      groupName: groupNamesList,
+      groupNames: userGroups.map(g => g.name),
       status: newUser.status,
       userType: newUser.userType,
       organizationId: newUser.organizationId,

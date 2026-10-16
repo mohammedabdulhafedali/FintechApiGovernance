@@ -453,6 +453,29 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
         }
       }
 
+      // Automatically bridge canonical enterprise permissions so backend routes and frontend guards match seamlessly
+      if (permArray.some(p => p.startsWith('iam:users:') || p === 'iam:manage')) {
+        if (!permArray.includes('iam:manage')) permArray.push('iam:manage');
+      }
+      if (permArray.some(p => p.startsWith('catalog:create') || p === 'catalog:endpoint:create')) {
+        if (!permArray.includes('catalog:endpoint:create')) permArray.push('catalog:endpoint:create');
+        if (!permArray.includes('catalog:system:create')) permArray.push('catalog:system:create');
+      }
+      if (permArray.some(p => p === 'catalog:delete' || p === 'catalog:system:delete')) {
+        if (!permArray.includes('catalog:system:delete')) permArray.push('catalog:system:delete');
+      }
+      if (permArray.some(p => p.startsWith('documentation:systems:') || p === 'catalog:read')) {
+        if (!permArray.includes('catalog:read')) permArray.push('catalog:read');
+        if (!permArray.includes('documentation:systems:read')) permArray.push('documentation:systems:read');
+      }
+      if (permArray.some(p => p.startsWith('governance:inbox:') || p.startsWith('governance:'))) {
+        if (!permArray.includes('governance:inbox:approve')) permArray.push('governance:inbox:approve');
+        if (!permArray.includes('governance:inbox:read')) permArray.push('governance:inbox:read');
+      }
+      if (permArray.some(p => p.startsWith('iam:audit:'))) {
+        if (!permArray.includes('iam:audit:view')) permArray.push('iam:audit:view');
+      }
+
       if (initialGroup?.id) {
         // Update existing group
         saved = await iamService.updateGroup(initialGroup.id, {

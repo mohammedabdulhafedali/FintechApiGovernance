@@ -46,7 +46,8 @@ export class IamService {
     email: string;
     fullName: string;
     password?: string;
-    groupId: string;
+    groupId?: string;
+    groupIds?: string[];
     userType?: UserType;
     organizationId?: string;
     organizationName?: string;

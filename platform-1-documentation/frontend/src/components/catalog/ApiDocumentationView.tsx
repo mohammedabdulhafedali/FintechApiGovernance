@@ -109,8 +109,8 @@ export const ApiDocumentationView: React.FC<ApiDocumentationViewProps> = ({
                   padding: '0.75rem 1.15rem',
                   border: 'none',
                   background: 'none',
-                  borderBottom: isActive ? '2px solid var(--emerald, #10b981)' : '2px solid transparent',
-                  color: isActive ? 'var(--emerald, #10b981)' : 'var(--text-dim, #94a3b8)',
+                  borderBottom: isActive ? '2px solid var(--primary, #6366f1)' : '2px solid transparent',
+                  color: isActive ? 'var(--primary, #818cf8)' : 'var(--text-dim, #94a3b8)',
                   fontWeight: isActive ? 700 : 600,
                   fontSize: '0.92rem',
                   cursor: 'pointer',
@@ -134,8 +134,8 @@ export const ApiDocumentationView: React.FC<ApiDocumentationViewProps> = ({
                     padding: '0.1rem 0.5rem',
                     borderRadius: '999px',
                     fontWeight: 700,
-                    background: isActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.08)',
-                    color: isActive ? 'var(--emerald, #10b981)' : 'var(--text-muted, #cbd5e1)'
+                    background: isActive ? 'rgba(99, 102, 241, 0.20)' : 'rgba(255, 255, 255, 0.08)',
+                    color: isActive ? '#c7d2fe' : 'var(--text-muted, #cbd5e1)'
                   }}>
                     {tab.badge}
                   </span>

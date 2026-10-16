@@ -90,7 +90,7 @@ export const AddApiModal: React.FC<AddApiModalProps> = ({
           background: 'rgba(13, 25, 48, 0.7)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <PlusCircle size={20} color="var(--emerald)" />
+            <PlusCircle size={20} color="var(--primary, #6366f1)" />
             <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text)', margin: 0 }}>
               {isEn ? `Document New API Route for [${sectorName}]` : `إضافة وتوثيق مسار API جديد لـ [${sectorName}]`}
             </h2>
@@ -265,7 +265,7 @@ export const AddApiModal: React.FC<AddApiModalProps> = ({
               <button
                 type="button"
                 onClick={handleAddParam}
-                className="btn btn-emerald"
+                className="btn btn-primary"
                 style={{ fontSize: '0.75rem', padding: '0.45rem 0.75rem' }}
               >
                 <Plus size={14} />
@@ -275,7 +275,7 @@ export const AddApiModal: React.FC<AddApiModalProps> = ({
             {paramsList.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                 {paramsList.map((p, i) => (
-                  <span key={i} className="badge-pill badge-blue" style={{ fontSize: '0.72rem' }}>
+                  <span key={i} className="badge-pill badge-purple" style={{ fontSize: '0.72rem' }}>
                     {p.name} ({p.type})
                   </span>
                 ))}
@@ -288,7 +288,7 @@ export const AddApiModal: React.FC<AddApiModalProps> = ({
             <button type="button" className="btn btn-glass" onClick={onClose} style={{ fontSize: '0.82rem' }}>
               {t('common.cancel')}
             </button>
-            <button type="submit" className="btn btn-emerald" style={{ fontSize: '0.82rem' }}>
+            <button type="submit" className="btn btn-primary" style={{ fontSize: '0.82rem', boxShadow: '0 2px 10px var(--primary-glow)' }}>
               <Check size={14} />
               <span>{isEn ? 'Register Route as Draft' : 'تسجيل المسار كمسودة جديدة'}</span>
             </button>

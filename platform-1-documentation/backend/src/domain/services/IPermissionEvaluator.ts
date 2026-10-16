@@ -7,7 +7,7 @@ export interface ScopedAccessContext {
 }
 
 export interface IPermissionEvaluator {
-  calculateEffectivePermissions(user: User, group: UserGroup): string[];
+  calculateEffectivePermissions(user: User, group: UserGroup | UserGroup[]): string[];
   hasPermission(effectivePermissions: string[], requiredPermission: string): boolean;
   canAccessResource(
     actor: {

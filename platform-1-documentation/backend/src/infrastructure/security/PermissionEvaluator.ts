@@ -3,34 +3,137 @@ import { User } from '../../domain/entities/User.js';
 import { UserGroup } from '../../domain/entities/UserGroup.js';
 
 export class PermissionEvaluator implements IPermissionEvaluator {
-  calculateEffectivePermissions(user: User, group: UserGroup): string[] {
+  private static readonly ALIASES_MAP: Record<string, string[]> = {
+    'iam:manage': [
+      'iam:users:read',
+      'iam:users:create',
+      'iam:users:update',
+      'iam:users:delete',
+      'iam:users:*',
+      'iam:*'
+    ],
+    'iam:audit:view': [
+      'iam:audit:read',
+      'iam:audit:*',
+      'audit:trail:read',
+      'audit:trail:*',
+      'audit:*',
+      'iam:manage',
+      'iam:*'
+    ],
+    'catalog:endpoint:create': [
+      'catalog:create:create',
+      'catalog:create:read',
+      'catalog:create',
+      'catalog:create:*',
+      'catalog:*'
+    ],
+    'catalog:system:create': [
+      'catalog:create:create',
+      'catalog:create',
+      'catalog:create:*',
+      'catalog:*'
+    ],
+    'catalog:system:delete': [
+      'catalog:delete',
+      'catalog:delete:delete',
+      'catalog:*'
+    ],
+    'catalog:read': [
+      'catalog:view',
+      'documentation:systems:read',
+      'documentation:systems:*',
+      'catalog:spec:export',
+      'catalog:*'
+    ],
+    'catalog:view': [
+      'catalog:read',
+      'documentation:systems:read',
+      'documentation:systems:*',
+      'catalog:spec:export',
+      'catalog:*'
+    ],
+    'catalog:spec:export': [
+      'catalog:spec:*',
+      'catalog:read',
+      'catalog:view',
+      'documentation:systems:read',
+      'catalog:*'
+    ],
+    'documentation:systems:read': [
+      'catalog:read',
+      'catalog:view',
+      'catalog:spec:export',
+      'catalog:*'
+    ],
+    'governance:inbox:approve': [
+      'governance:workflows:update',
+      'governance:workflows:create',
+      'governance:workflows:*',
+      'governance:inbox:update',
+      'governance:inbox:*',
+      'governance:*'
+    ],
+    'governance:inbox:read': [
+      'governance:workflows:read',
+      'governance:workflows:*',
+      'governance:inbox:read',
+      'governance:inbox:*',
+      'governance:*'
+    ],
+    'dashboard:read': [
+      'dashboard:*'
+    ],
+    'settings:general:read': [
+      'settings:general:*',
+      'settings:*'
+    ]
+  };
+
+  calculateEffectivePermissions(user: User, group: UserGroup | UserGroup[]): string[] {
+    const groups = Array.isArray(group) ? group : [group];
+
     // Sovereign admin permissions are frozen and permanently locked to wildcard (*)
-    if (
+    const isSuperAdmin =
       user.username.toLowerCase() === 'admin' ||
       user.id === 'usr_admin_01' ||
-      group.id === 'grp_super_admin' ||
-      group.key === 'ADMIN_GROUP' ||
-      (group.permissions || []).includes('*')
-    ) {
+      groups.some(
+        g =>
+          g.id === 'grp_super_admin' ||
+          g.key === 'ADMIN_GROUP' ||
+          (g.permissions || []).includes('*')
+      );
+
+    if (isSuperAdmin) {
       return ['*'];
     }
 
-    const groupPerms = new Set(group.permissions || []);
-    const granted = new Set(user.overrides?.grantedPermissions || []);
-    const revoked = new Set(user.overrides?.revokedPermissions || []);
-
-    // 1. Combine Group Permissions with User-specific Granted Permissions
+    // Merge permissions from all groups (Union / Additive Claims)
     const effective = new Set<string>();
-    for (const p of groupPerms) {
-      effective.add(p);
+    for (const g of groups) {
+      for (const p of g.permissions || []) {
+        effective.add(p);
+      }
     }
-    for (const p of granted) {
+
+    // Add User-specific Granted Permissions
+    for (const p of user.overrides?.grantedPermissions || []) {
       effective.add(p);
     }
 
-    // 2. Strict Precedence: Explicit Deny / Revoked Overrides strictly removed
+    // Strict Precedence: Explicit Deny / Revoked Overrides strictly removed along with their aliases
+    const revoked = new Set(user.overrides?.revokedPermissions || []);
     for (const r of revoked) {
       effective.delete(r);
+      const directAliases = PermissionEvaluator.ALIASES_MAP[r] || [];
+      for (const a of directAliases) {
+        effective.delete(a);
+      }
+      for (const [k, v] of Object.entries(PermissionEvaluator.ALIASES_MAP)) {
+        if (v.includes(r)) {
+          effective.delete(k);
+        }
+      }
     }
 
     return Array.from(effective);
@@ -55,9 +158,21 @@ export class PermissionEvaluator implements IPermissionEvaluator {
     for (const p of effectivePermissions) {
       if (p.endsWith(':*')) {
         const prefix = p.slice(0, -2);
-        if (requiredPermission.startsWith(prefix + ':')) {
+        if (requiredPermission.startsWith(prefix + ':') || requiredPermission === prefix) {
           return true;
         }
+      }
+    }
+
+    const directAliases = PermissionEvaluator.ALIASES_MAP[requiredPermission];
+    if (directAliases && directAliases.some(alias => effectivePermissions.includes(alias))) {
+      return true;
+    }
+
+    // Reverse check: if user has a permission like 'catalog:create' and required is 'catalog:create:create'
+    for (const [key, aliases] of Object.entries(PermissionEvaluator.ALIASES_MAP)) {
+      if (effectivePermissions.includes(key) && (aliases.includes(requiredPermission) || key === requiredPermission)) {
+        return true;
       }
     }
 
@@ -73,8 +188,21 @@ export class PermissionEvaluator implements IPermissionEvaluator {
     requiredPermission: string,
     context?: { entityId?: string; systemId?: string }
   ): boolean {
-    // 1. Base permission check
-    if (!this.hasPermission(actor.effectivePermissions, requiredPermission)) {
+    // 1. Base permission check or granular system permission check
+    let hasBase = this.hasPermission(actor.effectivePermissions, requiredPermission);
+    if (!hasBase && context?.systemId) {
+      const sysWildcard = `sys:${context.systemId}:*`;
+      if (this.hasPermission(actor.effectivePermissions, sysWildcard) || this.hasPermission(actor.effectivePermissions, 'sys:*')) {
+        hasBase = true;
+      } else if (context.entityId) {
+        const intPrefix = `sys:${context.systemId}:int:${context.entityId}:`;
+        if (actor.effectivePermissions.some(p => p.startsWith(intPrefix) || p === `sys:${context.systemId}:int:${context.entityId}`)) {
+          hasBase = true;
+        }
+      }
+    }
+
+    if (!hasBase) {
       return false;
     }
 

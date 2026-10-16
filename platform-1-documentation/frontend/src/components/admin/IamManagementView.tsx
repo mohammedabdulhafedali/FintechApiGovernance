@@ -723,9 +723,9 @@ export const IamManagementView: React.FC<IamManagementViewProps> = ({ onNotify }
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left' }}>
               <thead>
                 <tr style={{ background: 'rgba(255, 255, 255, 0.04)', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.82rem', color: 'var(--text-dim, #9ca3af)' }}>{isRtl ? 'المستخدم' : 'User'}</th>
-                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.82rem', color: 'var(--text-dim, #9ca3af)' }}>{isRtl ? 'نوع الحساب والنطاق' : 'Account & Scope'}</th>
-                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.82rem', color: 'var(--text-dim, #9ca3af)' }}>{isRtl ? 'المجموعة المسندة' : 'Group'}</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.82rem', color: 'var(--text-dim, #9ca3af)' }}>{isRtl ? 'المستخدم والجهة' : 'User & Organization'}</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.82rem', color: 'var(--text-dim, #9ca3af)' }}>{isRtl ? 'مجموعات الصلاحيات (الأدوار)' : 'Assigned Groups / Roles'}</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.82rem', color: 'var(--text-dim, #9ca3af)' }}>{isRtl ? 'الصلاحيات التراكمية' : 'Effective Permissions'}</th>
                   <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.82rem', color: 'var(--text-dim, #9ca3af)' }}>{isRtl ? 'الحالة' : 'Status'}</th>
                   <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.82rem', color: 'var(--text-dim, #9ca3af)' }}>{isRtl ? 'الاستثناءات الفردية' : 'Overrides'}</th>
                   <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.82rem', color: 'var(--text-dim, #9ca3af)', textAlign: 'center' }}>{isRtl ? 'الإجراءات' : 'Actions'}</th>
@@ -749,74 +749,86 @@ export const IamManagementView: React.FC<IamManagementViewProps> = ({ onNotify }
                   filteredUsers.map((u) => {
                     const grantedCount = u.overrides?.grantedPermissions?.length || 0;
                     const revokedCount = u.overrides?.revokedPermissions?.length || 0;
+                    const hasAll = (u.effectivePermissions || []).includes('*');
+                    const assignedGroups = (u.groupNames && u.groupNames.length > 0)
+                      ? u.groupNames
+                      : (u.groupName ? u.groupName.split(' + ') : [u.groupId]);
+
                     return (
                       <tr key={u.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)' }}>
                         <td style={{ padding: '1rem 1.25rem' }}>
                           <div style={{ fontWeight: 700, color: 'var(--text, #ffffff)', fontSize: '0.92rem' }}>{u.fullName}</div>
                           <div style={{ fontSize: '0.78rem', color: 'var(--text-dim, #9ca3af)' }}>@{u.username} • {u.email}</div>
-                        </td>
-                        <td style={{ padding: '1rem 1.25rem' }}>
-                          {u.userType === 'EXTERNAL' ? (
-                            <div>
-                              <span
-                                style={{
-                                  padding: '0.2rem 0.55rem',
-                                  borderRadius: '6px',
-                                  background: 'rgba(168, 85, 247, 0.15)',
-                                  color: '#c084fc',
-                                  border: '1px solid rgba(168, 85, 247, 0.3)',
-                                  fontWeight: 700,
-                                  fontSize: '0.78rem',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.3rem'
-                                }}
-                              >
-                                <Globe size={12} /> {isRtl ? 'شريك خارجي' : 'External Partner'}
-                              </span>
-                              <div style={{ fontSize: '0.78rem', color: '#e2e8f0', marginTop: '0.3rem', fontWeight: 600 }}>
-                                {u.organizationName || u.organizationId || (isRtl ? 'جهة خارجية' : 'External Entity')}
-                              </div>
-                              <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '0.15rem' }}>
-                                {isRtl ? 'نطاق الأنظمة:' : 'Systems:'} {u.accessScope?.allowedSystemIds?.join(', ') || '*'}
-                              </div>
-                            </div>
-                          ) : (
-                            <div>
-                              <span
-                                style={{
-                                  padding: '0.2rem 0.55rem',
-                                  borderRadius: '6px',
-                                  background: 'rgba(59, 130, 246, 0.12)',
-                                  color: '#60a5fa',
-                                  fontWeight: 700,
-                                  fontSize: '0.78rem',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.3rem'
-                                }}
-                              >
-                                <Building2 size={12} /> {isRtl ? 'داخلي' : 'Internal'}
-                              </span>
-                              <div style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '0.25rem' }}>
-                                {isRtl ? 'وصول مؤسسي غير مقيد' : 'Full enterprise scope'}
-                              </div>
+                          {u.organizationName && (
+                            <div
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.3rem',
+                                marginTop: '0.35rem',
+                                padding: '0.15rem 0.5rem',
+                                borderRadius: '4px',
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                color: '#94a3b8',
+                                fontSize: '0.72rem',
+                                border: '1px solid rgba(255, 255, 255, 0.08)'
+                              }}
+                            >
+                              <Building2 size={11} style={{ color: '#38bdf8' }} />
+                              <span>{u.organizationName}</span>
                             </div>
                           )}
                         </td>
                         <td style={{ padding: '1rem 1.25rem' }}>
-                          <span
-                            style={{
-                              padding: '0.25rem 0.65rem',
-                              borderRadius: '6px',
-                              background: 'rgba(59, 130, 246, 0.12)',
-                              color: '#60a5fa',
-                              fontWeight: 600,
-                              fontSize: '0.82rem'
-                            }}
-                          >
-                            {u.groupName || u.groupId}
-                          </span>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                            {assignedGroups.map((gName, idx) => (
+                              <span
+                                key={idx}
+                                style={{
+                                  padding: '0.22rem 0.55rem',
+                                  borderRadius: '6px',
+                                  background: 'rgba(59, 130, 246, 0.12)',
+                                  border: '1px solid rgba(59, 130, 246, 0.25)',
+                                  color: '#60a5fa',
+                                  fontWeight: 600,
+                                  fontSize: '0.78rem'
+                                }}
+                              >
+                                {gName}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem' }}>
+                          {hasAll ? (
+                            <span
+                              style={{
+                                padding: '0.2rem 0.55rem',
+                                borderRadius: '6px',
+                                background: 'rgba(239, 68, 68, 0.15)',
+                                border: '1px solid rgba(239, 68, 68, 0.3)',
+                                color: '#fca5a5',
+                                fontWeight: 700,
+                                fontSize: '0.76rem'
+                              }}
+                            >
+                              {isRtl ? 'صلاحيات شاملة (*)' : 'Full Wildcard (*)'}
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                padding: '0.2rem 0.55rem',
+                                borderRadius: '6px',
+                                background: 'rgba(16, 185, 129, 0.12)',
+                                border: '1px solid rgba(16, 185, 129, 0.25)',
+                                color: '#34d399',
+                                fontWeight: 700,
+                                fontSize: '0.76rem'
+                              }}
+                            >
+                              {u.effectivePermissions?.length || 0} {isRtl ? 'صلاحية نشطة' : 'active perms'}
+                            </span>
+                          )}
                         </td>
                         <td style={{ padding: '1rem 1.25rem' }}>
                           {u.status === 'ACTIVE' ? (
