@@ -51,10 +51,11 @@ export interface Endpoint {
 }
 
 export type IntegrationDirection = 'INBOUND' | 'OUTBOUND' | 'BIDIRECTIONAL';
+export type IntegrationRole = 'CONSUMER' | 'PROVIDER';
 export type ClientChannel = 'MOBILE' | 'WEB' | 'CORE_SERVER' | 'POS';
 
 export type CatalogPerspective = 'systems' | 'sectors';
-export type FilterDirection = 'ALL' | 'INBOUND' | 'OUTBOUND';
+export type FilterDirection = 'ALL' | 'INBOUND' | 'OUTBOUND' | 'CONSUMER' | 'PROVIDER';
 export type FilterChannel = 'ALL' | 'MOBILE' | 'CORE_SERVER' | 'WEB';
 
 export interface SystemIntegration {
@@ -64,6 +65,7 @@ export interface SystemIntegration {
   code?: string;
   icon?: string;
   direction?: IntegrationDirection;
+  role?: IntegrationRole;
   endpoints: Endpoint[];
   rawDocSource?: string;
   docTitle?: string;

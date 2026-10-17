@@ -139,22 +139,12 @@ export class CatalogController {
   updateSector = async (req: Request, res: Response): Promise<void> => {
     try {
       const sectorKey = String(req.params.sectorKey);
-      const catalog = await this.getCatalogUseCase.execute();
-      const existing = catalog[sectorKey];
-      if (!existing) {
-        res.status(404).json({ success: false, error: `Sector "${sectorKey}" not found` });
-        return;
-      }
-      const updated: Sector = {
-        ...existing,
-        name: req.body.name || existing.name,
-        nameEn: req.body.nameEn || existing.nameEn,
-        code: req.body.code || existing.code
-      };
-      const repo = (this.createSectorUseCase as any).sectorRepository;
-      if (repo && repo.saveSector) {
-        await repo.saveSector(sectorKey, updated);
-      }
+      const updated = await this.createSectorUseCase.execute({
+        key: sectorKey,
+        name: req.body.name,
+        nameEn: req.body.nameEn,
+        code: req.body.code
+      });
       res.status(200).json({ success: true, data: updated, message: 'Sector updated successfully' });
     } catch (err: any) {
       res.status(400).json({ success: false, error: err.message || 'Bad Request' });

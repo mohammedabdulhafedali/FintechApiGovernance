@@ -23,6 +23,7 @@ import {
 import { iamService } from '../../services/iamService';
 import { authService } from '../../services/authService';
 import { UserPublicProfile, UserGroup, AuditLog, PermissionDefinition, UserOverrides, UserType, ResourceScope } from '../../types/auth';
+import { SystemModule } from '../../types/schema';
 import { useLanguage } from '../../i18n';
 import { RolePermissionMatrix } from './RolePermissionMatrix';
 import { UserOverrideMatrixView } from './UserOverrideMatrixView';
@@ -30,10 +31,11 @@ import { CreateUserView } from './CreateUserView';
 import { SecurityAuditTrailView } from './SecurityAuditTrailView';
 
 interface IamManagementViewProps {
+  systems?: Record<string, SystemModule>;
   onNotify?: (title: string, message: string, type: 'success' | 'info' | 'warning' | 'error') => void;
 }
 
-export const IamManagementView: React.FC<IamManagementViewProps> = ({ onNotify }) => {
+export const IamManagementView: React.FC<IamManagementViewProps> = ({ systems, onNotify }) => {
   const { isRtl } = useLanguage();
 
   const [activeTab, setActiveTab] = useState<'groups' | 'users' | 'audit'>('groups');
@@ -393,6 +395,7 @@ export const IamManagementView: React.FC<IamManagementViewProps> = ({ onNotify }
           {isMatrixEditorOpen ? (
             <RolePermissionMatrix
               initialGroup={selectedGroupForMatrix}
+              systems={systems}
               onSaveSuccess={(_saved) => {
                 setIsMatrixEditorOpen(false);
                 setSelectedGroupForMatrix(null);
@@ -598,6 +601,7 @@ export const IamManagementView: React.FC<IamManagementViewProps> = ({ onNotify }
             <UserOverrideMatrixView
               user={selectedUserForOverrides}
               userGroup={groups.find(g => g.id === selectedUserForOverrides.groupId)}
+              systems={systems}
               onClose={() => setSelectedUserForOverrides(null)}
               onSuccess={(_updated) => {
                 setSelectedUserForOverrides(null);

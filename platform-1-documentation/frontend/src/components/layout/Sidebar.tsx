@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Box,
-  PieChart, 
-  PlusCircle, 
+  PieChart,
+  PlusCircle,
   X,
   ChevronDown,
   ChevronLeft,
@@ -11,16 +11,24 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   Pin,
-  Layers
+  Layers,
+  Building2,
+  Link2,
+  FileCheck2
 } from 'lucide-react';
 import { SystemModule, Sector } from '../../types/schema';
 import { useLanguage } from '../../i18n';
 import { useAuth } from '../auth/AuthContext';
 import { governanceService } from '../../services/governanceService';
+import { docGovernanceEngine } from '../../services/docGovernanceEngine';
 
-export type AppViewMode = 
-  | 'dashboard' 
-  | 'sector-spec' 
+export type AppViewMode =
+  | 'dashboard'
+  | 'systems'
+  | 'sectors'
+  | 'integrations'
+  | 'documents-matrix'
+  | 'sector-spec'
   | 'add-api'
   | 'workbench'
   | 'iam'
@@ -76,16 +84,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
   useEffect(() => {
     const fetchCount = async () => {
       try {
-        const res = await governanceService.getInbox();
-        setPendingGovCount(res.pendingForMeCount || res.count || 0);
+        let total = 0;
+        try {
+          const res = await governanceService.getInbox();
+          total = res.pendingForMeCount || res.count || 0;
+        } catch {}
+
+        try {
+          const docContainers = docGovernanceEngine.getContainersMatrix(systems);
+          const localPending = docContainers.filter(c => !!c.pendingReviewVersion).length;
+          total = Math.max(total, localPending);
+        } catch {}
+
+        setPendingGovCount(total);
       } catch {
         // ignore
       }
     };
     fetchCount();
-    const timer = setInterval(fetchCount, 12000);
+    const timer = setInterval(fetchCount, 8000);
     return () => clearInterval(timer);
-  }, []);
+  }, [systems]);
 
   // State to track which systems are expanded in the accordion
   // Default: Completely collapsed ({}) so no system is open by default
@@ -151,9 +170,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const alignStyle = { textAlign: isRtl ? 'right' : 'left' } as const;
 
   // Check if user has permission to access the API Documentation Hub
-  const canAccessDocumentation = 
-    hasPermission('documentation:systems:read') || 
-    hasPermission('catalog:read') || 
+  const canAccessDocumentation =
+    hasPermission('documentation:systems:read') ||
+    hasPermission('catalog:read') ||
     hasPermission('catalog:spec:export') ||
     hasPermission('*') ||
     Object.keys(systems).some(sysKey => canAccess('catalog:read', { systemId: sysKey }));
@@ -167,14 +186,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <>
       {/* Mobile Drawer Backdrop Overlay */}
       {isOpenMobile && (
-        <div 
-          className="sidebar-backdrop" 
+        <div
+          className="sidebar-backdrop"
           onClick={onCloseMobile}
-          aria-hidden="true" 
+          aria-hidden="true"
         />
       )}
 
-      <aside 
+      <aside
         ref={containerRef}
         className={`sidebar ${isCollapsed ? 'is-collapsed' : ''} ${isPinned ? 'is-pinned' : 'is-unpinned'} ${isOpenMobile ? 'mobile-open' : ''}`}
       >
@@ -195,8 +214,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 type="button"
                 className={`sidebar-pin-btn ${isPinned ? 'is-active' : ''}`}
                 onClick={onTogglePin}
-                title={isPinned 
-                  ? (isRtl ? 'إلغاء تثبيت القائمة الجانبية' : 'Unpin Sidebar') 
+                title={isPinned
+                  ? (isRtl ? 'إلغاء تثبيت القائمة الجانبية' : 'Unpin Sidebar')
                   : (isRtl ? 'تثبيت القائمة الجانبية مفتوحة دائماً' : 'Pin Sidebar Open')
                 }
                 aria-label={isPinned ? 'Unpin Sidebar' : 'Pin Sidebar'}
@@ -246,8 +265,50 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           )}
 
+          {/* Tab 1.1: Systems Management Hub */}
+          {(hasPermission('catalog:systems:read') || hasPermission('catalog:system:create') || hasPermission('catalog:read') || hasPermission('*')) && (
+            <button
+              className={`nav-btn ${activeView === 'systems' ? 'active' : ''}`}
+              onClick={() => handleNavClick('systems')}
+              title={isRtl ? 'إدارة الأنظمة' : 'Systems Management'}
+            >
+              <Layers size={15} />
+              <span style={{ flex: 1, ...alignStyle }}>
+                {isRtl ? 'إدارة الأنظمة' : 'Systems Management'}
+              </span>
+            </button>
+          )}
+
+          {/* Tab 1.2: Sectors & Entities Management Hub */}
+          {(hasPermission('catalog:sectors:read') || hasPermission('catalog:system:create') || hasPermission('catalog:read') || hasPermission('*')) && (
+            <button
+              className={`nav-btn ${activeView === 'sectors' ? 'active' : ''}`}
+              onClick={() => handleNavClick('sectors')}
+              title={isRtl ? 'إدارة الجهات' : 'Entities Management'}
+            >
+              <Building2 size={15} />
+              <span style={{ flex: 1, ...alignStyle }}>
+                {isRtl ? 'إدارة الجهات' : 'Entities Management'}
+              </span>
+            </button>
+          )}
+
+          {/* Tab 1.4: Sovereign Documents & Workspaces Matrix */}
+          {(hasPermission('catalog:documents:read') || hasPermission('catalog:read') || hasPermission('catalog:endpoint:create') || hasPermission('*')) && (
+            <button
+              className={`nav-btn ${activeView === 'documents-matrix' ? 'active' : ''}`}
+              onClick={() => handleNavClick('documents-matrix')}
+              title={isRtl ? 'إدارة وثائق الـ API' : 'API Documents Hub'}
+            >
+              <FileCheck2 size={15} />
+              <span style={{ flex: 1, ...alignStyle }}>
+                {isRtl ? 'إدارة وثائق الـ API' : 'API Documents Hub'}
+              </span>
+            </button>
+          )}
+
           {/* Tab 2: Add New Documentation (Text-only sovereign button) */}
-          {hasPermission('catalog:endpoint:create') && (
+          {(hasPermission('catalog:create:create') || hasPermission('catalog:create:read') || hasPermission('catalog:endpoint:create') || hasPermission('*')) && (
             <button
               className={`nav-btn nav-btn-dashed ${activeView === 'workbench' || activeView === 'add-api' ? 'active' : ''}`}
               onClick={() => handleNavClick('workbench')}
@@ -259,29 +320,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           )}
 
-          {/* Tab 3: IAM Governance (Text-only, no icon, totally hidden if no permission) */}
-          {hasPermission('iam:manage') && (
+          {/* Tab 5: Sovereign Dynamic Multi-Mode Documentation Studio */}
+          {(hasPermission('documentation:dynamic:read') || hasPermission('catalog:spec:export') || hasPermission('documentation:systems:read') || hasPermission('catalog:read') || hasPermission('*')) && (
             <button
-              className={`nav-btn ${activeView === 'iam' ? 'active' : ''}`}
-              onClick={() => handleNavClick('iam')}
-              title={isRtl ? 'إدارة المستخدمين والصلاحيات' : 'User & Permission Management'}
+              className={`nav-btn ${activeView === 'dynamic-docs' ? 'active' : ''}`}
+              onClick={() => handleNavClick('dynamic-docs')}
+              title={isRtl ? 'التوثيق الديناميكي متعدد الأوضاع' : 'Dynamic Documentation Studio'}
             >
               <span style={{ flex: 1, ...alignStyle, fontWeight: 700 }}>
-                {isRtl ? 'إدارة المستخدمين والصلاحيات' : 'User & Permission Management'}
+                {isRtl ? 'التوثيق الديناميكي' : 'Dynamic Documentation'}
               </span>
             </button>
           )}
 
-          {/* Tab 4: Sovereign Governance & Dual-Control (تبويب لحاله مثل أداة الصلاحيات) */}
-          {(hasPermission('governance:inbox:approve') || hasPermission('governance:inbox:read') || hasPermission('governance:*') || hasPermission('*')) && (
+          {/* Tab 4: Sovereign Governance & Dual-Control (مركز الاعتمادات والمرفوعات) */}
+          {(hasPermission('governance:workflows:read') || hasPermission('governance:inbox:approve') || hasPermission('governance:inbox:read') || hasPermission('governance:*') || hasPermission('*')) && (
             <button
               className={`nav-btn ${activeView === 'governance' ? 'active' : ''}`}
               onClick={() => handleNavClick('governance')}
-              title={isRtl ? 'مركز الحوكمة والاعتمادات' : 'Governance & Approvals Hub'}
+              title={isRtl ? 'مركز الاعتمادات والمرفوعات' : 'Approvals & Submissions Hub'}
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
             >
               <span style={{ flex: 1, ...alignStyle, fontWeight: 700 }}>
-                {isRtl ? 'مركز الحوكمة والاعتمادات' : 'Governance & Approvals Hub'}
+                {isRtl ? 'مركز الاعتمادات والمرفوعات' : 'Approvals & Submissions'}
               </span>
               {pendingGovCount > 0 && (
                 <span
@@ -300,8 +361,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           )}
 
+          {/* Tab 1.3: Integrations & Linking Hub */}
+          {(hasPermission('catalog:integrations:read') || hasPermission('catalog:system:create') || hasPermission('catalog:read') || hasPermission('*')) && (
+            <button
+              className={`nav-btn ${activeView === 'integrations' ? 'active' : ''}`}
+              onClick={() => handleNavClick('integrations')}
+              title={isRtl ? 'إدارة الربط والتكامل' : 'Integrations & Linking'}
+            >
+              <Link2 size={15} />
+              <span style={{ flex: 1, ...alignStyle }}>
+                {isRtl ? 'إدارة الربط والتكامل' : 'Integrations & Linking'}
+              </span>
+            </button>
+          )}
+
           {/* Tab 4.5: Sovereign Workflow Policies Studio (فصل مسار وسياسات الاعتماد في تبويب مستقل) */}
-          {(hasPermission('iam:manage') || hasPermission('governance:*') || hasPermission('*')) && (
+          {(hasPermission('governance:policies:read') || hasPermission('iam:manage') || hasPermission('governance:*') || hasPermission('*')) && (
             <button
               className={`nav-btn ${activeView === 'workflow-policies' ? 'active' : ''}`}
               onClick={() => handleNavClick('workflow-policies')}
@@ -313,15 +388,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           )}
 
-          {/* Tab 5: Sovereign Dynamic Multi-Mode Documentation Studio */}
-          {(hasPermission('catalog:spec:export') || hasPermission('documentation:systems:read') || hasPermission('catalog:read') || hasPermission('*')) && (
+          {/* Tab 3: IAM Governance (Text-only, no icon, totally hidden if no permission) */}
+          {(hasPermission('iam:users:read') || hasPermission('iam:manage') || hasPermission('*')) && (
             <button
-              className={`nav-btn ${activeView === 'dynamic-docs' ? 'active' : ''}`}
-              onClick={() => handleNavClick('dynamic-docs')}
-              title={isRtl ? 'التوثيق الديناميكي متعدد الأوضاع' : 'Dynamic Documentation Studio'}
+              className={`nav-btn ${activeView === 'iam' ? 'active' : ''}`}
+              onClick={() => handleNavClick('iam')}
+              title={isRtl ? 'إدارة المستخدمين والصلاحيات' : 'User & Permission Management'}
             >
               <span style={{ flex: 1, ...alignStyle, fontWeight: 700 }}>
-                {isRtl ? 'التوثيق الديناميكي' : 'Dynamic Documentation'}
+                {isRtl ? 'إدارة المستخدمين والصلاحيات' : 'User & Permission Management'}
               </span>
             </button>
           )}
@@ -357,8 +432,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     type="button"
                     className="sidebar-icon-action-btn"
                     onClick={handleToggleAllSystems}
-                    title={isAllCollapsed 
-                      ? (isRtl ? 'فتح المسارات' : 'Expand All') 
+                    title={isAllCollapsed
+                      ? (isRtl ? 'فتح المسارات' : 'Expand All')
                       : (isRtl ? 'ضم المسارات' : 'Collapse All')
                     }
                     aria-label="Toggle all systems"
@@ -377,7 +452,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     const localizedSysName = getLocalized({ ar: sys.name, en: sys.nameEn }, sys.name);
                     const rawIntegrations = sys.integrations ? Object.entries(sys.integrations) : [];
                     const integrationsList = rawIntegrations.filter(([intKey]) => {
-                      return canAccess('catalog:read', { systemId: sysKey, integrationId: intKey });
+                      return canAccess('catalog:read', { systemId: sysKey, entityId: intKey } as any);
                     });
 
                     // Hide system only if it has integrations defined and user is not allowed to access any of them
@@ -386,8 +461,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     }
 
                     return (
-                      <div 
-                        key={sysKey} 
+                      <div
+                        key={sysKey}
                         className={`sidebar-system-group ${isSystemSelected ? 'system-group-active' : ''} ${isExpanded ? 'is-expanded' : ''}`}
                       >
                         {/* Level 1: System Node Header */}

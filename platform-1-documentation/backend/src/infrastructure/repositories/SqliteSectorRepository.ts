@@ -6,6 +6,7 @@ import { ISectorRepository } from '../../domain/interfaces/ISectorRepository.js'
 import { Sector } from '../../domain/entities/Sector.js';
 import { Endpoint } from '../../domain/entities/Endpoint.js';
 import { prisma } from '../database/prismaClient.js';
+import { resolveDataPath } from '../data/dataPathResolver.js';
 
 export class SqliteSectorRepository implements ISectorRepository {
   private hasInitialized = false;
@@ -13,36 +14,23 @@ export class SqliteSectorRepository implements ISectorRepository {
   private async ensureSeeded(): Promise<void> {
     if (this.hasInitialized) return;
     try {
-      const count = await prisma.sector.count();
-      if (count === 0) {
-        const __dirname = path.dirname(fileURLToPath(import.meta.url));
-        const rootDataPath = path.resolve(__dirname, '../../../data/sectors.json');
-        const localDataPath = path.resolve(__dirname, '../data/sectors.json');
-        const candidate = fsSync.existsSync(rootDataPath) ? rootDataPath : localDataPath;
-
-        if (fsSync.existsSync(candidate)) {
-          const raw = await fs.readFile(candidate, 'utf-8');
-          const data: Record<string, Sector> = JSON.parse(raw);
-          for (const [key, sector] of Object.entries(data)) {
-            await prisma.sector.upsert({
-              where: { key },
-              create: {
-                key,
-                name: sector.name,
-                nameEn: sector.nameEn || null,
-                code: sector.code,
-                icon: sector.icon || 'Building2',
-                services: JSON.stringify(sector.services || {})
-              },
-              update: {
-                name: sector.name,
-                nameEn: sector.nameEn || null,
-                code: sector.code,
-                icon: sector.icon || 'Building2',
-                services: JSON.stringify(sector.services || {})
-              }
-            });
-          }
+      const candidate = resolveDataPath('sectors.json');
+      if (fsSync.existsSync(candidate)) {
+        const raw = await fs.readFile(candidate, 'utf-8');
+        const data: Record<string, Sector> = JSON.parse(raw);
+        for (const [key, sector] of Object.entries(data)) {
+          await prisma.sector.upsert({
+            where: { key },
+            create: {
+              key,
+              name: sector.name,
+              nameEn: sector.nameEn || null,
+              code: sector.code || `SECTOR_${key.toUpperCase()}`,
+              icon: sector.icon || 'Building2',
+              services: JSON.stringify(sector.services || {})
+            },
+            update: {} // do not overwrite custom user edits
+          });
         }
       }
       this.hasInitialized = true;
@@ -56,13 +44,19 @@ export class SqliteSectorRepository implements ISectorRepository {
     const records = await prisma.sector.findMany();
     const result: Record<string, Sector> = {};
     for (const r of records) {
+      let parsedServices = {};
+      try {
+        if (r.services) parsedServices = JSON.parse(r.services);
+      } catch {
+        parsedServices = {};
+      }
       result[r.key] = {
         key: r.key,
         name: r.name,
         nameEn: r.nameEn || undefined,
         code: r.code,
         icon: r.icon,
-        services: r.services ? JSON.parse(r.services) : {}
+        services: parsedServices
       };
     }
     return result;
@@ -72,13 +66,19 @@ export class SqliteSectorRepository implements ISectorRepository {
     await this.ensureSeeded();
     const record = await prisma.sector.findUnique({ where: { key } });
     if (!record) return null;
+    let parsedServices = {};
+    try {
+      if (record.services) parsedServices = JSON.parse(record.services);
+    } catch {
+      parsedServices = {};
+    }
     return {
       key: record.key,
       name: record.name,
       nameEn: record.nameEn || undefined,
       code: record.code,
       icon: record.icon,
-      services: record.services ? JSON.parse(record.services) : {}
+      services: parsedServices
     };
   }
 

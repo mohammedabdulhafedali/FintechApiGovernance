@@ -18,6 +18,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { ScreenResourceDefinition, ScreenActionType, UserGroup } from '../../types/auth';
+import { SystemModule } from '../../types/schema';
 import { iamService } from '../../services/iamService';
 import { useLanguage } from '../../i18n';
 
@@ -28,6 +29,7 @@ interface RolePermissionMatrixProps {
   onDeleteSuccess?: () => void;
   onNotify?: (title: string, message: string, type: 'success' | 'info' | 'warning' | 'error') => void;
   assignedUsersCount?: number;
+  systems?: Record<string, SystemModule>;
 }
 
 const ACTION_COLUMNS: { key: ScreenActionType; labelAr: string; labelEn: string }[] = [
@@ -43,7 +45,8 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
   onCancel,
   onDeleteSuccess,
   onNotify,
-  assignedUsersCount = 0
+  assignedUsersCount = 0,
+  systems
 }) => {
   const { isRtl } = useLanguage();
 
@@ -112,54 +115,134 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
       }
     }
 
-    // 5. Prefix Wildcard (e.g. "catalog:*")
+    // 5. Prefix Wildcard (e.g. "catalog:*", "governance:*", "iam:*", "documentation:*")
     const [prefix] = screenKey.split(':');
     if (prefix && selectedPermissions.has(`${prefix}:*`)) return true;
 
-    // 6. Cross-domain mapping for legacy catalog permissions
-    if (screenKey.startsWith('catalog:') && action === 'create') {
-      if (selectedPermissions.has('catalog:system:create') || selectedPermissions.has('catalog:endpoint:create')) return true;
+    // 6. Specific granular mappings for sovereign & legacy permissions
+    if (screenKey === 'catalog:systems') {
+      if (action === 'create' && selectedPermissions.has('catalog:system:create')) return true;
+      if (action === 'delete' && selectedPermissions.has('catalog:system:delete')) return true;
+      if (action === 'read' && (selectedPermissions.has('catalog:read') || selectedPermissions.has('catalog:system:create'))) return true;
     }
-    if (screenKey.startsWith('catalog:') && action === 'delete') {
-      if (selectedPermissions.has('catalog:system:delete') || selectedPermissions.has('catalog:endpoint:delete')) return true;
+    if (screenKey === 'catalog:create') {
+      if (action === 'create' && (selectedPermissions.has('catalog:system:create') || selectedPermissions.has('catalog:endpoint:create'))) return true;
+      if (action === 'read' && (selectedPermissions.has('catalog:read') || selectedPermissions.has('catalog:spec:export'))) return true;
     }
-    if (screenKey.startsWith('catalog:') && action === 'read') {
-      if (
-        selectedPermissions.has('catalog:spec:export') || 
-        selectedPermissions.has('catalog:system:create') || 
-        selectedPermissions.has('catalog:endpoint:create') ||
-        selectedPermissions.has('documentation:systems:read') ||
-        selectedPermissions.has('documentation:systems:*')
-      ) return true;
+    if (screenKey === 'documentation:dynamic') {
+      if (action === 'read' && (selectedPermissions.has('catalog:spec:export') || selectedPermissions.has('documentation:systems:read'))) return true;
+    }
+    if (screenKey === 'governance:policies') {
+      if (action === 'read' && (selectedPermissions.has('governance:inbox:read') || selectedPermissions.has('governance:inbox:approve') || selectedPermissions.has('iam:manage'))) return true;
+      if (action === 'update' && (selectedPermissions.has('governance:inbox:approve') || selectedPermissions.has('iam:manage'))) return true;
     }
 
     return false;
   }, [selectedPermissions]);
 
-  // Fetch dynamic screens catalog
+  // بناء شاشات وموارد الأنظمة ديناميكياً من كائن الأنظمة الحي
+  const buildSystemScreens = useCallback((sysMap: Record<string, SystemModule>): ScreenResourceDefinition[] => {
+    const list: ScreenResourceDefinition[] = [];
+    Object.entries(sysMap).forEach(([sysKey, sys]) => {
+      // 1. المورد الأساسي على مستوى النظام ككل
+      list.push({
+        key: `sys:${sysKey}`,
+        name: sys.nameEn || sys.name,
+        nameAr: `نظام ${sys.name}`,
+        systemKey: sysKey,
+        systemName: sys.name,
+        systemNameEn: sys.nameEn || sysKey,
+        systemCode: sys.code || `SYS_${sysKey.toUpperCase()}`,
+        category: 'CENTRAL_SYSTEMS',
+        description: sys.description || `إدارة وتشغيل وصلاحيات نظام [${sys.name}] (${sys.code})`,
+        supportedActions: ['read', 'create', 'update', 'delete']
+      });
+
+      // 2. التكاملات التابعة للنظام
+      if (sys.integrations && typeof sys.integrations === 'object') {
+        Object.entries(sys.integrations).forEach(([intKey, int]) => {
+          const intTitle = int.name || intKey;
+          const endpoints = Array.isArray(int.endpoints) ? int.endpoints : [];
+          list.push({
+            key: `sys:${sysKey}:int:${intKey}`,
+            name: `${sys.nameEn || sys.name} - ${int.nameEn || intTitle}`,
+            nameAr: `${intTitle} - ${sys.name}`,
+            systemKey: sysKey,
+            systemName: sys.name,
+            systemNameEn: sys.nameEn || sysKey,
+            systemCode: sys.code || `SYS_${sysKey.toUpperCase()}`,
+            sectorKey: intKey,
+            sectorName: intTitle,
+            category: 'CENTRAL_SYSTEMS',
+            description: `تكامل [${intTitle}] ضمن نظام [${sys.name}] (${sys.code}) - يشمل ${endpoints.length} مسار API`,
+            supportedActions: ['read', 'create', 'update', 'delete'],
+            endpointsCount: endpoints.length,
+            endpoints: endpoints.map((ep: any) => ({
+              id: ep.id || ep.shortName,
+              method: ep.method || 'POST',
+              path: ep.path || '',
+              shortName: ep.shortName || ep.path,
+              desc: ep.desc || ep.descEn || ''
+            }))
+          });
+        });
+      }
+    });
+    return list;
+  }, []);
+
+  // Fetch dynamic screens catalog and merge with live systems
   useEffect(() => {
     let isMounted = true;
     setIsLoadingScreens(true);
+
+    let localSystems: Record<string, SystemModule> = systems || {};
+    if (Object.keys(localSystems).length === 0) {
+      try {
+        const cached = localStorage.getItem('gov_fintech_systems_cache');
+        if (cached) localSystems = JSON.parse(cached);
+      } catch {}
+    }
+
     iamService.getScreenResources()
       .then((res) => {
-        if (isMounted) {
-          setScreens(res);
-          setIsLoadingScreens(false);
-          if (isGroupAdmin(initialGroup)) {
-            const allSet = new Set<string>(['*']);
-            res.forEach(s => {
-              s.supportedActions.forEach(act => allSet.add(`${s.key}:${act}`));
-            });
-            setSelectedPermissions(allSet);
-          }
+        if (!isMounted) return;
+
+        // دمج موارد السيرفر مع الأنظمة الحية المضافة محلياً
+        const existingKeys = new Set(res.map(s => s.key));
+        const extraScreens = buildSystemScreens(localSystems).filter(s => !existingKeys.has(s.key));
+        const combined = [...res, ...extraScreens];
+
+        setScreens(combined);
+        setIsLoadingScreens(false);
+        if (isGroupAdmin(initialGroup)) {
+          const allSet = new Set<string>(['*']);
+          combined.forEach(s => {
+            s.supportedActions.forEach(act => allSet.add(`${s.key}:${act}`));
+          });
+          setSelectedPermissions(allSet);
         }
       })
       .catch(() => {
-        if (isMounted) setIsLoadingScreens(false);
+        if (!isMounted) return;
+        const fallback = buildSystemScreens(localSystems);
+        setScreens(fallback);
+        setIsLoadingScreens(false);
       });
 
     return () => { isMounted = false; };
-  }, [initialGroup, isGroupAdmin]);
+  }, [initialGroup, isGroupAdmin, systems, buildSystemScreens]);
+
+  // تحديث فوري إذا تم إضافة أنظمة جديدة أثناء عمل الواجهة
+  useEffect(() => {
+    if (!systems || Object.keys(systems).length === 0) return;
+    setScreens(prevScreens => {
+      const existingKeys = new Set(prevScreens.map(s => s.key));
+      const newScreens = buildSystemScreens(systems).filter(s => !existingKeys.has(s.key));
+      if (newScreens.length === 0) return prevScreens;
+      return [...prevScreens, ...newScreens];
+    });
+  }, [systems, buildSystemScreens]);
 
   // Update form if initialGroup or screens change
   useEffect(() => {
@@ -187,9 +270,13 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
               if (
                 nextSet.has(`${s.key}:${act}`) ||
                 nextSet.has(`${s.key}:*`) ||
-                (s.key.startsWith('catalog:') && act === 'create' && (nextSet.has('catalog:system:create') || nextSet.has('catalog:endpoint:create'))) ||
-                (s.key.startsWith('catalog:') && act === 'delete' && (nextSet.has('catalog:system:delete') || nextSet.has('catalog:endpoint:delete'))) ||
-                (s.key.startsWith('catalog:') && act === 'read' && (nextSet.has('catalog:spec:export') || nextSet.has('catalog:system:create') || nextSet.has('catalog:endpoint:create')))
+                (s.key === 'catalog:systems' && act === 'create' && nextSet.has('catalog:system:create')) ||
+                (s.key === 'catalog:systems' && act === 'delete' && nextSet.has('catalog:system:delete')) ||
+                (s.key === 'catalog:systems' && act === 'read' && (nextSet.has('catalog:read') || nextSet.has('catalog:system:create'))) ||
+                (s.key === 'catalog:create' && act === 'create' && (nextSet.has('catalog:system:create') || nextSet.has('catalog:endpoint:create'))) ||
+                (s.key === 'catalog:create' && act === 'read' && (nextSet.has('catalog:read') || nextSet.has('catalog:spec:export'))) ||
+                (s.key === 'documentation:dynamic' && act === 'read' && (nextSet.has('catalog:spec:export') || nextSet.has('documentation:systems:read'))) ||
+                (s.key === 'governance:policies' && (nextSet.has('governance:inbox:approve') || nextSet.has('iam:manage')))
               ) {
                 nextSet.add(`${s.key}:${act}`);
                 if (act !== 'read' && s.supportedActions.includes('read')) {
@@ -457,22 +544,34 @@ export const RolePermissionMatrix: React.FC<RolePermissionMatrixProps> = ({
       if (permArray.some(p => p.startsWith('iam:users:') || p === 'iam:manage')) {
         if (!permArray.includes('iam:manage')) permArray.push('iam:manage');
       }
-      if (permArray.some(p => p.startsWith('catalog:create') || p === 'catalog:endpoint:create')) {
+      if (permArray.some(p => p === 'catalog:systems:create' || p === 'catalog:create:create' || p.startsWith('catalog:create') || p === 'catalog:endpoint:create')) {
         if (!permArray.includes('catalog:endpoint:create')) permArray.push('catalog:endpoint:create');
         if (!permArray.includes('catalog:system:create')) permArray.push('catalog:system:create');
       }
-      if (permArray.some(p => p === 'catalog:delete' || p === 'catalog:system:delete')) {
+      if (permArray.some(p => p === 'catalog:systems:delete' || p === 'catalog:delete' || p === 'catalog:system:delete')) {
         if (!permArray.includes('catalog:system:delete')) permArray.push('catalog:system:delete');
       }
-      if (permArray.some(p => p.startsWith('documentation:systems:') || p === 'catalog:read')) {
+      if (permArray.some(p => 
+        p.startsWith('catalog:systems:') || 
+        p.startsWith('catalog:sectors:') || 
+        p.startsWith('catalog:integrations:') || 
+        p.startsWith('catalog:documents:') || 
+        p.startsWith('documentation:systems:') || 
+        p === 'catalog:read'
+      )) {
         if (!permArray.includes('catalog:read')) permArray.push('catalog:read');
+      }
+      if (permArray.some(p => p.startsWith('documentation:dynamic:') || p === 'catalog:spec:export')) {
+        if (!permArray.includes('catalog:spec:export')) permArray.push('catalog:spec:export');
+      }
+      if (permArray.some(p => p.startsWith('documentation:systems:') || p === 'catalog:read')) {
         if (!permArray.includes('documentation:systems:read')) permArray.push('documentation:systems:read');
       }
-      if (permArray.some(p => p.startsWith('governance:inbox:') || p.startsWith('governance:'))) {
+      if (permArray.some(p => p.startsWith('governance:workflows:') || p.startsWith('governance:policies:') || p.startsWith('governance:inbox:') || p.startsWith('governance:'))) {
         if (!permArray.includes('governance:inbox:approve')) permArray.push('governance:inbox:approve');
         if (!permArray.includes('governance:inbox:read')) permArray.push('governance:inbox:read');
       }
-      if (permArray.some(p => p.startsWith('iam:audit:'))) {
+      if (permArray.some(p => p.startsWith('audit:trail:') || p.startsWith('iam:audit:'))) {
         if (!permArray.includes('iam:audit:view')) permArray.push('iam:audit:view');
       }
 

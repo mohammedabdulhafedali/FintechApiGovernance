@@ -22,6 +22,7 @@ import {
   ScreenActionType, 
   UserOverrides 
 } from '../../types/auth';
+import { SystemModule } from '../../types/schema';
 import { iamService } from '../../services/iamService';
 import { useLanguage } from '../../i18n';
 
@@ -31,6 +32,7 @@ interface UserOverrideMatrixViewProps {
   onClose: () => void;
   onSuccess: (updatedUser: UserPublicProfile) => void;
   onNotify?: (title: string, message: string, type: 'success' | 'info' | 'warning' | 'error') => void;
+  systems?: Record<string, SystemModule>;
 }
 
 const ACTION_COLUMNS: { key: ScreenActionType; labelAr: string; labelEn: string }[] = [
@@ -45,7 +47,8 @@ export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
   userGroup,
   onClose,
   onSuccess,
-  onNotify
+  onNotify,
+  systems
 }) => {
   const { isRtl } = useLanguage();
 
@@ -77,22 +80,94 @@ export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
     );
   }, [groupPermsSet, userGroup, user]);
 
-  // Load screen resources dynamically
+  // بناء شاشات وموارد الأنظمة ديناميكياً من كائن الأنظمة الحي
+  const buildSystemScreens = useCallback((sysMap: Record<string, SystemModule>): ScreenResourceDefinition[] => {
+    const list: ScreenResourceDefinition[] = [];
+    Object.entries(sysMap).forEach(([sysKey, sys]) => {
+      list.push({
+        key: `sys:${sysKey}`,
+        name: sys.nameEn || sys.name,
+        nameAr: `نظام ${sys.name}`,
+        systemKey: sysKey,
+        systemName: sys.name,
+        systemNameEn: sys.nameEn || sysKey,
+        systemCode: sys.code || `SYS_${sysKey.toUpperCase()}`,
+        category: 'CENTRAL_SYSTEMS',
+        description: sys.description || `إدارة وتشغيل وصلاحيات نظام [${sys.name}] (${sys.code})`,
+        supportedActions: ['read', 'create', 'update', 'delete']
+      });
+
+      if (sys.integrations && typeof sys.integrations === 'object') {
+        Object.entries(sys.integrations).forEach(([intKey, int]) => {
+          const intTitle = int.name || intKey;
+          const endpoints = Array.isArray(int.endpoints) ? int.endpoints : [];
+          list.push({
+            key: `sys:${sysKey}:int:${intKey}`,
+            name: `${sys.nameEn || sys.name} - ${int.nameEn || intTitle}`,
+            nameAr: `${intTitle} - ${sys.name}`,
+            systemKey: sysKey,
+            systemName: sys.name,
+            systemNameEn: sys.nameEn || sysKey,
+            systemCode: sys.code || `SYS_${sysKey.toUpperCase()}`,
+            sectorKey: intKey,
+            sectorName: intTitle,
+            category: 'CENTRAL_SYSTEMS',
+            description: `تكامل [${intTitle}] ضمن نظام [${sys.name}] (${sys.code}) - يشمل ${endpoints.length} مسار API`,
+            supportedActions: ['read', 'create', 'update', 'delete'],
+            endpointsCount: endpoints.length,
+            endpoints: endpoints.map((ep: any) => ({
+              id: ep.id || ep.shortName,
+              method: ep.method || 'POST',
+              path: ep.path || '',
+              shortName: ep.shortName || ep.path,
+              desc: ep.desc || ep.descEn || ''
+            }))
+          });
+        });
+      }
+    });
+    return list;
+  }, []);
+
+  // Load screen resources dynamically and merge with live systems
   useEffect(() => {
     let isMounted = true;
     setIsLoadingScreens(true);
+
+    let localSystems: Record<string, SystemModule> = systems || {};
+    if (Object.keys(localSystems).length === 0) {
+      try {
+        const cached = localStorage.getItem('gov_fintech_systems_cache');
+        if (cached) localSystems = JSON.parse(cached);
+      } catch {}
+    }
+
     iamService.getScreenResources()
       .then((res) => {
-        if (isMounted) {
-          setScreens(res);
-          setIsLoadingScreens(false);
-        }
+        if (!isMounted) return;
+        const existingKeys = new Set(res.map(s => s.key));
+        const extraScreens = buildSystemScreens(localSystems).filter(s => !existingKeys.has(s.key));
+        setScreens([...res, ...extraScreens]);
+        setIsLoadingScreens(false);
       })
       .catch(() => {
-        if (isMounted) setIsLoadingScreens(false);
+        if (!isMounted) return;
+        setScreens(buildSystemScreens(localSystems));
+        setIsLoadingScreens(false);
       });
     return () => { isMounted = false; };
-  }, []);
+  }, [systems, buildSystemScreens]);
+
+  // تحديث فوري إذا تم إضافة أنظمة جديدة أثناء عمل الواجهة
+  useEffect(() => {
+    if (!systems || Object.keys(systems).length === 0) return;
+    setScreens(prevScreens => {
+      const existingKeys = new Set(prevScreens.map(s => s.key));
+      const newScreens = buildSystemScreens(systems).filter(s => !existingKeys.has(s.key));
+      if (newScreens.length === 0) return prevScreens;
+      return [...prevScreens, ...newScreens];
+    });
+  }, [systems, buildSystemScreens]);
 
   // تجميع الموارد بحسب الفئات (نماذج المنظومة الأساسية مقابل الصلاحيات المخصصة)
   const baseModuleScreens = useMemo(() => {
@@ -148,6 +223,45 @@ export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
     return allowed.includes(systemKey);
   }, [user]);
 
+  // تقييم وراثة الصلاحية من دور ومجموعة المستخدم هرمياً
+  const isPermissionInherited = useCallback((screenKey: string, action: ScreenActionType): boolean => {
+    if (isGroupFullAdmin) return true;
+
+    const permKey = `${screenKey}:${action}`;
+    if (groupPermsSet.has(permKey)) return true;
+    if (groupPermsSet.has(`${screenKey}:*`)) return true;
+
+    // Central System-Level Wildcard
+    if (screenKey.startsWith('sys:')) {
+      const parts = screenKey.split(':');
+      if (parts.length >= 2 && groupPermsSet.has(`sys:${parts[1]}:*`)) return true;
+    }
+
+    // Prefix Wildcard
+    const [prefix] = screenKey.split(':');
+    if (prefix && groupPermsSet.has(`${prefix}:*`)) return true;
+
+    // Legacy bridges
+    if (screenKey === 'catalog:systems') {
+      if (action === 'create' && groupPermsSet.has('catalog:system:create')) return true;
+      if (action === 'delete' && groupPermsSet.has('catalog:system:delete')) return true;
+      if (action === 'read' && (groupPermsSet.has('catalog:read') || groupPermsSet.has('catalog:system:create'))) return true;
+    }
+    if (screenKey === 'catalog:create') {
+      if (action === 'create' && (groupPermsSet.has('catalog:system:create') || groupPermsSet.has('catalog:endpoint:create'))) return true;
+      if (action === 'read' && (groupPermsSet.has('catalog:read') || groupPermsSet.has('catalog:spec:export'))) return true;
+    }
+    if (screenKey === 'documentation:dynamic') {
+      if (action === 'read' && (groupPermsSet.has('catalog:spec:export') || groupPermsSet.has('documentation:systems:read'))) return true;
+    }
+    if (screenKey === 'governance:policies') {
+      if (action === 'read' && (groupPermsSet.has('governance:inbox:read') || groupPermsSet.has('governance:inbox:approve') || groupPermsSet.has('iam:manage'))) return true;
+      if (action === 'update' && (groupPermsSet.has('governance:inbox:approve') || groupPermsSet.has('iam:manage'))) return true;
+    }
+
+    return false;
+  }, [isGroupFullAdmin, groupPermsSet]);
+
   /**
    * تقييم حالة الخلية الفردية للمستخدم:
    * 1. 'revoked': محجوبة كاستثناء فردي (أحمر)
@@ -166,12 +280,12 @@ export const UserOverrideMatrixView: React.FC<UserOverrideMatrixViewProps> = ({
       return 'granted';
     }
 
-    if (isGroupFullAdmin || groupPermsSet.has(permKey)) {
+    if (isPermissionInherited(screenKey, action)) {
       return 'inherited';
     }
 
     return 'none';
-  }, [revokedSet, grantedSet, isGroupFullAdmin, groupPermsSet]);
+  }, [revokedSet, grantedSet, isPermissionInherited]);
 
   /**
    * تبديل حالة الخلية الفردية عند النقر:

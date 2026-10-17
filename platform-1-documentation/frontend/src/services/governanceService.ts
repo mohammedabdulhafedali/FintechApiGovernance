@@ -45,6 +45,30 @@ export class GovernanceService {
     return result.data || [];
   }
 
+  public async submitRequest(params: {
+    resourceKey: string;
+    actionType?: 'CREATE' | 'UPDATE' | 'DELETE' | 'CUSTOM';
+    actionDescriptionAr: string;
+    actionDescriptionEn?: string;
+    targetResourceId?: string;
+    payload: any;
+    diffSummary?: any[];
+  }): Promise<ApprovalRequest> {
+    const response = await fetch(`${GOVERNANCE_BASE_URL}/requests`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authService.getAuthHeaders()
+      },
+      body: JSON.stringify(params)
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || 'فشل إرسال طلب الاعتماد');
+    }
+    return result.data;
+  }
+
   public async getPolicies(): Promise<WorkflowPolicy[]> {
     const response = await fetch(`${GOVERNANCE_BASE_URL}/policies`, {
       headers: authService.getAuthHeaders()

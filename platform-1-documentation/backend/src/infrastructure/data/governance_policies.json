@@ -1,5 +1,24 @@
 [
   {
+    "resourceKey": "catalog:documents",
+    "resourceNameAr": "وثائق ومواصفات الـ API",
+    "resourceNameEn": "API Documentation & Specifications",
+    "mode": "MAKER_CHECKER",
+    "isProtectedCore": true,
+    "stages": [
+      {
+        "stageOrder": 1,
+        "stageKey": "architect_approval",
+        "stageNameAr": "اعتماد معماري الـ API والمواصفات",
+        "stageNameEn": "API Architect Specification Approval",
+        "requiredPermission": "governance:approve",
+        "minApprovers": 1
+      }
+    ],
+    "updatedAt": "2026-10-17T12:00:00.000Z",
+    "updatedBy": "system"
+  },
+  {
     "resourceKey": "catalog:endpoints",
     "resourceNameAr": "نقاط النهاية والـ APIs",
     "resourceNameEn": "Endpoints & API Catalog",
@@ -20,29 +39,22 @@
   },
   {
     "resourceKey": "catalog:sectors",
-    "resourceNameAr": "القطاعات والأنظمة المصرفية",
-    "resourceNameEn": "Banking Sectors & Systems",
-    "mode": "MULTI_STAGE_PIPELINE",
-    "isProtectedCore": true,
-    "stages": [
-      {
-        "stageOrder": 1,
-        "stageKey": "architect_signoff",
-        "stageNameAr": "اعتماد معماري الـ API",
-        "stageNameEn": "API Architect Sign-off",
-        "requiredPermission": "governance:approve",
-        "minApprovers": 1
-      },
-      {
-        "stageOrder": 2,
-        "stageKey": "security_signoff",
-        "stageNameAr": "اعتماد ضابط أمن المعلومات (CISO)",
-        "stageNameEn": "Chief Information Security Officer Sign-off",
-        "requiredPermission": "governance:approve:security",
-        "minApprovers": 1
-      }
-    ],
-    "updatedAt": "2026-10-13T17:23:26.346Z",
+    "resourceNameAr": "دليل الجهات والقطاعات",
+    "resourceNameEn": "Entities & Banking Sectors",
+    "mode": "DIRECT",
+    "isProtectedCore": false,
+    "stages": [],
+    "updatedAt": "2026-10-17T12:00:00.000Z",
+    "updatedBy": "system"
+  },
+  {
+    "resourceKey": "catalog:systems",
+    "resourceNameAr": "الأنظمة المركزية والتكاملات",
+    "resourceNameEn": "Core Systems & Integrations",
+    "mode": "DIRECT",
+    "isProtectedCore": false,
+    "stages": [],
+    "updatedAt": "2026-10-17T12:00:00.000Z",
     "updatedBy": "system"
   },
   {

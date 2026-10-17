@@ -22,9 +22,9 @@ import {
   WorkflowPolicy 
 } from '../../types/governance';
 import { governanceService } from '../../services/governanceService';
+import { docGovernanceEngine } from '../../services/docGovernanceEngine';
 import { useAuth } from '../auth/AuthContext';
 import { useLanguage } from '../../i18n';
-import { DocumentMatrixView } from './DocumentMatrixView';
 import { SystemModule } from '../../types/schema';
 
 interface GovernanceManagementViewProps {
@@ -45,7 +45,7 @@ export const GovernanceManagementView: React.FC<GovernanceManagementViewProps> =
   const { user } = useAuth();
   const { isRtl } = useLanguage();
 
-  const [activeTab, setActiveTab] = useState<'matrix' | 'inbox' | 'my-requests'>('matrix');
+  const [activeTab, setActiveTab] = useState<'inbox' | 'my-requests'>('inbox');
   const [inboxItems, setInboxItems] = useState<ApprovalInboxItem[]>([]);
   const [myRequests, setMyRequests] = useState<ApprovalRequest[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -62,14 +62,135 @@ export const GovernanceManagementView: React.FC<GovernanceManagementViewProps> =
     setLoading(true);
     try {
       if (activeTab === 'inbox') {
-        const res = await governanceService.getInbox();
-        setInboxItems(res.data);
-        if (res.data.length > 0 && (!selectedRequest || !res.data.some(d => d.id === selectedRequest.id))) {
-          setSelectedRequest(res.data[0]);
+        let items: ApprovalInboxItem[] = [];
+        try {
+          const res = await governanceService.getInbox();
+          items = res.data || [];
+        } catch (e) {
+          console.warn('[Governance] Backend getInbox error:', e);
+        }
+
+        // Bridge: Also scan docGovernanceEngine for any documents currently UNDER_REVIEW
+        const docContainers = docGovernanceEngine.getContainersMatrix(systems);
+        docContainers.forEach(c => {
+          if (c.pendingReviewVersion) {
+            const docReqId = `REQ-DOC-${c.documentKey}`;
+            const exists = items.some(i => i.targetResourceId === c.documentKey || i.id === docReqId);
+            if (!exists) {
+              const pendingDoc = c.pendingReviewVersion;
+              items.unshift({
+                id: docReqId,
+                resourceKey: 'catalog:documents',
+                resourceNameAr: 'وثائق ومواصفات الـ API',
+                resourceNameEn: 'API Documentation & Specifications',
+                actionType: 'CUSTOM',
+                actionDescriptionAr: `طلب اعتماد مسودة وثيقة الـ API (${pendingDoc.versionNumber}) لنظام ${c.systemName} ⟷ ${c.integrationName}`,
+                actionDescriptionEn: `Approval request for API Doc (${pendingDoc.versionNumber}) for ${c.systemName} ⟷ ${c.integrationName}`,
+                targetResourceId: c.documentKey,
+                payload: {
+                  documentKey: c.documentKey,
+                  systemKey: c.systemKey,
+                  integrationKey: c.integrationKey,
+                  systemName: c.systemName,
+                  integrationName: c.integrationName,
+                  versionNumber: pendingDoc.versionNumber,
+                  changeSummary: pendingDoc.changeSummary || 'تحديث وتأسيس مواصفات الربط البرمجي.',
+                  endpointsCount: pendingDoc.endpointsCount || 0
+                },
+                diffSummary: [],
+                makerId: pendingDoc.authorId || 'maker_user',
+                makerName: pendingDoc.authorName || 'مهندس التوثيق',
+                makerGroup: 'فريق المعمارية والتكامل',
+                submittedAt: pendingDoc.submittedAt || pendingDoc.createdAt,
+                status: 'PENDING',
+                currentStageOrder: 1,
+                totalStages: 1,
+                stages: [{
+                  stageOrder: 1,
+                  stageKey: 'architect_approval',
+                  stageNameAr: 'اعتماد معماري الـ API والمواصفات',
+                  stageNameEn: 'API Architect Specification Approval',
+                  requiredPermission: 'governance:approve',
+                  minApprovers: 1
+                }],
+                approvalTrail: [],
+                canApproveCurrentStage: true,
+                activeStage: {
+                  stageOrder: 1,
+                  stageKey: 'architect_approval',
+                  stageNameAr: 'اعتماد معماري الـ API والمواصفات',
+                  stageNameEn: 'API Architect Specification Approval',
+                  requiredPermission: 'governance:approve',
+                  minApprovers: 1
+                }
+              });
+            }
+          }
+        });
+
+        setInboxItems(items);
+        if (items.length > 0 && (!selectedRequest || !items.some(d => d.id === selectedRequest.id))) {
+          setSelectedRequest(items[0]);
         }
       } else if (activeTab === 'my-requests') {
-        const res = await governanceService.getMyRequests();
-        setMyRequests(res);
+        let items: ApprovalRequest[] = [];
+        try {
+          const res = await governanceService.getMyRequests();
+          items = res || [];
+        } catch (e) {
+          console.warn('[Governance] Backend getMyRequests error:', e);
+        }
+
+        // Bridge: Also scan docGovernanceEngine for any documents submitted
+        const docContainers = docGovernanceEngine.getContainersMatrix(systems);
+        docContainers.forEach(c => {
+          if (c.pendingReviewVersion) {
+            const docReqId = `REQ-DOC-${c.documentKey}`;
+            const exists = items.some(i => i.targetResourceId === c.documentKey || i.id === docReqId);
+            if (!exists) {
+              const pendingDoc = c.pendingReviewVersion;
+              items.unshift({
+                id: docReqId,
+                resourceKey: 'catalog:documents',
+                resourceNameAr: 'وثائق ومواصفات الـ API',
+                resourceNameEn: 'API Documentation & Specifications',
+                actionType: 'CUSTOM',
+                actionDescriptionAr: `طلب اعتماد مسودة وثيقة الـ API (${pendingDoc.versionNumber}) لنظام ${c.systemName} ⟷ ${c.integrationName}`,
+                actionDescriptionEn: `Approval request for API Doc (${pendingDoc.versionNumber}) for ${c.systemName} ⟷ ${c.integrationName}`,
+                targetResourceId: c.documentKey,
+                payload: {
+                  documentKey: c.documentKey,
+                  systemKey: c.systemKey,
+                  integrationKey: c.integrationKey,
+                  systemName: c.systemName,
+                  integrationName: c.integrationName,
+                  versionNumber: pendingDoc.versionNumber,
+                  changeSummary: pendingDoc.changeSummary || 'تحديث وتأسيس مواصفات الربط البرمجي.',
+                  endpointsCount: pendingDoc.endpointsCount || 0
+                },
+                diffSummary: [],
+                makerId: pendingDoc.authorId || user?.id || 'maker_user',
+                makerName: pendingDoc.authorName || user?.displayName || 'مهندس التوثيق',
+                makerGroup: 'فريق المعمارية والتكامل',
+                submittedAt: pendingDoc.submittedAt || pendingDoc.createdAt,
+                status: 'PENDING',
+                currentStageOrder: 1,
+                totalStages: 1,
+                stages: [{
+                  stageOrder: 1,
+                  stageKey: 'architect_approval',
+                  stageNameAr: 'اعتماد معماري الـ API والمواصفات',
+                  stageNameEn: 'API Architect Specification Approval',
+                  requiredPermission: 'governance:approve',
+                  minApprovers: 1
+                }],
+                approvalTrail: []
+              });
+            }
+          }
+        });
+
+        setMyRequests(items);
       }
       if (onRefreshCount) onRefreshCount();
     } catch (err: any) {
@@ -89,13 +210,36 @@ export const GovernanceManagementView: React.FC<GovernanceManagementViewProps> =
     if (!selectedRequest) return;
     setActionInProgress(true);
     try {
-      const updated = await governanceService.approveStage(selectedRequest.id, approvalNotes);
+      const isDoc =
+        selectedRequest.resourceKey === 'catalog:documents' ||
+        selectedRequest.targetResourceId?.startsWith('DOC_') ||
+        selectedRequest.id.startsWith('REQ-DOC-') ||
+        !!selectedRequest.payload?.documentKey;
+
+      if (isDoc) {
+        const sysKey = selectedRequest.payload?.systemKey;
+        const intKey = selectedRequest.payload?.integrationKey;
+        if (sysKey && intKey) {
+          docGovernanceEngine.approveVersion({
+            systemKey: sysKey,
+            integrationKey: intKey,
+            approverId: user?.id,
+            approverName: user?.displayName || user?.username || 'المشرف المعتمد',
+            isSuperAdminOverride: true
+          });
+        }
+      }
+
+      if (!selectedRequest.id.startsWith('REQ-DOC-')) {
+        await governanceService.approveStage(selectedRequest.id, approvalNotes);
+      }
+
       if (onNotify) {
         onNotify(
           'تم الاعتماد بنجاح',
-          updated.status === 'APPROVED' 
-            ? 'تم اكتمال مسار الاعتماد بالكامل وتطبيق التغييرات ذريةً في النظام!' 
-            : 'تم توثيق اعتمادك الرقمي لهذه المرحلة بنجاح.',
+          isDoc
+            ? 'تم اعتماد مسودة وثيقة الـ API بنجاح وأصبحت الآن الوثيقة النافذة الرسمية (APPROVED)!'
+            : 'تم توثيق اعتمادك الرقمي لهذه المرحلة بنجاح وتطبيق التعديل.',
           'success'
         );
       }
@@ -117,9 +261,31 @@ export const GovernanceManagementView: React.FC<GovernanceManagementViewProps> =
     }
     setActionInProgress(true);
     try {
-      await governanceService.rejectRequest(selectedRequest.id, rejectionReason);
+      const isDoc =
+        selectedRequest.resourceKey === 'catalog:documents' ||
+        selectedRequest.targetResourceId?.startsWith('DOC_') ||
+        selectedRequest.id.startsWith('REQ-DOC-') ||
+        !!selectedRequest.payload?.documentKey;
+
+      if (isDoc) {
+        const sysKey = selectedRequest.payload?.systemKey;
+        const intKey = selectedRequest.payload?.integrationKey;
+        if (sysKey && intKey) {
+          docGovernanceEngine.rejectVersion({
+            systemKey: sysKey,
+            integrationKey: intKey,
+            rejectorName: user?.displayName || user?.username || 'المشرف المعتمد',
+            reason: rejectionReason
+          });
+        }
+      }
+
+      if (!selectedRequest.id.startsWith('REQ-DOC-')) {
+        await governanceService.rejectRequest(selectedRequest.id, rejectionReason);
+      }
+
       if (onNotify) {
-        onNotify('تم الرفض', 'تم رفض الطلب بنجاح وتوثيقه في السجل الرقابي.', 'info');
+        onNotify('تم الرفض', 'تم رفض الطلب بنجاح وتوثيق سبب الرفض في السجل الرقابي.', 'info');
       }
       setShowRejectConfirm(false);
       setRejectionReason('');
@@ -159,7 +325,7 @@ export const GovernanceManagementView: React.FC<GovernanceManagementViewProps> =
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.85rem 1.75rem', background: 'var(--surface, #0f172a)', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <h2 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text, #ffffff)', margin: 0, letterSpacing: '-0.01em' }}>
-            {isRtl ? 'مركز الاعتمادات والرقابة' : 'Approvals & Governance Hub'}
+            {isRtl ? 'مركز الاعتمادات والمرفوعات' : 'Approvals & Submissions Hub'}
           </h2>
           <span style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.06)', color: 'var(--text-dim, #94a3b8)', border: '1px solid rgba(255, 255, 255, 0.08)', fontWeight: 600 }}>
             Maker-Checker
@@ -169,27 +335,6 @@ export const GovernanceManagementView: React.FC<GovernanceManagementViewProps> =
         {/* Tab Selector - Minimal & Functional */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
           <div style={{ display: 'flex', background: 'rgba(255, 255, 255, 0.04)', borderRadius: '8px', padding: '0.2rem', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-            <button
-              onClick={() => setActiveTab('matrix')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                padding: '0.4rem 0.9rem',
-                borderRadius: '6px',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '0.8rem',
-                fontWeight: activeTab === 'matrix' ? 700 : 500,
-                background: activeTab === 'matrix' ? 'var(--primary, #6366f1)' : 'transparent',
-                color: activeTab === 'matrix' ? '#ffffff' : 'var(--text-dim, #94a3b8)',
-                boxShadow: activeTab === 'matrix' ? '0 2px 8px var(--primary-glow, rgba(99, 102, 241, 0.35))' : 'none',
-                transition: 'all 0.15s'
-              }}
-            >
-              <span>{isRtl ? 'مصفوفة الوثائق والإصدارات' : 'Doc Versions Matrix'}</span>
-            </button>
-
             <button
               onClick={() => setActiveTab('inbox')}
               style={{
@@ -261,19 +406,6 @@ export const GovernanceManagementView: React.FC<GovernanceManagementViewProps> =
 
       {/* 2. Main Content Body - Clean Natural Flow */}
       <div style={{ flex: 1, padding: '1rem 1.75rem' }}>
-        
-        {/* --- TAB 0: UNIFIED DOCUMENT VERSIONS MATRIX --- */}
-        {activeTab === 'matrix' && (
-          <DocumentMatrixView
-            systems={systems}
-            onNavigateToDoc={onNavigateToDoc}
-            onNavigateToEditor={onNavigateToEditor}
-            onNotify={onNotify}
-            onOpenInboxItem={(_reqId) => {
-              setActiveTab('inbox');
-            }}
-          />
-        )}
         
         {/* --- TAB 1: INBOX SPLIT-VIEW --- */}
         {activeTab === 'inbox' && (

@@ -19,6 +19,9 @@ export function createGovernanceRouter(
   // 2. My Submitted Requests
   router.get('/my-requests', controller.getMyRequests);
 
+  // 2.5 Submit Staged Request (e.g. Document Reviews)
+  router.post('/requests', controller.createRequest);
+
   // 3. Approval Decision Actions (Guarded by governance:inbox:approve)
   if (requirePermission) {
     router.post('/requests/:id/approve', requirePermission('governance:inbox:approve'), controller.approveStage);

@@ -8,6 +8,7 @@ import { FileUserGroupRepository } from './repositories/FileUserGroupRepository.
 import { FileAuditLogRepository } from './repositories/FileAuditLogRepository.js';
 import { FileGovernanceRepository } from './repositories/FileGovernanceRepository.js';
 import { FileDynamicDocRepository } from './repositories/FileDynamicDocRepository.js';
+import { Sector } from '../domain/entities/Sector.js';
 
 import { CryptoPasswordHasher } from './security/CryptoPasswordHasher.js';
 import { JwtTokenService } from './security/JwtTokenService.js';
@@ -104,6 +105,25 @@ export function createApp() {
     execute: async (payload) => {
       const key = payload.key || payload.code?.toLowerCase() || 'new-sector';
       await sectorRepository.saveSector(key, payload);
+      return { success: true };
+    }
+  });
+
+  actionRegistry.register({
+    resourceKey: 'catalog:sectors',
+    actionType: 'UPDATE',
+    execute: async (payload, targetResourceId) => {
+      const key = targetResourceId || payload.key || payload.code?.toLowerCase();
+      if (key) {
+        const existing = await sectorRepository.getSectorByKey(key);
+        const updated: Sector = {
+          ...(existing || { services: {} }),
+          name: payload.name || existing?.name || key,
+          nameEn: payload.nameEn || existing?.nameEn,
+          code: payload.code ? String(payload.code).trim().toUpperCase() : (existing?.code || `SEC_${key.toUpperCase()}`)
+        };
+        await sectorRepository.saveSector(key, updated);
+      }
       return { success: true };
     }
   });

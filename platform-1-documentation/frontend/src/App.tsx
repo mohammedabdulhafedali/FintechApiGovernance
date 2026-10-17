@@ -3,6 +3,9 @@ import { Header } from './components/layout/Header';
 import { Sidebar, AppViewMode } from './components/layout/Sidebar';
 import { catalogService } from './services/catalogService';
 import { DashboardView } from './components/catalog/DashboardView';
+import { SystemsManagementView } from './components/catalog/SystemsManagementView';
+import { EntitiesManagementView } from './components/catalog/EntitiesManagementView';
+import { IntegrationsManagementView } from './components/catalog/IntegrationsManagementView';
 import { DocumentationHub } from './components/catalog/DocumentationHub';
 import { UniversalWorkbench } from './components/catalog/UniversalWorkbench';
 import { UastDocument, IUastNode } from './services/uast/types';
@@ -13,6 +16,7 @@ import { FloatingAlertCard, FloatingAlertState } from './components/common/Float
 import { DeleteSectorModal } from './components/common/DeleteSectorModal';
 import { IamManagementView } from './components/admin/IamManagementView';
 import { GovernanceManagementView } from './components/admin/GovernanceManagementView';
+import { DocumentMatrixView } from './components/admin/DocumentMatrixView';
 import { WorkflowPoliciesView } from './components/admin/WorkflowPoliciesView';
 import { DynamicWorkbench } from './components/dynamic-docs/DynamicWorkbench';
 import { AuthProvider, useAuth } from './components/auth/AuthContext';
@@ -25,7 +29,7 @@ import {
   INITIAL_SYSTEMS,
   INITIAL_SECTORS 
 } from './data/mockData';
-import { Endpoint, Sector, SystemModule } from './types/schema';
+import { Endpoint, Sector, SystemModule, SystemIntegration } from './types/schema';
 import { useLanguage } from './i18n';
 
 const AppContent: React.FC = () => {
@@ -43,13 +47,21 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (!isAuthenticated || loading) return;
     if (activeView === 'dashboard' && !hasPermission('dashboard:read')) {
-      if (hasPermission('catalog:read') || hasPermission('documentation:systems:read')) {
+      if (hasPermission('catalog:systems:read') || hasPermission('catalog:system:create')) {
+        setActiveView('systems');
+      } else if (hasPermission('catalog:sectors:read')) {
+        setActiveView('sectors');
+      } else if (hasPermission('catalog:integrations:read')) {
+        setActiveView('integrations');
+      } else if (hasPermission('catalog:documents:read')) {
+        setActiveView('documents-matrix');
+      } else if (hasPermission('catalog:read') || hasPermission('documentation:systems:read')) {
         setActiveView('sector-spec');
       } else if (hasPermission('catalog:endpoint:create')) {
         setActiveView('workbench');
-      } else if (hasPermission('iam:manage')) {
+      } else if (hasPermission('iam:manage') || hasPermission('iam:users:read')) {
         setActiveView('iam');
-      } else if (hasPermission('governance:inbox:approve') || hasPermission('governance:inbox:read')) {
+      } else if (hasPermission('governance:inbox:approve') || hasPermission('governance:inbox:read') || hasPermission('governance:workflows:read')) {
         setActiveView('governance');
       }
     }
@@ -152,11 +164,8 @@ const AppContent: React.FC = () => {
   const [systems, setSystems] = useState<Record<string, SystemModule>>(() => {
     try {
       const cached = localStorage.getItem('gov_fintech_systems_cache');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed && Object.keys(parsed).length > 0) {
-          return parsed;
-        }
+      if (cached !== null) {
+        return JSON.parse(cached);
       }
     } catch {}
     return INITIAL_SYSTEMS;
@@ -165,7 +174,7 @@ const AppContent: React.FC = () => {
   // Load and synchronize systems from SQLite database on mount
   useEffect(() => {
     catalogService.fetchSystems().then(loadedSystems => {
-      if (loadedSystems && Object.keys(loadedSystems).length > 0) {
+      if (loadedSystems !== undefined) {
         setSystems(loadedSystems);
       }
     }).catch(err => {
@@ -204,10 +213,7 @@ const AppContent: React.FC = () => {
   const [masterSectors, setMasterSectors] = useState<Record<string, Sector>>(() => {
     try {
       const cached = localStorage.getItem('gov_fintech_sectors_cache');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed && Object.keys(parsed).length > 0) return parsed;
-      }
+      if (cached !== null) return JSON.parse(cached);
     } catch {}
     return INITIAL_SECTORS;
   });
@@ -247,6 +253,7 @@ const AppContent: React.FC = () => {
       }
     };
 
+    // 1. Immediately update React state and local cache for instant zero-delay UI rendering
     setMasterSectors(prev => {
       const updated = { ...prev, [sectorData.key]: newOrUpdatedSector };
       try {
@@ -255,22 +262,29 @@ const AppContent: React.FC = () => {
       return updated;
     });
 
+    // 2. Persist to SQLite Database via catalogService
     try {
-      if (isEdit) {
-        await catalogService.updateSector(sectorData.key, sectorData);
-      } else {
-        await catalogService.createSector(sectorData);
+      const savedResult = await catalogService.saveSector(newOrUpdatedSector);
+      if (savedResult) {
+        setMasterSectors(prev => {
+          const updated = { ...prev, [sectorData.key]: savedResult };
+          try {
+            localStorage.setItem('gov_fintech_sectors_cache', JSON.stringify(updated));
+          } catch {}
+          return updated;
+        });
       }
+
       showFloatingAlert(
         isRtl ? 'تم حفظ القطاع/الجهة بنجاح' : 'Sector Saved Successfully',
-        isRtl ? `تم تسجيل [${sectorData.name}] في دليل القطاعات والجهات المعتمدة.` : `Sector [${sectorData.nameEn || sectorData.name}] saved.`,
+        isRtl ? `تم تسجيل [${sectorData.name}] وحفظه في قاعدة البيانات المركزية.` : `Sector [${sectorData.nameEn || sectorData.name}] saved successfully.`,
         'success'
       );
     } catch {
       showFloatingAlert(
-        isRtl ? 'حفظ محلي' : 'Local Save',
-        isRtl ? 'تم حفظ القطاع محلياً بنجاح.' : 'Sector saved locally.',
-        'info'
+        isRtl ? 'تم الحفظ محلياً' : 'Saved Locally',
+        isRtl ? `تم حفظ بيانات [${sectorData.name}] بنجاح.` : `Sector [${sectorData.name}] saved successfully.`,
+        'success'
       );
     }
   };
@@ -438,6 +452,112 @@ const AppContent: React.FC = () => {
       showFloatingAlert(
         isRtl ? 'حفظ محلي' : 'Local Save',
         isRtl ? 'تم تطبيق التحديثات محلياً بنجاح.' : 'Updates saved locally.',
+        'info'
+      );
+    }
+  };
+
+  // Delete Integration (Unlink Entity from System) Handler
+  const handleDeleteIntegration = async (systemKey: string, entityId: string) => {
+    const sysName = systems[systemKey]?.name || systemKey;
+    const entityName = systems[systemKey]?.integrations?.[entityId]?.name || entityId;
+
+    setSystems(prev => {
+      const existing = prev[systemKey];
+      if (!existing) return prev;
+
+      const updatedIntegrations = { ...(existing.integrations || {}) };
+      delete updatedIntegrations[entityId];
+
+      const currentAssociated = existing.associatedSectorKeys || Object.keys(existing.integrations || {});
+      const updatedAssociated = currentAssociated.filter(k => k !== entityId);
+
+      const updatedSys = {
+        ...existing,
+        integrations: updatedIntegrations,
+        associatedSectorKeys: updatedAssociated
+      };
+
+      try {
+        localStorage.setItem('gov_fintech_systems_cache', JSON.stringify({
+          ...prev,
+          [systemKey]: updatedSys
+        }));
+      } catch {}
+
+      return {
+        ...prev,
+        [systemKey]: updatedSys
+      };
+    });
+
+    // If active view is currently viewing this unlinked integration, safely fall back
+    if (activeSystemKey === systemKey && activeIntegrationKey === entityId) {
+      setActiveIntegrationKey('');
+      setActiveView('dashboard');
+    }
+
+    try {
+      await catalogService.deleteIntegration(systemKey, entityId);
+      showFloatingAlert(
+        isRtl ? 'تم فك الارتباط بنجاح' : 'Entity Unlinked Successfully',
+        isRtl
+          ? `تم فك ارتباط [${entityName}] عن نظام [${sysName}] وتحديث الكتالوج.`
+          : `[${entityName}] was unlinked from [${sysName}] successfully.`,
+        'success'
+      );
+    } catch {
+      showFloatingAlert(
+        isRtl ? 'تم فك الارتباط محلياً' : 'Unlinked Locally',
+        isRtl ? 'تم تطبيق التحديث محلياً بنجاح.' : 'Updates applied locally.',
+        'info'
+      );
+    }
+  };
+
+  // Add Integration Handler (Linking entity with system)
+  const handleAddIntegration = async (systemKey: string, integration: SystemIntegration) => {
+    const currentSys = systems[systemKey];
+    if (!currentSys) return;
+
+    const updatedIntegrations = {
+      ...(currentSys.integrations || {}),
+      [integration.entityId]: integration
+    };
+    const currentAssociated = currentSys.associatedSectorKeys || Object.keys(currentSys.integrations || {});
+    const updatedAssociated = Array.from(new Set([...currentAssociated, integration.entityId]));
+
+    const updatedSys: SystemModule = {
+      ...currentSys,
+      integrations: updatedIntegrations,
+      associatedSectorKeys: updatedAssociated
+    };
+
+    setSystems(prev => {
+      const updated = {
+        ...prev,
+        [systemKey]: updatedSys
+      };
+      try {
+        localStorage.setItem('gov_fintech_systems_cache', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    try {
+      await catalogService.updateSystem(systemKey, {
+        integrations: updatedIntegrations,
+        associatedSectorKeys: updatedAssociated
+      });
+      showFloatingAlert(
+        isRtl ? 'تم تأسيس الربط والتكامل بنجاح' : 'Integration Established',
+        isRtl ? `تم ربط [${integration.name}] بالنظام [${currentSys.name}] بنجاح.` : `Linked [${integration.name}] with [${currentSys.name}].`,
+        'success'
+      );
+    } catch {
+      showFloatingAlert(
+        isRtl ? 'حفظ الربط محلياً' : 'Saved Locally',
+        isRtl ? `تم حفظ ربط [${integration.name}] محلياً.` : `Saved integration locally.`,
         'info'
       );
     }
@@ -777,12 +897,108 @@ const AppContent: React.FC = () => {
         />
 
         <main className="app-content-main">
-          {/* VIEW 1: SYSTEMS COMMAND DASHBOARD */}
+          {/* VIEW 1: SOVEREIGN SYSTEMS MANAGEMENT CONSOLE (SOLID) */}
+          {activeView === 'systems' && (
+            (hasPermission('catalog:systems:read') || hasPermission('catalog:system:create') || hasPermission('catalog:read') || hasPermission('*')) ? (
+              <SystemsManagementView
+                systems={systems}
+                sectors={masterSectors}
+                onAddSystem={handleAddSystem}
+                onUpdateSystem={handleUpdateSystem}
+                onDeleteSystem={(sysKey) => {
+                  const sysName = systems[sysKey]?.name || sysKey;
+                  catalogService.deleteSystem(sysKey);
+                  setSystems(prev => {
+                    const updated = { ...prev };
+                    delete updated[sysKey];
+                    try {
+                      localStorage.setItem('gov_fintech_systems_cache', JSON.stringify(updated));
+                    } catch {}
+                    return updated;
+                  });
+                  showFloatingAlert(
+                    isRtl ? 'تم حذف النظام بنجاح' : 'System Removed',
+                    isRtl ? `تمت إزالة نظام [${sysName}] من المنظومة.` : `System [${sysName}] removed successfully.`,
+                    'info'
+                  );
+                }}
+                onNavigateToIntegrations={(_sysKey) => {
+                  setActiveView('integrations');
+                }}
+                onSelectSystemIntegration={handleSelectSystemIntegration}
+              />
+            ) : (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', textAlign: 'center' }}>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text)', marginBottom: '0.5rem' }}>
+                  {isRtl ? 'الوصول إلى إدارة الأنظمة مقيد' : 'Systems Management Restricted'}
+                </h3>
+                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+                  {isRtl ? 'لا تمتلك الصلاحية الكافية لإدارة الأنظمة المركزية.' : 'You do not have permission to manage systems.'}
+                </p>
+              </div>
+            )
+          )}
+
+          {/* VIEW 2: SOVEREIGN ENTITIES & SECTORS MANAGEMENT CONSOLE (SOLID) */}
+          {activeView === 'sectors' && (
+            (hasPermission('catalog:sectors:read') || hasPermission('catalog:system:create') || hasPermission('catalog:read') || hasPermission('*')) ? (
+              <EntitiesManagementView
+                sectors={masterSectors}
+                systems={systems}
+                onSaveSector={handleSaveSector}
+                onDeleteSector={handleDeleteSector}
+                onNavigateToIntegrations={(_entityKey) => {
+                  setActiveView('integrations');
+                }}
+              />
+            ) : (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', textAlign: 'center' }}>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text)', marginBottom: '0.5rem' }}>
+                  {isRtl ? 'الوصول إلى إدارة الجهات مقيد' : 'Entities Management Restricted'}
+                </h3>
+                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+                  {isRtl ? 'لا تمتلك الصلاحية الكافية لإدارة الجهات والقطاعات.' : 'You do not have permission to manage entities.'}
+                </p>
+              </div>
+            )
+          )}
+
+          {/* VIEW 3: SOVEREIGN ARCHITECTURAL INTEGRATIONS & LINKING CONSOLE (SOLID) */}
+          {activeView === 'integrations' && (
+            (hasPermission('catalog:integrations:read') || hasPermission('catalog:system:create') || hasPermission('catalog:read') || hasPermission('*')) ? (
+              <IntegrationsManagementView
+                systems={systems}
+                sectors={masterSectors}
+                onAddIntegration={handleAddIntegration}
+                onDeleteIntegration={handleDeleteIntegration}
+                onSelectSystemIntegration={handleSelectSystemIntegration}
+                onNavigateToEditor={(sysKey, intKey) => {
+                  setActiveSystemKey(sysKey);
+                  setActiveIntegrationKey(intKey);
+                  setActiveView('dynamic-docs');
+                }}
+              />
+            ) : (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', textAlign: 'center' }}>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text)', marginBottom: '0.5rem' }}>
+                  {isRtl ? 'الوصول إلى إدارة الربط مقيد' : 'Integrations Management Restricted'}
+                </h3>
+                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+                  {isRtl ? 'لا تمتلك الصلاحية الكافية لإدارة الربط والتكامل.' : 'You do not have permission to manage integrations.'}
+                </p>
+              </div>
+            )
+          )}
+
+          {/* VIEW 4: SYSTEMS OVERVIEW DASHBOARD */}
           {activeView === 'dashboard' && (
-            hasPermission('dashboard:read') ? (
+            (hasPermission('dashboard:read') || hasPermission('*')) ? (
               <DashboardView
                 systems={systems}
                 sectors={masterSectors}
+                initialMode="overview"
+                isReadOnlyOverview={true}
+                onNavigateView={(view) => setActiveView(view as AppViewMode)}
                 onSelectSystemIntegration={handleSelectSystemIntegration}
                 onAddSystem={handleAddSystem}
                 onUpdateSystem={handleUpdateSystem}
@@ -805,6 +1021,7 @@ const AppContent: React.FC = () => {
                 }}
                 onSaveSector={handleSaveSector}
                 onDeleteSector={handleDeleteSector}
+                onDeleteIntegration={handleDeleteIntegration}
               />
             ) : (
               <div style={{
@@ -989,6 +1206,7 @@ const AppContent: React.FC = () => {
           {activeView === 'iam' && (
             hasPermission('iam:manage') ? (
               <IamManagementView
+                systems={systems}
                 onNotify={(title, msg, type) => showFloatingAlert(title, msg, type)}
               />
             ) : (
@@ -1011,9 +1229,60 @@ const AppContent: React.FC = () => {
             )
           )}
 
+          {/* VIEW: SOVEREIGN API DOCUMENTS & WORKSPACES MATRIX */}
+          {activeView === 'documents-matrix' && (
+            (hasPermission('catalog:documents:read') || hasPermission('catalog:read') || hasPermission('catalog:endpoint:create') || hasPermission('*')) ? (
+              <div className="iam-console sovereign-dynamic-theme" style={{ display: 'flex', flexDirection: 'column', width: '100%', minHeight: '100%', flex: 1, overflowY: 'auto' }} dir={direction}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.85rem 1.75rem', background: 'var(--surface, #0f172a)', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <h2 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text, #ffffff)', margin: 0, letterSpacing: '-0.01em' }}>
+                      {isRtl ? 'إدارة وتأسيس وثائق الـ API' : 'API Documents & Workspaces Matrix'}
+                    </h2>
+                    <span style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.1)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.25)', fontWeight: 600 }}>
+                      {isRtl ? 'تكاملات الأنظمة والجهات' : 'Live Integrated Systems'}
+                    </span>
+                  </div>
+                </div>
+                <div style={{ flex: 1, padding: '1rem 1.75rem' }}>
+                  <DocumentMatrixView
+                    systems={systems}
+                    sectors={masterSectors}
+                    onNavigateToDoc={(sysKey, intKey) => handleSelectSystemIntegration(sysKey, intKey)}
+                    onNavigateToEditor={(sysKey, intKey) => {
+                      setActiveSystemKey(sysKey);
+                      setActiveIntegrationKey(intKey);
+                      setActiveView('dynamic-docs');
+                    }}
+                    onNotify={(title, msg, type) => showFloatingAlert(title, msg, type)}
+                    onOpenInboxItem={(_reqId) => {
+                      setActiveView('governance');
+                    }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '4rem 2rem',
+                textAlign: 'center'
+              }}>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text)', marginBottom: '0.5rem' }}>
+                  {isRtl ? 'الوصول إلى إدارة الوثائق مقيد' : 'Documents Matrix Restricted'}
+                </h3>
+                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+                  {isRtl ? 'لا تمتلك الصلاحية الكافية لاستعراض وتأسيس وثائق الأنظمة.' : 'You do not have permission to access the documents matrix.'}
+                </p>
+              </div>
+            )
+          )}
+
           {/* VIEW 5: DEDICATED SOVEREIGN GOVERNANCE & APPROVALS PIPELINES (تبويب مستقل كامل) */}
           {activeView === 'governance' && (
-            (hasPermission('governance:inbox:approve') || hasPermission('governance:inbox:read') || hasPermission('governance:*') || hasPermission('*')) ? (
+            (hasPermission('governance:workflows:read') || hasPermission('governance:inbox:approve') || hasPermission('governance:inbox:read') || hasPermission('governance:*') || hasPermission('*')) ? (
               <GovernanceManagementView
                 systems={systems}
                 onNavigateToDoc={(sysKey, intKey) => handleSelectSystemIntegration(sysKey, intKey)}
@@ -1046,7 +1315,7 @@ const AppContent: React.FC = () => {
 
           {/* VIEW 5.5: SOVEREIGN WORKFLOW POLICIES STUDIO (تبويب مستقل بالكامل) */}
           {activeView === 'workflow-policies' && (
-            (hasPermission('iam:manage') || hasPermission('governance:*') || hasPermission('*')) ? (
+            (hasPermission('governance:policies:read') || hasPermission('iam:manage') || hasPermission('governance:*') || hasPermission('*')) ? (
               <WorkflowPoliciesView
                 onNotify={(title, msg, type) => showFloatingAlert(title, msg, type)}
               />
@@ -1072,7 +1341,7 @@ const AppContent: React.FC = () => {
 
           {/* VIEW 6: SOVEREIGN DYNAMIC MULTI-MODE DOCUMENTATION (COMPLETELY INDEPENDENT) */}
           {activeView === 'dynamic-docs' && (
-            (hasPermission('catalog:spec:export') || hasPermission('documentation:systems:read') || hasPermission('catalog:read') || hasPermission('catalog:endpoint:create') || hasPermission('*')) ? (
+            (hasPermission('documentation:dynamic:read') || hasPermission('catalog:spec:export') || hasPermission('documentation:systems:read') || hasPermission('catalog:read') || hasPermission('catalog:endpoint:create') || hasPermission('*')) ? (
               <DynamicWorkbench
                 systems={systems}
                 masterSectors={masterSectors}

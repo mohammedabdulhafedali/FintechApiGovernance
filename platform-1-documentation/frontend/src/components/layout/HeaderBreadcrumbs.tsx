@@ -3,13 +3,13 @@ import { ArrowLeft, ArrowRight, Home } from 'lucide-react';
 import { useBreadcrumbs, BreadcrumbItem } from '../../context/BreadcrumbContext';
 import { useLanguage } from '../../i18n';
 import { AppViewMode } from './Sidebar';
-import { SystemModule, IntegrationEntity, Endpoint } from '../../types/schema';
+import { SystemModule, SystemIntegration, Endpoint } from '../../types/schema';
 
 interface HeaderBreadcrumbsProps {
   activeView?: AppViewMode;
   onBackToDashboard?: () => void;
   activeSystem?: SystemModule | null;
-  activeIntegration?: IntegrationEntity | null;
+  activeIntegration?: SystemIntegration | null;
   activeEndpoint?: Endpoint | null;
 }
 
@@ -33,6 +33,45 @@ export const HeaderBreadcrumbs: React.FC<HeaderBreadcrumbsProps> = ({
   } else {
     // Default system breadcrumbs fallback based on current application view
     switch (activeView) {
+      case 'systems':
+        resolvedItems = [
+          {
+            label: isRtl ? 'لوحة الأنظمة المركزية' : 'Core Systems Dashboard',
+            onClick: onBackToDashboard
+          },
+          {
+            label: isRtl ? 'إدارة الأنظمة' : 'Systems Management',
+            isCurrent: true
+          }
+        ];
+        break;
+
+      case 'sectors':
+        resolvedItems = [
+          {
+            label: isRtl ? 'لوحة الأنظمة المركزية' : 'Core Systems Dashboard',
+            onClick: onBackToDashboard
+          },
+          {
+            label: isRtl ? 'إدارة الجهات والقطاعات' : 'Entities & Sectors Management',
+            isCurrent: true
+          }
+        ];
+        break;
+
+      case 'integrations':
+        resolvedItems = [
+          {
+            label: isRtl ? 'لوحة الأنظمة المركزية' : 'Core Systems Dashboard',
+            onClick: onBackToDashboard
+          },
+          {
+            label: isRtl ? 'إدارة الربط والتكامل' : 'Integrations & Linking',
+            isCurrent: true
+          }
+        ];
+        break;
+
       case 'workbench':
       case 'add-api':
         resolvedItems = [
@@ -60,6 +99,19 @@ export const HeaderBreadcrumbs: React.FC<HeaderBreadcrumbsProps> = ({
         ];
         break;
 
+      case 'documents-matrix':
+        resolvedItems = [
+          {
+            label: isRtl ? 'العودة للوحة الأنظمة' : 'Back to Systems',
+            onClick: onBackToDashboard
+          },
+          {
+            label: isRtl ? 'إدارة وثائق الـ API ومساحات العمل' : 'API Documents Matrix',
+            isCurrent: true
+          }
+        ];
+        break;
+
       case 'governance':
         resolvedItems = [
           {
@@ -67,7 +119,7 @@ export const HeaderBreadcrumbs: React.FC<HeaderBreadcrumbsProps> = ({
             onClick: onBackToDashboard
           },
           {
-            label: isRtl ? 'حوكمة ومطابقة الـ APIs' : 'API Governance & Compliance',
+            label: isRtl ? 'مركز الاعتمادات والمرفوعات' : 'Approvals & Submissions Hub',
             isCurrent: true
           }
         ];
@@ -89,7 +141,7 @@ export const HeaderBreadcrumbs: React.FC<HeaderBreadcrumbsProps> = ({
       case 'sector-spec': {
         const sysLabel = activeSystem?.name || (isRtl ? 'النظام' : 'System');
         const intLabel = activeIntegration?.name || (isRtl ? 'الجهة' : 'Entity');
-        const epLabel = activeEndpoint?.summary || activeEndpoint?.path || (isRtl ? 'الـ API' : 'Endpoint');
+        const epLabel = (activeEndpoint as any)?.summary || activeEndpoint?.shortName || activeEndpoint?.path || (isRtl ? 'الـ API' : 'Endpoint');
 
         resolvedItems = [
           {

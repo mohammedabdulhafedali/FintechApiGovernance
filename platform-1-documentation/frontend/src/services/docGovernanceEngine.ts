@@ -74,30 +74,76 @@ export class DocumentGovernanceEngine {
 
   /**
    * Synchronizes and builds complete containers matrix for all systems and integrations.
-   * Merges persisted version records with the dynamic systems structure.
+   * Merges persisted version records with the dynamic systems structure, and includes standalone documents.
    */
   public getContainersMatrix(systems: Record<string, SystemModule>): SystemEntityDocContainer[] {
     const store = this.loadStore();
     const result: SystemEntityDocContainer[] = [];
+    const seenPairs = new Set<string>();
 
+    // 1. Process all real containers currently saved in the store
+    Object.values(store).forEach((container) => {
+      // Must have at least one real version (Draft, Review, or Approved)
+      const hasAnyVersion = !!(
+        container.currentApprovedVersion || 
+        container.activeDraftVersion || 
+        container.pendingReviewVersion || 
+        (container.allVersions && container.allVersions.length > 0)
+      );
+
+      if (!hasAnyVersion) {
+        // Prune empty placeholder containers completely
+        delete store[container.documentKey];
+        return;
+      }
+
+      // Sync system & entity metadata from systems registry if available
+      const sys = systems[container.systemKey];
+      if (sys) {
+        container.systemName = sys.name;
+        container.systemCode = sys.code || container.systemKey;
+        const intItem = sys.integrations?.[container.integrationKey];
+        if (intItem) {
+          container.integrationName = intItem.name;
+          container.integrationCode = intItem.code || container.integrationKey;
+          container.isLinked = true;
+          if (intItem.role) container.role = intItem.role;
+        } else {
+          container.isLinked = false;
+        }
+      } else {
+        container.isLinked = false;
+      }
+
+      // Strictly enforce: Exactly ONE document per (systemKey + integrationKey) pair
+      const pairKey = `${container.systemKey.toLowerCase()}__${container.integrationKey.toLowerCase()}`;
+      if (!seenPairs.has(pairKey)) {
+        seenPairs.add(pairKey);
+        result.push(container);
+      }
+    });
+
+    // 2. Process legacy integrations that already have documented endpoints
     Object.entries(systems).forEach(([sysKey, sys]) => {
       const integrations = sys.integrations || {};
 
       Object.entries(integrations).forEach(([intKey, intItem]) => {
-        const docKey = this.getDocumentKey(sysKey, intKey);
-        let container = store[docKey];
+        const pairKey = `${sysKey.toLowerCase()}__${intKey.toLowerCase()}`;
+        if (seenPairs.has(pairKey)) return;
 
-        // Seed initial container if not present
-        if (!container) {
-          const endpointsCount = intItem.endpoints?.length || 0;
-          const initialVersionNumber = intItem.docVersion || 'v2026.2';
+        // ONLY seed if this integration already has documented endpoints or an explicit docVersion
+        const endpointsCount = intItem.endpoints?.length || 0;
+        if (endpointsCount > 0 || intItem.docVersion) {
+          const docKey = this.getDocumentKey(sysKey, intKey);
+          const initialVersionNumber = intItem.docVersion || 'v1.0.0';
+          const role = intItem.role || (intItem.direction === 'OUTBOUND' ? 'PROVIDER' : 'CONSUMER');
 
-          const hasInitialEndpoints = endpointsCount > 0;
-          const initialApprovedVersion: DocVersionRecord | undefined = hasInitialEndpoints ? {
+          const initialApprovedVersion: DocVersionRecord = {
             id: `ver-${docKey}-initial`,
             documentKey: docKey,
             systemKey: sysKey,
             integrationKey: intKey,
+            role,
             versionNumber: initialVersionNumber,
             changeSummary: 'الإصدار المعتمد والنافذ حالياً في المنظومة.',
             status: 'APPROVED',
@@ -107,10 +153,11 @@ export class DocumentGovernanceEngine {
             updatedAt: '2026-09-30T14:30:00.000Z',
             approvedBy: 'مدير الرقابة والامتثال',
             approvedAt: '2026-09-30T14:30:00.000Z',
-            endpointsCount
-          } : undefined;
+            endpointsCount,
+            payloadSnapshot: JSON.stringify(intItem.endpoints || [])
+          };
 
-          container = {
+          const container: SystemEntityDocContainer = {
             documentKey: docKey,
             systemKey: sysKey,
             systemName: sys.name,
@@ -118,22 +165,19 @@ export class DocumentGovernanceEngine {
             integrationKey: intKey,
             integrationName: intItem.name,
             integrationCode: intItem.code || intKey,
-            hasDocument: hasInitialEndpoints,
+            role,
+            isLinked: true,
+            hasDocument: true,
             currentApprovedVersion: initialApprovedVersion,
-            allVersions: initialApprovedVersion ? [initialApprovedVersion] : [],
+            allVersions: [initialApprovedVersion],
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           };
-          store[docKey] = container;
-        } else {
-          // Update system & integration metadata in case name/code changed
-          container.systemName = sys.name;
-          container.systemCode = sys.code || sysKey;
-          container.integrationName = intItem.name;
-          container.integrationCode = intItem.code || intKey;
-        }
 
-        result.push(container);
+          store[docKey] = container;
+          seenPairs.add(pairKey);
+          result.push(container);
+        }
       });
     });
 
@@ -152,6 +196,38 @@ export class DocumentGovernanceEngine {
   }
 
   /**
+   * Updates endpoints and snapshot of an active draft document.
+   */
+  public updateDraftContent(
+    systemKey: string,
+    integrationKey: string,
+    endpoints: any[],
+    authorInfo?: { id: string; name: string }
+  ): { success: boolean; container?: SystemEntityDocContainer; error?: string } {
+    const store = this.loadStore();
+    const docKey = this.getDocumentKey(systemKey, integrationKey);
+    const container = store[docKey];
+    if (!container) return { success: false, error: 'لم يتم العثور على الوثيقة.' };
+
+    const draft = container.activeDraftVersion || container.pendingReviewVersion;
+    if (!draft) return { success: false, error: 'لا توجد مسودة مفتوحة لتحديث واجهاتها.' };
+
+    draft.endpointsCount = Array.isArray(endpoints) ? endpoints.length : 0;
+    draft.payloadSnapshot = JSON.stringify(endpoints);
+    draft.updatedAt = new Date().toISOString();
+    if (authorInfo) {
+      draft.authorId = authorInfo.id;
+      draft.authorName = authorInfo.name;
+    }
+    container.hasDocument = draft.endpointsCount > 0;
+    container.updatedAt = new Date().toISOString();
+
+    store[docKey] = container;
+    this.saveStore(store);
+    return { success: true, container };
+  }
+
+  /**
    * SOLID Constraint: Creates the initial document for an entity.
    * Throws Error if a document or draft already exists to guarantee uniqueness.
    */
@@ -162,6 +238,7 @@ export class DocumentGovernanceEngine {
     systemCode: string;
     integrationName: string;
     integrationCode: string;
+    role?: 'CONSUMER' | 'PROVIDER';
     authorId: string;
     authorName: string;
     summary?: string;
@@ -175,15 +252,18 @@ export class DocumentGovernanceEngine {
       return {
         success: false,
         container: existing,
-        error: `عفواً، يوجد ملف توثيق مسجل مسبقاً لهذا النظام والجهة (الإصدار: ${activeVer}). لا يمكن إنشاء ملف جديد ثانٍ.`
+        error: `عفواً، يوجد ملف توثيق مسجل مسبقاً لهذا النظام مع هذه الجهة (الإصدار: ${activeVer}). لا يمكن إنشاء أكثر من وثيقة واحدة لنفس النظام والجهة.`
       };
     }
+
+    const selectedRole = params.role || 'CONSUMER';
 
     const initialDraft: DocVersionRecord = {
       id: `ver-${docKey}-v1.0.0`,
       documentKey: docKey,
       systemKey: params.systemKey,
       integrationKey: params.integrationKey,
+      role: selectedRole,
       versionNumber: 'v1.0.0',
       bumpType: 'MAJOR',
       changeSummary: params.summary || 'التأسيس الأولي لوثيقة التكامل والربط الفني.',
@@ -203,6 +283,8 @@ export class DocumentGovernanceEngine {
       integrationKey: params.integrationKey,
       integrationName: params.integrationName,
       integrationCode: params.integrationCode,
+      role: selectedRole,
+      isLinked: false,
       hasDocument: true,
       activeDraftVersion: initialDraft,
       allVersions: [initialDraft],
@@ -427,6 +509,7 @@ export class DocumentGovernanceEngine {
     integrationKey: string;
     approverId?: string;
     approverName: string;
+    isSuperAdminOverride?: boolean;
   }): { success: boolean; approvedVersion?: DocVersionRecord; error?: string } {
     const store = this.loadStore();
     const docKey = this.getDocumentKey(params.systemKey, params.integrationKey);
@@ -441,12 +524,28 @@ export class DocumentGovernanceEngine {
       return { success: false, error: 'لا يوجد إصدار قيد الاعتماد لهذه الوثيقة.' };
     }
 
+    // ── STRICT CONTENT INVARIANT: CANNOT APPROVE AN EMPTY DOCUMENT ──
+    let hasUploadedEndpoints = (targetVer.endpointsCount && targetVer.endpointsCount > 0);
+    if (!hasUploadedEndpoints && targetVer.payloadSnapshot) {
+      try {
+        const parsed = typeof targetVer.payloadSnapshot === 'string' ? JSON.parse(targetVer.payloadSnapshot) : targetVer.payloadSnapshot;
+        if (Array.isArray(parsed) && parsed.length > 0) hasUploadedEndpoints = true;
+      } catch {}
+    }
+
+    if (!hasUploadedEndpoints) {
+      return {
+        success: false,
+        error: 'لا يمكن اعتماد وثيقة فارغة! يجب على المستخدم أولاً رفع وتوثيق واجهات الـ API ونقاط الوصول.'
+      };
+    }
+
     // ── STRICT SEPARATION OF DUTIES (SoD) & ZERO-TRUST INVARIANT ──
     const isSelfApproval = 
       (params.approverId && targetVer.authorId === params.approverId) ||
       (targetVer.authorName && targetVer.authorName.trim().toLowerCase() === params.approverName.trim().toLowerCase());
 
-    if (isSelfApproval) {
+    if (isSelfApproval && !params.isSuperAdminOverride) {
       return {
         success: false,
         error: `خرق لمبدأ الفصل الصارم بين الواجبات (Separation of Duties - SoD): لا يجوز لمحرر الوثيقة (${targetVer.authorName}) اعتمادها بنفسه حتى وإن كان مديراً للنظام. يجب أن تتم المراجعة والاعتماد بواسطة معتمد/مشرف مستقل.`

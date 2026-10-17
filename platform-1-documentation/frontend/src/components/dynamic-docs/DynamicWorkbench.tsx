@@ -323,6 +323,31 @@ export const DynamicWorkbench: React.FC<DynamicWorkbenchProps> = ({
     return Object.keys(sys?.integrations || {})[0] || 'banking';
   });
 
+  // ── Unified Document Selection (Targeting Documents directly rather than raw system/entity pairs) ──
+  const availableDocuments = useMemo(() => {
+    return docGovernanceEngine.getContainersMatrix(workbenchSystems);
+  }, [workbenchSystems, govTrigger]);
+
+  const selectedDocKey = `${selectedSystemKey}___${selectedEntityId}`;
+
+  useEffect(() => {
+    if (availableDocuments.length > 0) {
+      const match = availableDocuments.some(d => d.systemKey === selectedSystemKey && d.integrationKey === selectedEntityId);
+      if (!match) {
+        setSelectedSystemKey(availableDocuments[0].systemKey);
+        setSelectedEntityId(availableDocuments[0].integrationKey);
+      }
+    }
+  }, [availableDocuments]);
+
+  const handleDocumentChange = (docCombinedKey: string) => {
+    const doc = availableDocuments.find(d => `${d.systemKey}___${d.integrationKey}` === docCombinedKey);
+    if (doc) {
+      setSelectedSystemKey(doc.systemKey);
+      setSelectedEntityId(doc.integrationKey);
+    }
+  };
+
   // Governance container & active draft version for the selected system & entity
   const activeDocContainer = useMemo(() => {
     if (typeof docGovernanceEngine?.getContainer === 'function') {
@@ -1710,14 +1735,33 @@ export const DynamicWorkbench: React.FC<DynamicWorkbenchProps> = ({
       return;
     }
 
+    const targetSysKey = activeDoc.systemKey || selectedSystemKey;
+    const targetEntityKey = activeDoc.entityId || selectedEntityId;
+    const allEps = (activeDoc.allEndpoints && activeDoc.allEndpoints.length > 0)
+      ? activeDoc.allEndpoints
+      : workbenchEndpoints;
+
     await dynamicDraftService.saveDraft({
       ...activeDoc,
-      systemKey: activeDoc.systemKey || selectedSystemKey,
-      entityId: activeDoc.entityId || selectedEntityId,
+      systemKey: targetSysKey,
+      entityId: targetEntityKey,
       rawSource: sourceCode,
       rawFormat: sourceFormat,
-      status: 'PRIVATE_DRAFT'
+      status: 'PRIVATE_DRAFT',
+      allEndpoints: allEps as any
     });
+
+    if (targetSysKey && targetEntityKey) {
+      docGovernanceEngine.updateDraftContent(
+        targetSysKey,
+        targetEntityKey,
+        allEps,
+        {
+          id: user?.id || 'usr_maker',
+          name: (user as any)?.displayName || user?.name || user?.username || 'محرر الوثائق'
+        }
+      );
+    }
 
     setFloatingAlert({
       isOpen: true,
@@ -1763,19 +1807,39 @@ export const DynamicWorkbench: React.FC<DynamicWorkbenchProps> = ({
       // fallback to activeDoc
     }
 
+    const targetSysKey = activeDoc.systemKey || selectedSystemKey;
+    const targetEntityKey = activeDoc.entityId || selectedEntityId;
+    const extractedEps = (latestDoc?.allEndpoints && latestDoc.allEndpoints.length > 0)
+      ? latestDoc.allEndpoints
+      : (activeDoc.allEndpoints && activeDoc.allEndpoints.length > 0)
+      ? activeDoc.allEndpoints
+      : workbenchEndpoints;
+
     const docToSubmit: UastDocument = {
       ...activeDoc,
       ...latestDoc,
-      systemKey: activeDoc.systemKey || selectedSystemKey,
-      entityId: activeDoc.entityId || selectedEntityId,
+      systemKey: targetSysKey,
+      entityId: targetEntityKey,
       rawSource: sourceCode,
       rawFormat: sourceFormat,
       status: 'PENDING_REVIEW' as const,
-      allEndpoints: (latestDoc?.allEndpoints && latestDoc.allEndpoints.length > 0)
-        ? latestDoc.allEndpoints
-        : (activeDoc.allEndpoints || [])
+      allEndpoints: extractedEps as any
     };
     await dynamicDraftService.saveDraft(docToSubmit);
+
+    // Synchronize to governance engine
+    if (targetSysKey && targetEntityKey) {
+      docGovernanceEngine.updateDraftContent(
+        targetSysKey,
+        targetEntityKey,
+        extractedEps,
+        {
+          id: user?.id || 'usr_maker',
+          name: (user as any)?.displayName || user?.name || user?.username || 'محرر الوثائق'
+        }
+      );
+      docGovernanceEngine.submitDraftForReview(targetSysKey, targetEntityKey);
+    }
 
     setFloatingAlert({
       isOpen: true,
@@ -2353,69 +2417,125 @@ export const DynamicWorkbench: React.FC<DynamicWorkbenchProps> = ({
             style={{ display: 'none' }} 
           />
 
-          {/* ── TARGET DESTINATION BAR (CLEAN & COMPACT) ── */}
-          <div className="target-assignment-strip">
-            <div className="target-strip-header">
-              <Layers size={17} className="target-strip-icon" />
-              <span className="target-strip-title">{isRtl ? 'وجهة التوثيق:' : 'Destination:'}</span>
+          {/* ── TARGET DOCUMENT SELECTOR BAR ── */}
+          <div className="target-assignment-strip" style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
+            padding: '0.65rem 1rem',
+            background: 'rgba(15, 23, 42, 0.75)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '8px',
+            marginBottom: '1.25rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flex: 1, minWidth: '320px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#38bdf8' }}>
+                <Layers size={18} />
+                <span style={{ fontWeight: 800, fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                  {isRtl ? 'الوثيقة المستهدفة للتوثيق:' : 'Target Document:'}
+                </span>
+              </div>
+
+              {availableDocuments.length > 0 ? (
+                <div style={{ position: 'relative', flex: 1, maxWidth: '440px' }}>
+                  <select
+                    className="target-native-select compact"
+                    style={{
+                      width: '100%',
+                      padding: '0.45rem 2rem 0.45rem 0.75rem',
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      border: '1px solid rgba(56, 189, 248, 0.4)',
+                      borderRadius: '6px',
+                      color: '#ffffff',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                    value={selectedDocKey}
+                    onChange={(e) => handleDocumentChange(e.target.value)}
+                  >
+                    {availableDocuments.map(doc => (
+                      <option key={`${doc.systemKey}___${doc.integrationKey}`} value={`${doc.systemKey}___${doc.integrationKey}`} style={{ background: '#0f172a', color: '#ffffff' }}>
+                        {doc.systemName} ⟷ {doc.integrationName} ({doc.role === 'PROVIDER' ? (isRtl ? 'مزود' : 'Provider') : (isRtl ? 'مستهلك' : 'Consumer')}) [{doc.docKey}]
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="target-select-chevron" size={14} style={{ position: 'absolute', [isRtl ? 'left' : 'right']: '0.6rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#94a3b8' }} />
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#f59e0b', fontSize: '0.75rem' }}>
+                  <AlertTriangle size={14} />
+                  <span>{isRtl ? 'لا توجد وثائق معتمدة أو مؤسسة حالياً' : 'No established documents available'}</span>
+                </div>
+              )}
             </div>
 
-            <div className="target-strip-controls">
-              {/* System Selector */}
-              <div className="target-strip-field">
-                <span className="target-field-tag">{isRtl ? 'النظام:' : 'System:'}</span>
-                <div className="target-select-wrapper">
-                  <select
-                    className="target-native-select compact"
-                    value={selectedSystemKey}
-                    onChange={(e) => handleSystemChange(e.target.value)}
-                  >
-                    {Object.values(workbenchSystems).map(sys => (
-                      <option key={sys.key} value={sys.key}>
-                        {sys.name} {sys.code ? `(${sys.code})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="target-select-chevron" size={14} />
-                </div>
-                <button
-                  type="button"
-                  className="target-btn-add-mini"
-                  onClick={() => setIsAddSystemModalOpen(true)}
-                  title={isRtl ? 'إضافة نظام جديد' : 'Add New System'}
-                >
-                  <Plus size={14} />
-                </button>
-              </div>
+            {/* Target Details Badge Strip */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                padding: '0.25rem 0.55rem',
+                borderRadius: '4px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                fontSize: '0.72rem',
+                color: '#cbd5e1'
+              }}>
+                <Building2 size={12} style={{ color: '#94a3b8' }} />
+                <span style={{ color: '#94a3b8' }}>{isRtl ? 'النظام:' : 'System:'}</span>
+                <strong style={{ color: '#ffffff' }}>{currentSysObj?.name || selectedSystemKey}</strong>
+              </span>
 
-              <span className="target-strip-divider">{isRtl ? '←' : '→'}</span>
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                padding: '0.25rem 0.55rem',
+                borderRadius: '4px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                fontSize: '0.72rem',
+                color: '#cbd5e1'
+              }}>
+                <Store size={12} style={{ color: '#94a3b8' }} />
+                <span style={{ color: '#94a3b8' }}>{isRtl ? 'الجهة:' : 'Entity:'}</span>
+                <strong style={{ color: '#ffffff' }}>{currentIntObj?.name || selectedEntityId}</strong>
+              </span>
 
-              {/* Entity Selector */}
-              <div className="target-strip-field">
-                <span className="target-field-tag">{isRtl ? 'الجهة:' : 'Entity:'}</span>
-                <div className="target-select-wrapper">
-                  <select
-                    className="target-native-select compact"
-                    value={selectedEntityId}
-                    onChange={(e) => setSelectedEntityId(e.target.value)}
-                  >
-                    {currentSysObj && Object.values(currentSysObj.integrations || {}).map(int => (
-                      <option key={int.entityId} value={int.entityId}>
-                        {int.name} {int.code ? `(${int.code})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="target-select-chevron" size={14} />
-                </div>
-                <button
-                  type="button"
-                  className="target-btn-add-mini"
-                  onClick={() => setIsAddEntityModalOpen(true)}
-                  title={isRtl ? 'إضافة جهة جديدة' : 'Add New Entity'}
-                >
-                  <Plus size={14} />
-                </button>
-              </div>
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                padding: '0.25rem 0.55rem',
+                borderRadius: '4px',
+                background: activeDocContainer?.role === 'PROVIDER' ? 'rgba(56, 189, 248, 0.12)' : 'rgba(168, 85, 247, 0.12)',
+                border: `1px solid ${activeDocContainer?.role === 'PROVIDER' ? 'rgba(56, 189, 248, 0.3)' : 'rgba(168, 85, 247, 0.3)'}`,
+                fontSize: '0.72rem',
+                color: activeDocContainer?.role === 'PROVIDER' ? '#38bdf8' : '#c084fc',
+                fontWeight: 700
+              }}>
+                {activeDocContainer?.role === 'PROVIDER' ? (isRtl ? 'مزود (Provider)' : 'Provider') : (isRtl ? 'مستهلك (Consumer)' : 'Consumer')}
+              </span>
+
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                padding: '0.25rem 0.55rem',
+                borderRadius: '4px',
+                background: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                fontSize: '0.72rem',
+                color: '#34d399',
+                fontWeight: 700,
+                fontFamily: 'monospace'
+              }}>
+                {activeDraftRecord ? `${activeDraftRecord.versionNumber} (مسودة)` : activeDocContainer?.currentApprovedVersion ? `${activeDocContainer.currentApprovedVersion.versionNumber} (معتمد)` : 'v1.0.0'}
+              </span>
             </div>
           </div>
 

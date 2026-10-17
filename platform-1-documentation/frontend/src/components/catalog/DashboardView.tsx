@@ -1,17 +1,18 @@
-import React, { useState } from 'react';
-import { 
-  Plus, 
-  ArrowLeft, 
-  ArrowRight, 
-  Trash2, 
-  Check, 
-  X, 
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Plus,
+  ArrowLeft,
+  ArrowRight,
+  Trash2,
+  Check,
+  X,
   Building2,
   FolderPlus,
   Edit2,
   ChevronDown,
   Link2,
-  ShieldCheck
+  ShieldCheck,
+  Layers
 } from 'lucide-react';
 import { SystemModule, Sector, SystemIntegration } from '../../types/schema';
 import { DocumentGovernanceEngine } from '../../services/docGovernanceEngine';
@@ -19,13 +20,19 @@ import { useLanguage } from '../../i18n';
 import { Can } from '../auth/Can';
 import { useAuth } from '../auth/AuthContext';
 
+export type DashboardScreenMode = 'overview' | 'system-editor' | 'sectors-hub' | 'systems-hub' | 'integrations-hub';
+
 interface DashboardViewProps {
   systems: Record<string, SystemModule>;
   sectors?: Record<string, Sector>;
+  initialMode?: DashboardScreenMode;
+  isReadOnlyOverview?: boolean;
+  onNavigateView?: (view: string) => void;
   onSelectSystemIntegration: (systemKey: string, integrationKey: string) => void;
   onAddSystem: (newSystem: SystemModule) => void;
   onUpdateSystem?: (systemKey: string, updatedData: Partial<SystemModule>) => void;
   onDeleteSystem?: (systemKey: string) => void;
+  onDeleteIntegration?: (systemKey: string, entityId: string) => void;
   onSaveSector?: (sector: { key: string; name: string; nameEn?: string; code: string }) => void;
   onDeleteSector?: (sectorKey: string) => void;
   // Backward compatibility
@@ -34,23 +41,31 @@ interface DashboardViewProps {
   onOpenDeleteSector?: (sectorKey: string) => void;
 }
 
-type DashboardScreenMode = 'overview' | 'system-editor' | 'sectors-hub' | 'systems-hub';
-
 export const DashboardView: React.FC<DashboardViewProps> = ({
   systems,
   sectors = {},
+  initialMode,
+  isReadOnlyOverview = false,
+  onNavigateView,
   onSelectSystemIntegration,
   onAddSystem,
   onUpdateSystem,
   onDeleteSystem,
+  onDeleteIntegration,
   onSaveSector,
   onDeleteSector
 }) => {
   const { t, getLocalized, isRtl } = useLanguage();
   const { canAccess } = useAuth();
 
-  // Screen Mode: 'overview' (Cards Grid) | 'system-editor' (Full Page Editor) | 'sectors-hub' (Full Page Sectors)
-  const [screenMode, setScreenMode] = useState<DashboardScreenMode>('overview');
+  // Screen Mode: 'overview' (Cards Grid) | 'system-editor' (Full Page Editor) | 'sectors-hub' (Full Page Sectors) | 'systems-hub' | 'integrations-hub'
+  const [screenMode, setScreenMode] = useState<DashboardScreenMode>(initialMode || 'overview');
+
+  useEffect(() => {
+    if (initialMode) {
+      setScreenMode(initialMode);
+    }
+  }, [initialMode]);
 
   // System Editor Full-Screen State
   const [editingSystemKey, setEditingSystemKey] = useState<string | null>(null);
@@ -162,6 +177,117 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [selectedDocKeyForLink, setSelectedDocKeyForLink] = useState<string>('');
   const [linkValidationError, setLinkValidationError] = useState<string | null>(null);
 
+  // Unlink Entity from System Confirmation Modal State
+  const [integrationPendingUnlink, setIntegrationPendingUnlink] = useState<{
+    systemKey: string;
+    entityId: string;
+    entityName: string;
+    systemName: string;
+    endpointCount: number;
+  } | null>(null);
+
+  // Integrations Hub State
+  const [hubSelectedSysKey, setHubSelectedSysKey] = useState<string>('');
+  const [hubSelectedEntityKey, setHubSelectedEntityKey] = useState<string>('');
+  const [hubDirection, setHubDirection] = useState<'INBOUND' | 'OUTBOUND'>('INBOUND');
+  const [hubSelectedDocKey, setHubSelectedDocKey] = useState<string>('');
+  const [hubValidationError, setHubValidationError] = useState<string | null>(null);
+  const [hubSearchTerm, setHubSearchTerm] = useState<string>('');
+  const [hubFilterSys, setHubFilterSys] = useState<string>('all');
+
+  const handleHubConfirmLinkEntity = () => {
+    if (!hubSelectedSysKey) {
+      setHubValidationError(isRtl ? 'يرجى اختيار النظام المستهدف أولاً.' : 'Please select a system first.');
+      return;
+    }
+    if (!hubSelectedEntityKey) {
+      setHubValidationError(isRtl ? 'يرجى اختيار الجهة الشريكة.' : 'Please select an entity.');
+      return;
+    }
+
+    const currentSys = systems[hubSelectedSysKey];
+    if (!currentSys) return;
+
+    const existingIntegrations = currentSys.integrations || {};
+
+    if (existingIntegrations[hubSelectedEntityKey]) {
+      setHubValidationError(
+        isRtl
+          ? `الجهة المختارة مرتبطة بالفعل بهذا النظام!`
+          : 'Selected entity is already integrated with this system!'
+      );
+      return;
+    }
+
+    const secObj = sectors[hubSelectedEntityKey];
+    const entityName = secObj ? secObj.name : hubSelectedEntityKey;
+    const entityNameEn = secObj?.nameEn || entityName;
+    const entityCode = secObj?.code || `SEC_${hubSelectedEntityKey.toUpperCase()}`;
+
+    let associatedEndpoints: any[] = [];
+    let linkedDocVersion: string | undefined;
+
+    if (hubSelectedDocKey) {
+      const govEngine = DocumentGovernanceEngine.getInstance();
+      const allContainers = govEngine.getContainersMatrix(systems);
+      const selectedContainer = allContainers.find(c => c.documentKey === hubSelectedDocKey);
+
+      if (selectedContainer && selectedContainer.currentApprovedVersion) {
+        if (selectedContainer.integrationKey !== hubSelectedEntityKey) {
+          setHubValidationError(
+            isRtl
+              ? 'قاعدة الحوكمة: عدم تطابق الجهة! الوثيقة المختارة لا تخص هذه الجهة.'
+              : 'Governance Rule: Document entity mismatch.'
+          );
+          return;
+        }
+
+        linkedDocVersion = selectedContainer.currentApprovedVersion.versionNumber;
+        if (selectedContainer.currentApprovedVersion.payloadSnapshot) {
+          try {
+            const parsed = JSON.parse(selectedContainer.currentApprovedVersion.payloadSnapshot);
+            if (Array.isArray(parsed)) associatedEndpoints = parsed;
+          } catch { }
+        }
+      }
+    }
+
+    const newIntegration: SystemIntegration = {
+      entityId: hubSelectedEntityKey,
+      name: entityName,
+      nameEn: entityNameEn,
+      code: entityCode,
+      direction: hubDirection,
+      endpoints: associatedEndpoints,
+      docVersion: linkedDocVersion
+    };
+
+    const updatedIntegrations = {
+      ...existingIntegrations,
+      [hubSelectedEntityKey]: newIntegration
+    };
+
+    const currentAssociated = currentSys.associatedSectorKeys || Object.keys(existingIntegrations);
+    const updatedAssociated = Array.from(new Set([...currentAssociated, hubSelectedEntityKey]));
+
+    if (onUpdateSystem) {
+      onUpdateSystem(hubSelectedSysKey, {
+        integrations: updatedIntegrations,
+        associatedSectorKeys: updatedAssociated
+      });
+    }
+
+    setHubSelectedEntityKey('');
+    setHubSelectedDocKey('');
+    setHubValidationError(null);
+    setSystemAlertMessage({
+      type: 'success',
+      text: isRtl
+        ? `تم ربط وتكامل جهة [${entityName}] بنجاح مع نظام [${currentSys.name}].`
+        : `Successfully linked entity [${entityName}] to system [${currentSys.name}].`
+    });
+  };
+
   // Switch to System Editor (Create mode)
   const handleOpenCreateSystem = () => {
     setEditingSystemKey(null);
@@ -267,12 +393,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     e.preventDefault();
     if (!secNameAr.trim()) return;
 
-    const key = editingSectorKey || (secNameEn.trim() || secNameAr.trim())
+    const rawEn = (secNameEn.trim() || '')
       .toLowerCase()
       .replace(/[^a-z0-9]/g, '_')
-      .replace(/^_+|_+$/g, '') || `sec_${Date.now()}`;
+      .replace(/^_+|_+$/g, '');
 
-    const code = secCode.trim().toUpperCase() || `SEC_${key.toUpperCase()}`;
+    const key = editingSectorKey || rawEn || `sec_${Date.now()}`;
+
+    const trimmedCode = secCode.trim().toUpperCase();
+    const code = (!trimmedCode || trimmedCode === 'SEC_')
+      ? `SEC_${(rawEn || String(Date.now()).slice(-4)).toUpperCase()}`
+      : trimmedCode;
 
     setSectorPendingSave({
       key,
@@ -383,8 +514,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     const existingIntegrations = currentSys.integrations || {};
     if (existingIntegrations[selectedEntityForLink]) {
       setLinkValidationError(
-        isRtl 
-          ? 'قاعدة الحوكمة: هذه الجهة مرتبطة مسبقاً بهذا النظام. لا يمكن تكرار نفس الربط لنفس النظام.' 
+        isRtl
+          ? 'قاعدة الحوكمة: هذه الجهة مرتبطة مسبقاً بهذا النظام. لا يمكن تكرار نفس الربط لنفس النظام.'
           : 'Governance Rule: This entity is already integrated with this system.'
       );
       return;
@@ -398,7 +529,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     // Get documents matching this entity from DocumentGovernanceEngine
     const govEngine = DocumentGovernanceEngine.getInstance();
     const allContainers = govEngine.getContainersMatrix(systems);
-    
+
     // Find matching document for this entity if selected
     let associatedEndpoints: any[] = [];
     let linkedDocVersion: string | undefined = undefined;
@@ -409,8 +540,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         // Rule 2: Document must be APPROVED
         if (!selectedContainer.currentApprovedVersion || selectedContainer.currentApprovedVersion.status !== 'APPROVED') {
           setLinkValidationError(
-            isRtl 
-              ? 'قاعدة الحوكمة: لا يمكن ربط وثيقة غير معتمدة رسمياً. الوثائق المعتمدة فقط هي القابلة للربط.' 
+            isRtl
+              ? 'قاعدة الحوكمة: لا يمكن ربط وثيقة غير معتمدة رسمياً. الوثائق المعتمدة فقط هي القابلة للربط.'
               : 'Governance Rule: Only officially approved documents can be linked.'
           );
           return;
@@ -419,8 +550,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         // Rule 3: Target entity of document must match selected entity
         if (selectedContainer.integrationKey !== selectedEntityForLink) {
           setLinkValidationError(
-            isRtl 
-              ? 'قاعدة الحوكمة: عدم تطابق الجهة! الوثيقة المختارة لا تخص هذه الجهة.' 
+            isRtl
+              ? 'قاعدة الحوكمة: عدم تطابق الجهة! الوثيقة المختارة لا تخص هذه الجهة.'
               : 'Governance Rule: Document entity mismatch.'
           );
           return;
@@ -432,7 +563,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           try {
             const parsed = JSON.parse(selectedContainer.currentApprovedVersion.payloadSnapshot);
             if (Array.isArray(parsed)) associatedEndpoints = parsed;
-          } catch {}
+          } catch { }
         }
       }
     }
@@ -469,14 +600,470 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setLinkValidationError(null);
   };
 
+  // Confirm and Execute Unlink Entity from System with Full Governance
+  const handleConfirmUnlinkIntegration = () => {
+    if (!integrationPendingUnlink) return;
+    const { systemKey, entityId, entityName, systemName } = integrationPendingUnlink;
+
+    if (onDeleteIntegration) {
+      onDeleteIntegration(systemKey, entityId);
+    } else if (onUpdateSystem) {
+      const currentSys = systems[systemKey];
+      if (currentSys) {
+        const updatedIntegrations = { ...(currentSys.integrations || {}) };
+        delete updatedIntegrations[entityId];
+        const currentAssociated = currentSys.associatedSectorKeys || Object.keys(currentSys.integrations || {});
+        const updatedAssociated = currentAssociated.filter(k => k !== entityId);
+        onUpdateSystem(systemKey, {
+          integrations: updatedIntegrations,
+          associatedSectorKeys: updatedAssociated
+        });
+      }
+    }
+
+    setSystemAlertMessage({
+      type: 'success',
+      text: isRtl
+        ? `تم فك ارتباط [${entityName}] عن نظام [${systemName}] بنجاح.`
+        : `[${entityName}] was unlinked from [${systemName}] successfully.`
+    });
+
+    setIntegrationPendingUnlink(null);
+  };
+
   // Filtered systems accessible by sovereign scope
   const systemEntries = Object.entries(systems).filter(([sysKey]) => {
     return canAccess('dashboard:read', { systemId: sysKey }) ||
-           canAccess('catalog:read', { systemId: sysKey }) ||
-           canAccess('catalog:view', { systemId: sysKey });
+      canAccess('catalog:read', { systemId: sysKey }) ||
+      canAccess('catalog:view', { systemId: sysKey });
   });
 
   const availableSectorList = Object.values(sectors);
+
+  // All active integrations list across systems
+  const allActiveIntegrations = useMemo(() => {
+    const list: Array<{
+      sysKey: string;
+      sysName: string;
+      sysCode: string;
+      intKey: string;
+      integration: SystemIntegration;
+    }> = [];
+
+    systemEntries.forEach(([sKey, sMod]) => {
+      if (sMod.integrations) {
+        Object.entries(sMod.integrations).forEach(([iKey, iVal]) => {
+          list.push({
+            sysKey: sKey,
+            sysName: sMod.name,
+            sysCode: sMod.code || sKey,
+            intKey: iKey,
+            integration: iVal
+          });
+        });
+      }
+    });
+
+    return list;
+  }, [systemEntries]);
+
+  // Filtered active integrations for integrations hub
+  const filteredActiveIntegrations = allActiveIntegrations.filter(item => {
+    if (hubFilterSys !== 'all' && item.sysKey !== hubFilterSys) return false;
+    if (hubSearchTerm.trim()) {
+      const q = hubSearchTerm.toLowerCase();
+      const matchSys = item.sysName.toLowerCase().includes(q) || item.sysCode.toLowerCase().includes(q);
+      const matchInt = item.integration.name.toLowerCase().includes(q) || (item.integration.code && item.integration.code.toLowerCase().includes(q));
+      if (!matchSys && !matchInt) return false;
+    }
+    return true;
+  });
+
+  // Helper to render the Link Entity Governance Modal
+  const renderLinkEntityModal = () => {
+    if (!linkingSystemKey) return null;
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(5px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '1rem'
+        }}
+        onClick={() => {
+          setLinkingSystemKey(null);
+          setLinkValidationError(null);
+        }}
+      >
+        <div
+          style={{
+            background: '#0f172a',
+            border: '1px solid rgba(56, 189, 248, 0.35)',
+            borderTop: '4px solid #0284c7',
+            borderRadius: '8px',
+            padding: '1.5rem',
+            maxWidth: '540px',
+            width: '100%',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.65)'
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Modal Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Link2 size={18} style={{ color: '#38bdf8' }} />
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+                {isRtl
+                  ? `ربط وتكامل جهة مع [${systems[linkingSystemKey]?.name || linkingSystemKey}]`
+                  : `Link Entity to [${systems[linkingSystemKey]?.name || linkingSystemKey}]`}
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLinkingSystemKey(null)}
+              style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0.2rem' }}
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Validation Alert */}
+          {linkValidationError && (
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.15)',
+              border: '1px solid #ef4444',
+              color: '#fca5a5',
+              padding: '0.65rem 0.85rem',
+              borderRadius: '6px',
+              fontSize: '0.8rem',
+              lineHeight: '1.5',
+              marginBottom: '1rem'
+            }}>
+              {linkValidationError}
+            </div>
+          )}
+
+          {/* Link Form */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {/* Field 1: Entity Selector */}
+            <div>
+              <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                {isRtl ? '1. اختر الجهة الشريكة (من دليل الجهات المسجلة)' : '1. Select Entity (From Registry)'} <span style={{ color: '#f87171' }}>*</span>
+              </label>
+              <select
+                value={selectedEntityForLink}
+                onChange={(e) => {
+                  setSelectedEntityForLink(e.target.value);
+                  setSelectedDocKeyForLink('');
+                  setLinkValidationError(null);
+                }}
+                className="input"
+                style={{
+                  width: '100%',
+                  padding: '0.55rem 0.75rem',
+                  fontSize: '0.82rem',
+                  background: '#1e293b',
+                  color: '#ffffff',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '5px'
+                }}
+              >
+                <option value="">{isRtl ? '-- حدد الجهة من السجل --' : '-- Select Entity --'}</option>
+                {availableSectorList.map(sec => {
+                  const secKey = sec.key || sec.code.toLowerCase();
+                  const isAlreadyLinked = !!systems[linkingSystemKey]?.integrations?.[secKey];
+                  const localizedSecName = getLocalized({ ar: sec.name, en: sec.nameEn }, sec.name);
+
+                  return (
+                    <option key={secKey} value={secKey} disabled={isAlreadyLinked}>
+                      {localizedSecName} ({sec.code}) {isAlreadyLinked ? (isRtl ? ' - [مرتبطة بالفعل]' : ' - [Already Linked]') : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* Field 2: Role / Integration Direction */}
+            <div>
+              <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                {isRtl ? '2. طبيعة التكامل وعلاقة الجهة بهذا النظام' : '2. Integration Role'} <span style={{ color: '#f87171' }}>*</span>
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+                {[
+                  { val: 'INBOUND', labelAr: 'جهة مستهلكة (Consumer)', labelEn: 'Consumer (Inbound)' },
+                  { val: 'OUTBOUND', labelAr: 'جهة مزوّدة (Provider)', labelEn: 'Provider (Outbound)' },
+                  { val: 'BIDIRECTIONAL', labelAr: 'مزدوج (Bi-directional)', labelEn: 'Bi-directional' }
+                ].map(dir => (
+                  <button
+                    key={dir.val}
+                    type="button"
+                    onClick={() => setSelectedDirectionForLink(dir.val as any)}
+                    style={{
+                      padding: '0.45rem 0.5rem',
+                      fontSize: '0.75rem',
+                      fontWeight: selectedDirectionForLink === dir.val ? 700 : 500,
+                      background: selectedDirectionForLink === dir.val ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                      border: selectedDirectionForLink === dir.val ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+                      color: selectedDirectionForLink === dir.val ? '#ffffff' : '#94a3b8',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      textAlign: 'center'
+                    }}
+                  >
+                    {isRtl ? dir.labelAr : dir.labelEn}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Field 3: Link Document with Strict Governance */}
+            <div>
+              <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                {isRtl ? '3. وثيقة الـ API المعتمدة (عقد التكامل)' : '3. Approved API Document Contract'}
+              </label>
+
+              {(() => {
+                if (!selectedEntityForLink) {
+                  return (
+                    <div style={{ padding: '0.65rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '4px', fontSize: '0.75rem', color: '#64748b' }}>
+                      {isRtl ? 'حدد الجهة أولاً لعرض وثائقها المعتمدة الصالحة للربط.' : 'Select entity first to load approved documents.'}
+                    </div>
+                  );
+                }
+
+                const govEngine = DocumentGovernanceEngine.getInstance();
+                const allContainers = govEngine.getContainersMatrix(systems);
+
+                const matchingApprovedDocs = allContainers.filter(c => {
+                  const matchesEntity = c.integrationKey === selectedEntityForLink;
+                  const isApproved = c.currentApprovedVersion && c.currentApprovedVersion.status === 'APPROVED';
+                  const notAlreadyInThisSys = c.systemKey !== linkingSystemKey;
+                  return matchesEntity && isApproved && notAlreadyInThisSys;
+                });
+
+                if (matchingApprovedDocs.length === 0) {
+                  return (
+                    <div style={{
+                      padding: '0.75rem',
+                      background: 'rgba(56, 189, 248, 0.05)',
+                      border: '1px dashed rgba(56, 189, 248, 0.25)',
+                      borderRadius: '6px',
+                      fontSize: '0.76rem',
+                      color: '#94a3b8',
+                      lineHeight: '1.5'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#38bdf8', marginBottom: '0.2rem', fontWeight: 700 }}>
+                        <ShieldCheck size={14} />
+                        <span>{isRtl ? 'حوكمة العقود والتوثيق' : 'Contract Governance'}</span>
+                      </div>
+                      {isRtl
+                        ? 'لا توجد وثائق خارجية معتمدة لهذه الجهة حالياً. يمكنك إتمام الربط وسيتم إنشاء حاوية توثيق مخصصة ومعتمدة لهذا المسار تلقائياً.'
+                        : 'No external approved documents found for this entity. A dedicated approved contract container will be initialized.'}
+                    </div>
+                  );
+                }
+
+                return (
+                  <select
+                    value={selectedDocKeyForLink}
+                    onChange={(e) => {
+                      setSelectedDocKeyForLink(e.target.value);
+                      setLinkValidationError(null);
+                    }}
+                    className="input"
+                    style={{
+                      width: '100%',
+                      padding: '0.55rem 0.75rem',
+                      fontSize: '0.82rem',
+                      background: '#1e293b',
+                      color: '#ffffff',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      borderRadius: '5px'
+                    }}
+                  >
+                    <option value="">{isRtl ? '-- اختيار وثيقة معتمدة متطابقة --' : '-- Select Approved Document --'}</option>
+                    {matchingApprovedDocs.map(doc => (
+                      <option key={doc.documentKey} value={doc.documentKey}>
+                        {doc.systemName} - {doc.integrationName} ({doc.currentApprovedVersion?.versionNumber}) [معتمدة]
+                      </option>
+                    ))}
+                  </select>
+                );
+              })()}
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setLinkingSystemKey(null);
+                  setLinkValidationError(null);
+                }}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  color: '#cbd5e1',
+                  padding: '0.45rem 1.15rem',
+                  borderRadius: '4px',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                {isRtl ? 'إلغاء' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmLinkEntity}
+                disabled={!selectedEntityForLink}
+                style={{
+                  background: selectedEntityForLink ? '#0284c7' : 'rgba(255, 255, 255, 0.1)',
+                  border: selectedEntityForLink ? '1px solid #38bdf8' : 'none',
+                  color: selectedEntityForLink ? '#ffffff' : '#64748b',
+                  padding: '0.45rem 1.4rem',
+                  borderRadius: '4px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: selectedEntityForLink ? 'pointer' : 'not-allowed',
+                  boxShadow: selectedEntityForLink ? '0 2px 6px rgba(2, 132, 199, 0.35)' : 'none'
+                }}
+              >
+                {isRtl ? 'تأكيد وحفظ الربط' : 'Confirm & Save Link'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Helper to render the Unlink Entity Governance Confirmation Modal
+  const renderUnlinkEntityModal = () => {
+    if (!integrationPendingUnlink) return null;
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(5px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '1rem'
+        }}
+        onClick={() => setIntegrationPendingUnlink(null)}
+      >
+        <div
+          style={{
+            background: '#0f172a',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            borderTop: '4px solid #ef4444',
+            borderRadius: '8px',
+            padding: '1.5rem',
+            maxWidth: '480px',
+            width: '100%',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.65)'
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <ShieldCheck size={18} style={{ color: '#f87171' }} />
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+                {isRtl ? 'حوكمة فك ارتباط جهة عن النظام' : 'Unlink Entity Governance'}
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIntegrationPendingUnlink(null)}
+              style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0.2rem' }}
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <p style={{ fontSize: '0.88rem', color: '#cbd5e1', lineHeight: '1.6', margin: '0 0 1rem 0' }}>
+            {isRtl ? (
+              <>
+                هل أنت متأكد من رغبتك في إلغاء ربط جهة <strong style={{ color: '#38bdf8' }}>[{integrationPendingUnlink.entityName}]</strong> عن نظام <strong style={{ color: '#ffffff' }}>[{integrationPendingUnlink.systemName}]</strong>؟
+              </>
+            ) : (
+              <>
+                Are you sure you want to unlink <strong style={{ color: '#38bdf8' }}>[{integrationPendingUnlink.entityName}]</strong> from <strong style={{ color: '#ffffff' }}>[{integrationPendingUnlink.systemName}]</strong>?
+              </>
+            )}
+          </p>
+
+          {integrationPendingUnlink.endpointCount > 0 && (
+            <div style={{
+              padding: '0.75rem',
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.25)',
+              borderRadius: '6px',
+              fontSize: '0.8rem',
+              color: '#fca5a5',
+              lineHeight: '1.5',
+              marginBottom: '1.25rem'
+            }}>
+              {isRtl
+                ? `تنبيه أثر: يحتوي هذا التكامل على (${integrationPendingUnlink.endpointCount}) مسار API نشط. فك الارتباط سيقوم بفصل هذه المسارات عن كتالوج النظام مع الحفاظ على سجل الحوكمة والتدقيق للوثائق المعتمدة.`
+                : `Impact notice: This integration has (${integrationPendingUnlink.endpointCount}) active endpoints. Unlinking will detach them from this system catalog while preserving governance audit records.`}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '1.25rem' }}>
+            <button
+              type="button"
+              onClick={() => setIntegrationPendingUnlink(null)}
+              style={{
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                color: '#cbd5e1',
+                padding: '0.45rem 1.15rem',
+                borderRadius: '4px',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              {isRtl ? 'إلغاء' : 'Cancel'}
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmUnlinkIntegration}
+              style={{
+                background: '#dc2626',
+                border: '1px solid #ef4444',
+                color: '#ffffff',
+                padding: '0.45rem 1.4rem',
+                borderRadius: '4px',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(220, 38, 38, 0.35)'
+              }}
+            >
+              {isRtl ? 'تأكيد فك الارتباط' : 'Confirm Unlink'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // ==========================================
   // VIEW MODE 1: FULL SCREEN SYSTEM EDITOR
@@ -877,55 +1464,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Bottom Navigation Strip: Return to Dashboard */}
-        <div style={{
-          marginTop: '2rem',
-          display: 'flex',
-          justifyContent: isRtl ? 'flex-start' : 'flex-end',
-          alignItems: 'center',
-          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-          paddingTop: '1.25rem'
-        }}>
-          <button
-            type="button"
-            onClick={() => {
-              setEditingSectorKey(null);
-              setSecNameAr('');
-              setSecNameEn('');
-              setSecCode('SEC_');
-              setScreenMode('overview');
-            }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.6rem',
-              background: 'rgba(255, 255, 255, 0.06)',
-              border: '1px solid rgba(255, 255, 255, 0.16)',
-              color: '#f8fafc',
-              padding: '0.65rem 1.6rem',
-              borderRadius: '6px',
-              fontSize: '0.88rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(56, 189, 248, 0.12)';
-              e.currentTarget.style.borderColor = '#38bdf8';
-              e.currentTarget.style.color = '#38bdf8';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
-              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.16)';
-              e.currentTarget.style.color = '#f8fafc';
-            }}
-          >
-            {isRtl ? <ArrowRight size={18} /> : <ArrowLeft size={18} />}
-            <span>{isRtl ? 'العودة إلى لوحة الداشبورد' : 'Back to Dashboard'}</span>
-          </button>
-        </div>
-
         {/* Confirmation Modal for Sector Save - NO ICONS */}
         {sectorPendingSave && (
           <div
@@ -1053,22 +1591,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     ? `هل أنت متأكد من رغبتك في حذف قطاع [${sectorPendingDelete.name}] نهائياً من المنظومة؟`
                     : `Are you sure you want to permanently delete sector [${sectorPendingDelete.name}]?`)}
               </p>
-              {sectorPendingDelete.linkedCount > 0 && (
-                <div style={{
-                  background: 'rgba(245, 158, 11, 0.12)',
-                  border: '1px solid rgba(245, 158, 11, 0.4)',
-                  borderRadius: '5px',
-                  padding: '0.75rem 0.95rem',
-                  marginBottom: '1.25rem',
-                  fontSize: '0.82rem',
-                  color: '#fbbf24',
-                  lineHeight: '1.5'
-                }}>
-                  {isRtl
-                    ? `قاعدة معمارية (SOLID / Domain Invariant): لحماية سلامة الوثائق والتكاملات، يجب التوجه إلى الأنظمة المرتبطة وإلغاء الربط مع هذه الجهة أولاً قبل التمكن من حذفها.`
-                    : `Architecture Rule: To protect document and integration integrity, you must decouple this entity from the linked systems before deleting.`}
-                </div>
-              )}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>
                 <button
                   type="button"
@@ -1151,56 +1673,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </button>
           </div>
         )}
-
-        {/* Top Header */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '1.5rem',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          paddingBottom: '1rem',
-          flexWrap: 'wrap',
-          gap: '1rem'
-        }}>
-          <div>
-            <h2 style={{ fontSize: '1.2rem', color: '#ffffff', fontWeight: 800, margin: 0 }}>
-              {isRtl ? 'إدارة الأنظمة' : 'Manage Systems'}
-            </h2>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-dim, #94a3b8)', margin: '0.3rem 0 0 0' }}>
-              {isRtl 
-                ? 'إنشاء الأنظمة ككيانات مجردة ومستقلة، وتعديلها وحذفها، واستعراض كافة الجهات التابعة لكل نظام.' 
-                : 'Decoupled systems management with card-level edit, delete, and integration views.'}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setEditingSystemKey(null);
-              setFormNameAr('');
-              setFormNameEn('');
-              setFormCode('SYS_');
-              setFormDescription('');
-              setScreenMode('overview');
-            }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              background: 'rgba(255, 255, 255, 0.06)',
-              border: '1px solid rgba(255, 255, 255, 0.16)',
-              color: '#f8fafc',
-              padding: '0.5rem 1.2rem',
-              borderRadius: '6px',
-              fontSize: '0.82rem',
-              fontWeight: 700,
-              cursor: 'pointer'
-            }}
-          >
-            {isRtl ? <ArrowRight size={15} /> : <ArrowLeft size={15} />}
-            <span>{isRtl ? 'العودة إلى لوحة الداشبورد' : 'Back to Dashboard'}</span>
-          </button>
-        </div>
 
         {/* Two-Column Grid: Form on side, Systems List on other side */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.5rem' }}>
@@ -1390,7 +1862,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           </span>
                         </div>
 
-                        {/* Edit and Delete Buttons on this card */}
+                        {/* Action Buttons on this card: Edit, Delete */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                           <button
                             type="button"
@@ -1489,16 +1961,42 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                 }}>
                                   {consumerIntegrations.map(([intKey, integration]) => {
                                     const intName = getLocalized({ ar: integration.name, en: integration.nameEn }, integration.name);
+                                    const epCount = integration.endpoints?.length || 0;
                                     return (
-                                      <button
+                                      <div
                                         key={intKey}
-                                        type="button"
-                                        onClick={() => onSelectSystemIntegration(sysKey, intKey)}
-                                        className="dashboard-int-badge"
-                                        title={isRtl ? `استعراض تكامل ${intName}` : `Explore ${intName} integration`}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          background: 'rgba(255, 255, 255, 0.05)',
+                                          border: '1px solid rgba(255, 255, 255, 0.12)',
+                                          borderRadius: '4px',
+                                          overflow: 'hidden'
+                                        }}
                                       >
-                                        <span>{intName}</span>
-                                      </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => onSelectSystemIntegration(sysKey, intKey)}
+                                          style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: '#e2e8f0',
+                                            padding: '0.2rem 0.55rem',
+                                            fontSize: '0.74rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.35rem'
+                                          }}
+                                          title={isRtl ? `استعراض تكامل ${intName}` : `Explore ${intName} integration`}
+                                        >
+                                          <span>{intName}</span>
+                                          {epCount > 0 && (
+                                            <span style={{ fontSize: '0.62rem', color: '#94a3b8' }}>({epCount})</span>
+                                          )}
+                                        </button>
+                                      </div>
                                     );
                                   })}
                                 </div>
@@ -1553,16 +2051,42 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                 }}>
                                   {providerIntegrations.map(([intKey, integration]) => {
                                     const intName = getLocalized({ ar: integration.name, en: integration.nameEn }, integration.name);
+                                    const epCount = integration.endpoints?.length || 0;
                                     return (
-                                      <button
+                                      <div
                                         key={intKey}
-                                        type="button"
-                                        onClick={() => onSelectSystemIntegration(sysKey, intKey)}
-                                        className="dashboard-int-badge"
-                                        title={isRtl ? `استعراض تكامل ${intName}` : `Explore ${intName} integration`}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          background: 'rgba(255, 255, 255, 0.05)',
+                                          border: '1px solid rgba(255, 255, 255, 0.12)',
+                                          borderRadius: '4px',
+                                          overflow: 'hidden'
+                                        }}
                                       >
-                                        <span>{intName}</span>
-                                      </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => onSelectSystemIntegration(sysKey, intKey)}
+                                          style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: '#e2e8f0',
+                                            padding: '0.2rem 0.55rem',
+                                            fontSize: '0.74rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.35rem'
+                                          }}
+                                          title={isRtl ? `استعراض تكامل ${intName}` : `Explore ${intName} integration`}
+                                        >
+                                          <span>{intName}</span>
+                                          {epCount > 0 && (
+                                            <span style={{ fontSize: '0.62rem', color: '#94a3b8' }}>({epCount})</span>
+                                          )}
+                                        </button>
+                                      </div>
                                     );
                                   })}
                                 </div>
@@ -1630,23 +2154,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     : `Are you sure you want to permanently delete system [${systemPendingDelete.name}]?`)}
               </p>
 
-              {systemPendingDelete.linkedCount > 0 && (
-                <div style={{
-                  background: 'rgba(245, 158, 11, 0.12)',
-                  border: '1px solid rgba(245, 158, 11, 0.4)',
-                  borderRadius: '5px',
-                  padding: '0.75rem 0.95rem',
-                  marginBottom: '1.25rem',
-                  fontSize: '0.82rem',
-                  color: '#fbbf24',
-                  lineHeight: '1.5'
-                }}>
-                  {isRtl
-                    ? `قاعدة معمارية (SOLID / Domain Invariant): حظر صارم لا يقبل التجاوز. لحماية سلامة الوثائق والتكاملات، لا يمكن حذف أي نظام إلا إذا كان مجرداً وخالياً تماماً من أي ارتباطات سابقة.`
-                    : `Architecture Rule: Strict invariant block. To protect governance and document integrity, a system cannot be deleted until all its integrations are completely unlinked.`}
-                </div>
-              )}
-
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>
                 <button
                   type="button"
@@ -1688,6 +2195,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
         )}
+
+        {/* Governance Modals for Systems Management */}
+        {renderLinkEntityModal()}
+        {renderUnlinkEntityModal()}
       </div>
     );
   }
@@ -1700,7 +2211,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     Object.entries(s.integrations || {}).forEach(([intKey, intItem]) => {
       const isConsumer = intItem.direction === 'INBOUND' || (intItem.direction !== 'OUTBOUND' && (intKey === 'merchants' || intKey === 'erp'));
       const isProvider = intItem.direction === 'OUTBOUND' || (intItem.direction !== 'INBOUND' && intKey !== 'merchants' && intKey !== 'erp');
-      
+
       const entityId = intItem.entityId || intKey;
       if (isConsumer) consumerEntityKeys.add(entityId);
       if (isProvider) providerEntityKeys.add(entityId);
@@ -1717,7 +2228,467 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   }, 0);
 
   // ==========================================
-  // VIEW MODE 3: DEFAULT OVERVIEW (NO ICONS ON SYSTEMS)
+  // VIEW MODE 4: FULL SCREEN INTEGRATIONS & LINKING HUB
+  // ==========================================
+  if (screenMode === 'integrations-hub') {
+    return (
+      <div className="dashboard-container" style={{ padding: '1.5rem', maxWidth: '1280px', margin: '0 auto' }}>
+        {/* Confirmation & Feedback Alert */}
+        {systemAlertMessage && (
+          <div style={{
+            background: 'rgba(14, 165, 233, 0.15)',
+            border: '1px solid #0284c7',
+            color: '#38bdf8',
+            padding: '0.75rem 1.25rem',
+            borderRadius: '6px',
+            marginBottom: '1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '0.85rem',
+            fontWeight: 700
+          }}>
+            <span>{systemAlertMessage.text}</span>
+            <button
+              type="button"
+              onClick={() => setSystemAlertMessage(null)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#ffffff',
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: '0.82rem'
+              }}
+            >
+              {isRtl ? 'إغلاق' : 'Close'}
+            </button>
+          </div>
+        )}
+
+        {/* Two-Column Grid: Form on Side, Active Integrations Matrix on other */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem', alignItems: 'start' }}>
+          {/* Column 1: New Integration Form */}
+          <div style={{
+            background: 'var(--bg-card, #0f172a)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: 'var(--radius-md, 8px)',
+            padding: '1.5rem'
+          }}>
+            <h3 style={{ fontSize: '1rem', color: '#ffffff', fontWeight: 700, margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Link2 size={16} style={{ color: '#38bdf8' }} />
+              <span>{isRtl ? '+ إنشاء ربط وتكامل جديد' : '+ Create New Integration'}</span>
+            </h3>
+
+            {hubValidationError && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid #ef4444',
+                color: '#fca5a5',
+                padding: '0.65rem 0.85rem',
+                borderRadius: '6px',
+                fontSize: '0.8rem',
+                lineHeight: '1.5',
+                marginBottom: '1rem'
+              }}>
+                {hubValidationError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+              {/* Field 1: Target System */}
+              <div>
+                <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                  {isRtl ? '1. اختر النظام المستهدف للربط' : '1. Target System'} <span style={{ color: '#f87171' }}>*</span>
+                </label>
+                <select
+                  value={hubSelectedSysKey}
+                  onChange={(e) => {
+                    setHubSelectedSysKey(e.target.value);
+                    setHubValidationError(null);
+                  }}
+                  className="input"
+                  style={{ width: '100%', padding: '0.55rem 0.75rem', fontSize: '0.82rem', background: '#1e293b', color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '5px' }}
+                >
+                  <option value="">{isRtl ? '-- حدد النظام المستهدف --' : '-- Select System --'}</option>
+                  {systemEntries.map(([sKey, sMod]) => (
+                    <option key={sKey} value={sKey}>
+                      {sMod.name} ({sMod.code || sKey})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Field 2: Target Entity */}
+              <div>
+                <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                  {isRtl ? '2. اختر الجهة الشريكة' : '2. Partner Entity'} <span style={{ color: '#f87171' }}>*</span>
+                </label>
+                <select
+                  value={hubSelectedEntityKey}
+                  onChange={(e) => {
+                    setHubSelectedEntityKey(e.target.value);
+                    setHubValidationError(null);
+                  }}
+                  className="input"
+                  style={{ width: '100%', padding: '0.55rem 0.75rem', fontSize: '0.82rem', background: '#1e293b', color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '5px' }}
+                >
+                  <option value="">{isRtl ? '-- اختيار الجهة من السجل المعتمد --' : '-- Select Registered Entity --'}</option>
+                  {availableSectorList.map(sec => {
+                    const secName = getLocalized({ ar: sec.name, en: sec.nameEn }, sec.name);
+                    const isAlreadyLinked = hubSelectedSysKey ? !!systems[hubSelectedSysKey]?.integrations?.[sec.key] : false;
+                    return (
+                      <option key={sec.key} value={sec.key} disabled={isAlreadyLinked}>
+                        {secName} ({sec.code || sec.key}) {isAlreadyLinked ? (isRtl ? '[مرتبطة مسبقاً]' : '[Already Linked]') : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* Field 3: Direction */}
+              <div>
+                <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                  {isRtl ? '3. اتجاه وطبيعة التكامل' : '3. Integration Direction'} <span style={{ color: '#f87171' }}>*</span>
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setHubDirection('INBOUND')}
+                    style={{
+                      padding: '0.55rem 0.75rem',
+                      borderRadius: '5px',
+                      border: hubDirection === 'INBOUND' ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+                      background: hubDirection === 'INBOUND' ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 255, 255, 0.03)',
+                      color: hubDirection === 'INBOUND' ? '#38bdf8' : '#94a3b8',
+                      fontWeight: 700,
+                      fontSize: '0.78rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {isRtl ? 'جهة مستهلكة (Consumer)' : 'Consumer (Inbound)'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHubDirection('OUTBOUND')}
+                    style={{
+                      padding: '0.55rem 0.75rem',
+                      borderRadius: '5px',
+                      border: hubDirection === 'OUTBOUND' ? '1px solid #a855f7' : '1px solid rgba(255, 255, 255, 0.1)',
+                      background: hubDirection === 'OUTBOUND' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(255, 255, 255, 0.03)',
+                      color: hubDirection === 'OUTBOUND' ? '#c084fc' : '#94a3b8',
+                      fontWeight: 700,
+                      fontSize: '0.78rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {isRtl ? 'جهة مزوّدة (Provider)' : 'Provider (Outbound)'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Field 4: Approved Document / Contract */}
+              <div>
+                <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                  {isRtl ? '4. توثيق العقد والاتفاقية المعتمدة' : '4. Contract & Approved Document'}
+                </label>
+                {(() => {
+                  if (!hubSelectedEntityKey) {
+                    return (
+                      <p style={{ fontSize: '0.75rem', color: '#64748b', margin: 0, fontStyle: 'italic' }}>
+                        {isRtl ? 'اختر الجهة أولاً لعرض وثائقها المعتمدة المتوفرة.' : 'Select an entity first to view matching approved documents.'}
+                      </p>
+                    );
+                  }
+
+                  const govEngine = DocumentGovernanceEngine.getInstance();
+                  const allContainers = govEngine.getContainersMatrix(systems);
+                  const matchingApprovedDocs = allContainers.filter(c => {
+                    const matchesEntity = c.integrationKey === hubSelectedEntityKey;
+                    const isApproved = c.currentApprovedVersion && c.currentApprovedVersion.status === 'APPROVED';
+                    const notAlreadyInThisSys = hubSelectedSysKey ? c.systemKey !== hubSelectedSysKey : true;
+                    return matchesEntity && isApproved && notAlreadyInThisSys;
+                  });
+
+                  if (matchingApprovedDocs.length === 0) {
+                    return (
+                      <div style={{
+                        padding: '0.65rem',
+                        background: 'rgba(56, 189, 248, 0.05)',
+                        border: '1px dashed rgba(56, 189, 248, 0.25)',
+                        borderRadius: '6px',
+                        fontSize: '0.74rem',
+                        color: '#94a3b8',
+                        lineHeight: '1.5'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#38bdf8', marginBottom: '0.2rem', fontWeight: 700 }}>
+                          <ShieldCheck size={13} />
+                          <span>{isRtl ? 'حوكمة العقود والتوثيق' : 'Contract Governance'}</span>
+                        </div>
+                        {isRtl
+                          ? 'لا توجد وثائق خارجية معتمدة لهذه الجهة حالياً. يمكنك إتمام الربط وسيتم إنشاء حاوية توثيق مخصصة ومعتمدة تلقائياً.'
+                          : 'No external approved documents found for this entity. A dedicated approved contract container will be initialized.'}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <select
+                      value={hubSelectedDocKey}
+                      onChange={(e) => {
+                        setHubSelectedDocKey(e.target.value);
+                        setHubValidationError(null);
+                      }}
+                      className="input"
+                      style={{ width: '100%', padding: '0.55rem 0.75rem', fontSize: '0.82rem', background: '#1e293b', color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '5px' }}
+                    >
+                      <option value="">{isRtl ? '-- اختيار وثيقة معتمدة متطابقة --' : '-- Select Approved Document --'}</option>
+                      {matchingApprovedDocs.map(doc => (
+                        <option key={doc.documentKey} value={doc.documentKey}>
+                          {doc.systemName} - {doc.integrationName} ({doc.currentApprovedVersion?.versionNumber}) [معتمدة]
+                        </option>
+                      ))}
+                    </select>
+                  );
+                })()}
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="button"
+                onClick={handleHubConfirmLinkEntity}
+                disabled={!hubSelectedSysKey || !hubSelectedEntityKey}
+                style={{
+                  background: (hubSelectedSysKey && hubSelectedEntityKey) ? 'var(--primary, #6366f1)' : 'rgba(255, 255, 255, 0.08)',
+                  border: 'none',
+                  color: (hubSelectedSysKey && hubSelectedEntityKey) ? '#ffffff' : '#64748b',
+                  padding: '0.65rem 1.25rem',
+                  borderRadius: '5px',
+                  fontSize: '0.84rem',
+                  fontWeight: 700,
+                  cursor: (hubSelectedSysKey && hubSelectedEntityKey) ? 'pointer' : 'not-allowed',
+                  marginTop: '0.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem',
+                  boxShadow: (hubSelectedSysKey && hubSelectedEntityKey) ? '0 2px 10px rgba(99, 102, 241, 0.35)' : 'none'
+                }}
+              >
+                <Check size={16} />
+                <span>{isRtl ? 'تأكيد وإتمام الربط المعماري' : 'Confirm & Complete Binding'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Column 2: Active Integrations Matrix */}
+          <div style={{
+            background: 'var(--bg-card, #0f172a)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: 'var(--radius-md, 8px)',
+            padding: '1.5rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <h3 style={{ fontSize: '1rem', color: '#ffffff', fontWeight: 700, margin: 0 }}>
+                {isRtl
+                  ? `مصفوفة التكاملات النشطة (${filteredActiveIntegrations.length})`
+                  : `Active Integrations Matrix (${filteredActiveIntegrations.length})`}
+              </h3>
+
+              {/* Filters */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <select
+                  value={hubFilterSys}
+                  onChange={(e) => setHubFilterSys(e.target.value)}
+                  style={{
+                    background: '#1e293b',
+                    color: '#ffffff',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '4px',
+                    padding: '0.25rem 0.5rem',
+                    fontSize: '0.75rem'
+                  }}
+                >
+                  <option value="all">{isRtl ? 'كافة الأنظمة' : 'All Systems'}</option>
+                  {systemEntries.map(([sKey, sMod]) => (
+                    <option key={sKey} value={sKey}>{sMod.name}</option>
+                  ))}
+                </select>
+
+                <input
+                  type="text"
+                  placeholder={isRtl ? 'بحث في الارتباطات...' : 'Search links...'}
+                  value={hubSearchTerm}
+                  onChange={(e) => setHubSearchTerm(e.target.value)}
+                  style={{
+                    background: '#1e293b',
+                    color: '#ffffff',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '4px',
+                    padding: '0.25rem 0.55rem',
+                    fontSize: '0.75rem',
+                    width: '130px'
+                  }}
+                />
+              </div>
+            </div>
+
+            {filteredActiveIntegrations.length === 0 ? (
+              <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b', fontSize: '0.82rem' }}>
+                {isRtl ? 'لا توجد ارتباطات تطابق الفلتر المحدد.' : 'No active integrations match your filter.'}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                {filteredActiveIntegrations.map(({ sysKey, sysName, sysCode, intKey, integration }) => {
+                  const intName = getLocalized({ ar: integration.name, en: integration.nameEn }, integration.name);
+                  const isConsumer = integration.direction === 'INBOUND' || intKey === 'merchants' || intKey === 'erp';
+                  const epCount = integration.endpoints?.length || 0;
+
+                  return (
+                    <div
+                      key={`${sysKey}-${intKey}`}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        borderRadius: '6px',
+                        padding: '0.75rem 1rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.75rem',
+                        flexWrap: 'wrap'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                        {/* System Tag */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#ffffff' }}>
+                            {sysName}
+                          </span>
+                          <span style={{
+                            fontSize: '0.62rem',
+                            fontFamily: 'var(--font-mono)',
+                            background: 'rgba(255, 255, 255, 0.08)',
+                            color: '#94a3b8',
+                            padding: '0.1rem 0.35rem',
+                            borderRadius: '3px'
+                          }}>
+                            {sysCode}
+                          </span>
+                        </div>
+
+                        <span style={{ color: '#475569' }}>⟷</span>
+
+                        {/* Entity Tag */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0' }}>
+                            {intName}
+                          </span>
+                          <span style={{
+                            fontSize: '0.62rem',
+                            fontFamily: 'var(--font-mono)',
+                            background: isConsumer ? 'rgba(56, 189, 248, 0.12)' : 'rgba(168, 85, 247, 0.12)',
+                            color: isConsumer ? '#38bdf8' : '#c084fc',
+                            padding: '0.1rem 0.35rem',
+                            borderRadius: '3px',
+                            fontWeight: 700
+                          }}>
+                            {isConsumer ? (isRtl ? 'مستهلكة' : 'Consumer') : (isRtl ? 'مزوّدة' : 'Provider')}
+                          </span>
+                        </div>
+
+                        {/* Endpoints Badge */}
+                        <span style={{
+                          fontSize: '0.68rem',
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          color: '#cbd5e1',
+                          padding: '0.1rem 0.4rem',
+                          borderRadius: '3px'
+                        }}>
+                          {epCount} {isRtl ? 'مسار' : 'APIs'}
+                        </span>
+
+                        {integration.docVersion && (
+                          <span style={{
+                            fontSize: '0.62rem',
+                            background: 'rgba(16, 185, 129, 0.12)',
+                            color: '#34d399',
+                            padding: '0.1rem 0.35rem',
+                            borderRadius: '3px',
+                            fontWeight: 700
+                          }}>
+                            {integration.docVersion}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Actions: View Spec + Unlink Button */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => onSelectSystemIntegration(sysKey, intKey)}
+                          style={{
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: '1px solid rgba(255, 255, 255, 0.12)',
+                            color: '#cbd5e1',
+                            padding: '0.25rem 0.55rem',
+                            borderRadius: '4px',
+                            fontSize: '0.72rem',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {isRtl ? 'عرض التوثيق' : 'View Spec'}
+                        </button>
+
+                        <Can perform="catalog:system:delete">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIntegrationPendingUnlink({
+                                systemKey: sysKey,
+                                entityId: intKey,
+                                entityName: intName,
+                                systemName: sysName,
+                                endpointCount: epCount
+                              });
+                            }}
+                            title={isRtl ? `إلغاء ربط جهة ${intName}` : `Unlink ${intName}`}
+                            style={{
+                              background: 'rgba(239, 68, 68, 0.1)',
+                              border: '1px solid rgba(239, 68, 68, 0.25)',
+                              color: '#f87171',
+                              padding: '0.25rem 0.6rem',
+                              borderRadius: '4px',
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem'
+                            }}
+                          >
+                            <Trash2 size={12} />
+                            <span>{isRtl ? 'إلغاء الربط' : 'Unlink'}</span>
+                          </button>
+                        </Can>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Global Modals for Governance */}
+        {renderUnlinkEntityModal()}
+      </div>
+    );
+  }
+
+  // ==========================================
+  // VIEW MODE 5: DEFAULT OVERVIEW (NO ICONS ON SYSTEMS)
   // ==========================================
   return (
     <div className="dashboard-container">
@@ -1834,64 +2805,66 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Global Action Bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-          {/* Manage Sectors Button */}
-          <Can perform="catalog:system:create">
-            <button
-              type="button"
-              onClick={() => setScreenMode('sectors-hub')}
-              style={{
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                color: '#ffffff',
-                padding: '0.25rem 0.65rem',
-                borderRadius: '4px',
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                height: '30px'
-              }}
-            >
-              <Building2 size={13} style={{ color: '#38bdf8' }} />
-              <span>{isRtl ? 'إدارة القطاعات والجهات' : 'Manage Sectors'}</span>
-            </button>
-          </Can>
+        {!isReadOnlyOverview && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+            {/* Manage Sectors Button */}
+            <Can perform="catalog:system:create">
+              <button
+                type="button"
+                onClick={() => setScreenMode('sectors-hub')}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  color: '#ffffff',
+                  padding: '0.25rem 0.65rem',
+                  borderRadius: '4px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  height: '30px'
+                }}
+              >
+                <Building2 size={13} style={{ color: '#38bdf8' }} />
+                <span>{isRtl ? 'إدارة القطاعات والجهات' : 'Manage Sectors'}</span>
+              </button>
+            </Can>
 
-          {/* Manage Core Systems Hub */}
-          <Can perform="catalog:system:create">
-            <button
-              type="button"
-              onClick={() => {
-                setEditingSystemKey(null);
-                setFormNameAr('');
-                setFormNameEn('');
-                setFormCode('SYS_');
-                setFormDescription('');
-                setScreenMode('systems-hub');
-              }}
-              style={{
-                background: 'var(--primary, #6366f1)',
-                border: 'none',
-                color: '#ffffff',
-                padding: '0.25rem 0.75rem',
-                borderRadius: '4px',
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                height: '30px',
-                boxShadow: '0 2px 8px var(--primary-glow, rgba(99, 102, 241, 0.35))'
-              }}
-            >
-              <span>{isRtl ? 'إدارة الأنظمة' : 'Manage Systems'}</span>
-            </button>
-          </Can>
-        </div>
+            {/* Manage Core Systems Hub */}
+            <Can perform="catalog:system:create">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingSystemKey(null);
+                  setFormNameAr('');
+                  setFormNameEn('');
+                  setFormCode('SYS_');
+                  setFormDescription('');
+                  setScreenMode('systems-hub');
+                }}
+                style={{
+                  background: 'var(--primary, #6366f1)',
+                  border: 'none',
+                  color: '#ffffff',
+                  padding: '0.25rem 0.75rem',
+                  borderRadius: '4px',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  height: '30px',
+                  boxShadow: '0 2px 8px var(--primary-glow, rgba(99, 102, 241, 0.35))'
+                }}
+              >
+                <span>{isRtl ? 'إدارة الأنظمة' : 'Manage Systems'}</span>
+              </button>
+            </Can>
+          </div>
+        )}
       </div>
 
       {/* Systems Grid (NO ICONS ON SYSTEMS - PURE TYPOGRAPHY & CLEAN BADGES) */}
@@ -1899,7 +2872,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {systemEntries.map(([sysKey, sys]) => {
           const localizedName = getLocalized({ ar: sys.name, en: sys.nameEn }, sys.name);
           const rawIntegrations = sys.integrations ? Object.entries(sys.integrations) : [];
-          
+
           const integrationsList = rawIntegrations.filter(([intKey, intItem]) => {
             return canAccess('dashboard:read', {
               entityId: intItem.entityId || intKey,
@@ -1948,32 +2921,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     {sys.code}
                   </span>
                 </div>
-
-                {/* Quick Link Entity Action Button */}
-                <Can perform="catalog:system:create">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenLinkEntityModal(sysKey)}
-                    title={isRtl ? `ربط جهة بنظام ${localizedName}` : `Link Entity to ${localizedName}`}
-                    style={{
-                      background: 'rgba(56, 189, 248, 0.08)',
-                      border: '1px solid rgba(56, 189, 248, 0.25)',
-                      color: '#38bdf8',
-                      padding: '0.18rem 0.5rem',
-                      borderRadius: '4px',
-                      fontSize: '0.7rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.25rem',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <Link2 size={11} />
-                    <span>{isRtl ? 'ربط جهة' : 'Link Entity'}</span>
-                  </button>
-                </Can>
               </div>
 
               {/* Integrations Section: Compact Collapsible Consumers & Providers */}
@@ -2120,276 +3067,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           );
         })}
       </div>
-
-      {/* ========================================================================= */}
-      {/* GOVERNANCE MODAL: LINK ENTITY TO SYSTEM WITH CONTRACT MATCHING RULES     */}
-      {/* ========================================================================= */}
-      {linkingSystemKey && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(5px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-            padding: '1rem'
-          }}
-          onClick={() => {
-            setLinkingSystemKey(null);
-            setLinkValidationError(null);
-          }}
-        >
-          <div
-            style={{
-              background: '#0f172a',
-              border: '1px solid rgba(56, 189, 248, 0.35)',
-              borderTop: '4px solid #0284c7',
-              borderRadius: '8px',
-              padding: '1.5rem',
-              maxWidth: '540px',
-              width: '100%',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.65)'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Link2 size={18} style={{ color: '#38bdf8' }} />
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
-                  {isRtl
-                    ? `ربط وتكامل جهة مع [${systems[linkingSystemKey]?.name || linkingSystemKey}]`
-                    : `Link Entity to [${systems[linkingSystemKey]?.name || linkingSystemKey}]`}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setLinkingSystemKey(null)}
-                style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0.2rem' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Validation Alert */}
-            {linkValidationError && (
-              <div style={{
-                background: 'rgba(239, 68, 68, 0.15)',
-                border: '1px solid #ef4444',
-                color: '#fca5a5',
-                padding: '0.65rem 0.85rem',
-                borderRadius: '6px',
-                fontSize: '0.8rem',
-                lineHeight: '1.5',
-                marginBottom: '1rem'
-              }}>
-                {linkValidationError}
-              </div>
-            )}
-
-            {/* Link Form */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {/* Field 1: Entity Selector (Filtered to unlinked or available) */}
-              <div>
-                <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
-                  {isRtl ? '1. اختر الجهة الشريكة (من دليل الجهات المسجلة)' : '1. Select Entity (From Registry)'} <span style={{ color: '#f87171' }}>*</span>
-                </label>
-                <select
-                  value={selectedEntityForLink}
-                  onChange={(e) => {
-                    setSelectedEntityForLink(e.target.value);
-                    setSelectedDocKeyForLink('');
-                    setLinkValidationError(null);
-                  }}
-                  className="input"
-                  style={{
-                    width: '100%',
-                    padding: '0.55rem 0.75rem',
-                    fontSize: '0.82rem',
-                    background: '#1e293b',
-                    color: '#ffffff',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    borderRadius: '5px'
-                  }}
-                >
-                  <option value="">{isRtl ? '-- حدد الجهة من السجل --' : '-- Select Entity --'}</option>
-                  {availableSectorList.map(sec => {
-                    const secKey = sec.key || sec.code.toLowerCase();
-                    const isAlreadyLinked = !!systems[linkingSystemKey]?.integrations?.[secKey];
-                    const localizedSecName = getLocalized({ ar: sec.name, en: sec.nameEn }, sec.name);
-
-                    return (
-                      <option key={secKey} value={secKey} disabled={isAlreadyLinked}>
-                        {localizedSecName} ({sec.code}) {isAlreadyLinked ? (isRtl ? ' - [مرتبطة بالفعل]' : ' - [Already Linked]') : ''}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-
-              {/* Field 2: Role / Integration Direction */}
-              <div>
-                <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
-                  {isRtl ? '2. طبيعة التكامل وعلاقة الجهة بهذا النظام' : '2. Integration Role'} <span style={{ color: '#f87171' }}>*</span>
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
-                  {[
-                    { val: 'INBOUND', labelAr: 'جهة مستهلكة (Consumer)', labelEn: 'Consumer (Inbound)' },
-                    { val: 'OUTBOUND', labelAr: 'جهة مزوّدة (Provider)', labelEn: 'Provider (Outbound)' },
-                    { val: 'BIDIRECTIONAL', labelAr: 'مزدوج (Bi-directional)', labelEn: 'Bi-directional' }
-                  ].map(dir => (
-                    <button
-                      key={dir.val}
-                      type="button"
-                      onClick={() => setSelectedDirectionForLink(dir.val as any)}
-                      style={{
-                        padding: '0.45rem 0.5rem',
-                        fontSize: '0.75rem',
-                        fontWeight: selectedDirectionForLink === dir.val ? 700 : 500,
-                        background: selectedDirectionForLink === dir.val ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                        border: selectedDirectionForLink === dir.val ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
-                        color: selectedDirectionForLink === dir.val ? '#ffffff' : '#94a3b8',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        textAlign: 'center'
-                      }}
-                    >
-                      {isRtl ? dir.labelAr : dir.labelEn}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Field 3: Link Document with Strict Governance */}
-              <div>
-                <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
-                  {isRtl ? '3. وثيقة الـ API المعتمدة (عقد التكامل)' : '3. Approved API Document Contract'}
-                </label>
-                
-                {(() => {
-                  if (!selectedEntityForLink) {
-                    return (
-                      <div style={{ padding: '0.65rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '4px', fontSize: '0.75rem', color: '#64748b' }}>
-                        {isRtl ? 'حدد الجهة أولاً لعرض وثائقها المعتمدة الصالحة للربط.' : 'Select entity first to load approved documents.'}
-                      </div>
-                    );
-                  }
-
-                  const govEngine = DocumentGovernanceEngine.getInstance();
-                  const allContainers = govEngine.getContainersMatrix(systems);
-                  
-                  // Filter rules:
-                  // 1. Must belong to selected entity
-                  // 2. Must be APPROVED
-                  // 3. Must not be already linked to this system
-                  const matchingApprovedDocs = allContainers.filter(c => {
-                    const matchesEntity = c.integrationKey === selectedEntityForLink;
-                    const isApproved = c.currentApprovedVersion && c.currentApprovedVersion.status === 'APPROVED';
-                    const notAlreadyInThisSys = c.systemKey !== linkingSystemKey;
-                    return matchesEntity && isApproved && notAlreadyInThisSys;
-                  });
-
-                  if (matchingApprovedDocs.length === 0) {
-                    return (
-                      <div style={{
-                        padding: '0.75rem',
-                        background: 'rgba(56, 189, 248, 0.05)',
-                        border: '1px dashed rgba(56, 189, 248, 0.25)',
-                        borderRadius: '6px',
-                        fontSize: '0.76rem',
-                        color: '#94a3b8',
-                        lineHeight: '1.5'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#38bdf8', marginBottom: '0.2rem', fontWeight: 700 }}>
-                          <ShieldCheck size={14} />
-                          <span>{isRtl ? 'حوكمة العقود والتوثيق' : 'Contract Governance'}</span>
-                        </div>
-                        {isRtl
-                          ? 'لا توجد وثائق خارجية معتمدة لهذه الجهة حالياً. يمكنك إتمام الربط وسيتم إنشاء حاوية توثيق مخصصة ومعتمدة لهذا المسار تلقائياً.'
-                          : 'No external approved documents found for this entity. A dedicated approved contract container will be initialized.'}
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <select
-                      value={selectedDocKeyForLink}
-                      onChange={(e) => {
-                        setSelectedDocKeyForLink(e.target.value);
-                        setLinkValidationError(null);
-                      }}
-                      className="input"
-                      style={{
-                        width: '100%',
-                        padding: '0.55rem 0.75rem',
-                        fontSize: '0.82rem',
-                        background: '#1e293b',
-                        color: '#ffffff',
-                        border: '1px solid rgba(255, 255, 255, 0.15)',
-                        borderRadius: '5px'
-                      }}
-                    >
-                      <option value="">{isRtl ? '-- اختيار وثيقة معتمدة متطابقة --' : '-- Select Approved Document --'}</option>
-                      {matchingApprovedDocs.map(doc => (
-                        <option key={doc.documentKey} value={doc.documentKey}>
-                          {doc.systemName} - {doc.integrationName} ({doc.currentApprovedVersion?.versionNumber}) [معتمدة]
-                        </option>
-                      ))}
-                    </select>
-                  );
-                })()}
-              </div>
-
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.5rem' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLinkingSystemKey(null);
-                    setLinkValidationError(null);
-                  }}
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.08)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    color: '#cbd5e1',
-                    padding: '0.45rem 1.15rem',
-                    borderRadius: '4px',
-                    fontSize: '0.8rem',
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  {isRtl ? 'إلغاء' : 'Cancel'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmLinkEntity}
-                  disabled={!selectedEntityForLink}
-                  style={{
-                    background: selectedEntityForLink ? '#0284c7' : 'rgba(255, 255, 255, 0.1)',
-                    border: selectedEntityForLink ? '1px solid #38bdf8' : 'none',
-                    color: selectedEntityForLink ? '#ffffff' : '#64748b',
-                    padding: '0.45rem 1.4rem',
-                    borderRadius: '4px',
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    cursor: selectedEntityForLink ? 'pointer' : 'not-allowed',
-                    boxShadow: selectedEntityForLink ? '0 2px 6px rgba(2, 132, 199, 0.35)' : 'none'
-                  }}
-                >
-                  {isRtl ? 'تأكيد وحفظ الربط' : 'Confirm & Save Link'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
+

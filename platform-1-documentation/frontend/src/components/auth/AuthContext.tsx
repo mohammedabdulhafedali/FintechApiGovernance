@@ -64,6 +64,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Bidirectional Aliasing & Hierarchical Bridging
     const aliasesMap: Record<string, string[]> = {
+      'catalog:systems:read': [
+        'catalog:systems:read',
+        'catalog:systems:*',
+        'catalog:system:create',
+        'catalog:read',
+        'catalog:*'
+      ],
+      'catalog:sectors:read': [
+        'catalog:sectors:read',
+        'catalog:sectors:*',
+        'catalog:system:create',
+        'catalog:read',
+        'catalog:*'
+      ],
+      'catalog:integrations:read': [
+        'catalog:integrations:read',
+        'catalog:integrations:*',
+        'catalog:system:create',
+        'catalog:read',
+        'catalog:*'
+      ],
+      'catalog:documents:read': [
+        'catalog:documents:read',
+        'catalog:documents:*',
+        'catalog:endpoint:create',
+        'catalog:read',
+        'catalog:*'
+      ],
+      'documentation:dynamic:read': [
+        'documentation:dynamic:read',
+        'documentation:dynamic:*',
+        'catalog:spec:export',
+        'documentation:systems:read',
+        'catalog:read',
+        'catalog:*'
+      ],
+      'governance:policies:read': [
+        'governance:policies:read',
+        'governance:policies:*',
+        'iam:manage',
+        'governance:*'
+      ],
       'iam:manage': [
         'iam:users:read',
         'iam:users:create',
@@ -82,6 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         'iam:*'
       ],
       'catalog:endpoint:create': [
+        'catalog:documents:create',
         'catalog:create:create',
         'catalog:create:read',
         'catalog:create',
@@ -89,17 +132,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         'catalog:*'
       ],
       'catalog:system:create': [
+        'catalog:systems:create',
+        'catalog:sectors:create',
+        'catalog:integrations:create',
         'catalog:create:create',
         'catalog:create',
         'catalog:create:*',
         'catalog:*'
       ],
       'catalog:system:delete': [
+        'catalog:systems:delete',
+        'catalog:sectors:delete',
+        'catalog:integrations:delete',
         'catalog:delete',
         'catalog:delete:delete',
         'catalog:*'
       ],
       'catalog:read': [
+        'catalog:systems:read',
+        'catalog:sectors:read',
+        'catalog:integrations:read',
+        'catalog:documents:read',
         'catalog:view',
         'documentation:systems:read',
         'documentation:systems:*',
@@ -118,12 +171,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         'catalog:read',
         'catalog:view',
         'documentation:systems:read',
+        'documentation:dynamic:read',
         'catalog:*'
       ],
       'documentation:systems:read': [
         'catalog:read',
         'catalog:view',
         'catalog:spec:export',
+        'documentation:dynamic:read',
         'catalog:*'
       ],
       'governance:inbox:approve': [
@@ -142,7 +197,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         'governance:*'
       ],
       'dashboard:read': [
-        'dashboard:*'
+        'dashboard:*',
+        'dashboard:read',
+        'dashboard:overview'
       ],
       'settings:general:read': [
         'settings:general:*',

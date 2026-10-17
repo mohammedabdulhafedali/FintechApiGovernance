@@ -128,28 +128,11 @@ export class FileGovernanceRepository implements IGovernanceRepository {
       },
       {
         resourceKey: 'catalog:sectors',
-        resourceNameAr: 'القطاعات والأنظمة المصرفية',
-        resourceNameEn: 'Banking Sectors & Systems',
-        mode: 'MULTI_STAGE_PIPELINE',
-        isProtectedCore: true,
-        stages: [
-          {
-            stageOrder: 1,
-            stageKey: 'architect_signoff',
-            stageNameAr: 'اعتماد معماري الـ API',
-            stageNameEn: 'API Architect Sign-off',
-            requiredPermission: 'governance:approve',
-            minApprovers: 1
-          },
-          {
-            stageOrder: 2,
-            stageKey: 'security_signoff',
-            stageNameAr: 'اعتماد ضابط أمن المعلومات (CISO)',
-            stageNameEn: 'Chief Information Security Officer Sign-off',
-            requiredPermission: 'governance:approve:security',
-            minApprovers: 1
-          }
-        ],
+        resourceNameAr: 'دليل الجهات والقطاعات',
+        resourceNameEn: 'Entities & Banking Sectors',
+        mode: 'DIRECT',
+        isProtectedCore: false,
+        stages: [],
         updatedAt: new Date().toISOString(),
         updatedBy: 'system'
       },

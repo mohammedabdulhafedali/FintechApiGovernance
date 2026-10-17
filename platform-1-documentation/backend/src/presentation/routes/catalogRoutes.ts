@@ -82,10 +82,6 @@ export function createCatalogRouter(
       '/sectors',
       authMiddleware,
       requirePermission('catalog:system:create'),
-      intercept('catalog:sectors', 'CREATE', (r) => ({
-        ar: `إضافة قطاع مصرفي جديد: ${r.body.nameAr || r.body.code}`,
-        en: `Add banking sector: ${r.body.nameEn || r.body.code}`
-      })),
       controller.createSector
     );
 
@@ -93,10 +89,6 @@ export function createCatalogRouter(
       '/sectors/:sectorKey',
       authMiddleware,
       requirePermission('catalog:system:create'),
-      intercept('catalog:sectors', 'UPDATE', (r) => ({
-        ar: `تعديل القطاع المصرفي: ${r.params.sectorKey}`,
-        en: `Update banking sector: ${r.params.sectorKey}`
-      })),
       controller.updateSector
     );
 
@@ -104,10 +96,6 @@ export function createCatalogRouter(
       '/sectors/:sectorKey',
       authMiddleware,
       requirePermission('catalog:system:delete'),
-      intercept('catalog:sectors', 'DELETE', (r) => ({
-        ar: `حذف القطاع المصرفي: ${r.params.sectorKey}`,
-        en: `Delete banking sector: ${r.params.sectorKey}`
-      })),
       controller.deleteSector
     );
 

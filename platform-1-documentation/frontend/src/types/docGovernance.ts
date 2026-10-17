@@ -14,6 +14,8 @@ export type ChangeScopeType =
   | 'SECURITY_AUTH' 
   | 'OVERVIEW';
 
+export type IntegrationRole = 'CONSUMER' | 'PROVIDER';
+
 export interface DocClaimInfo {
   userId: string;
   userName: string;
@@ -27,6 +29,7 @@ export interface DocVersionRecord {
   systemKey: string;
   integrationKey: string;
   entityId?: string;
+  role?: IntegrationRole;
   versionNumber: string;
   bumpType?: VersionBumpType;
   allowedScope?: ChangeScopeType;
@@ -57,6 +60,8 @@ export interface SystemEntityDocContainer {
   integrationName: string;
   integrationCode: string;
   entityId?: string;
+  role?: IntegrationRole;
+  isLinked?: boolean;
   hasDocument: boolean;
   currentApprovedVersion?: DocVersionRecord;
   activeDraftVersion?: DocVersionRecord;

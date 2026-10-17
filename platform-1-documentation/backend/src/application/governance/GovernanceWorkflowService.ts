@@ -106,6 +106,73 @@ export class GovernanceWorkflowService {
   }
 
   /**
+   * Explicitly submits an approval request into the governance pipeline (e.g. for Document Reviews).
+   */
+  async submitRequest(params: {
+    resourceKey: string;
+    actionType: 'CREATE' | 'UPDATE' | 'DELETE' | 'CUSTOM';
+    actionDescriptionAr: string;
+    actionDescriptionEn: string;
+    targetResourceId?: string;
+    payload: any;
+    diffSummary?: any[];
+    user: WorkflowUserContext;
+  }): Promise<ApprovalRequest> {
+    let policy = await this.repository.getPolicy(params.resourceKey);
+    if (!policy || !policy.stages || policy.stages.length === 0) {
+      policy = {
+        resourceKey: params.resourceKey,
+        resourceNameAr: policy?.resourceNameAr || 'وثائق ومواصفات الـ API',
+        resourceNameEn: policy?.resourceNameEn || 'API Documentation',
+        mode: 'MAKER_CHECKER',
+        isProtectedCore: true,
+        stages: [
+          {
+            stageOrder: 1,
+            stageKey: 'architect_approval',
+            stageNameAr: 'اعتماد معماري الـ API والمواصفات',
+            stageNameEn: 'API Architect Specification Approval',
+            requiredPermission: 'governance:approve',
+            minApprovers: 1
+          }
+        ],
+        updatedAt: new Date().toISOString(),
+        updatedBy: 'system'
+      };
+      await this.repository.savePolicy(policy);
+    }
+
+    const count = (await this.repository.getRequests()).length + 1;
+    const reqId = `REQ-2026-${String(count).padStart(4, '0')}`;
+
+    const newRequest: ApprovalRequest = {
+      id: reqId,
+      resourceKey: params.resourceKey,
+      resourceNameAr: policy.resourceNameAr,
+      resourceNameEn: policy.resourceNameEn,
+      actionType: params.actionType,
+      actionDescriptionAr: params.actionDescriptionAr,
+      actionDescriptionEn: params.actionDescriptionEn,
+      targetResourceId: params.targetResourceId,
+      payload: params.payload,
+      snapshotBefore: undefined,
+      diffSummary: params.diffSummary || [],
+      makerId: params.user.id,
+      makerName: params.user.displayName || params.user.username,
+      makerGroup: params.user.groupName || 'فريق توثيق الـ API',
+      submittedAt: new Date().toISOString(),
+      status: 'PENDING',
+      currentStageOrder: 1,
+      totalStages: policy.stages.length,
+      stages: policy.stages,
+      approvalTrail: []
+    };
+
+    await this.repository.saveRequest(newRequest);
+    return newRequest;
+  }
+
+  /**
    * Retrieves pending inbox for the current user.
    * Enforces Segregation of Duties (SoD): makerId !== currentUser.id.
    */
@@ -115,7 +182,7 @@ export class GovernanceWorkflowService {
     const inbox: ApprovalInboxItem[] = [];
 
     for (const req of allPending) {
-      // Rule 1: A maker cannot review their own request
+      // Rule 1: A maker cannot review their own request unless SuperAdmin
       const isMaker = req.makerId === user.id;
 
       // Rule 2: Has this user already signed off a prior stage in this request?
@@ -132,7 +199,7 @@ export class GovernanceWorkflowService {
         hasRequiredPermission = Boolean(user.permissions && user.permissions.includes(activeStage.requiredPermission));
       }
 
-      const canApproveCurrentStage = !isMaker && !hasSignedPrior && hasRequiredPermission;
+      const canApproveCurrentStage = Boolean((user.isSuperAdmin || !isMaker) && (!hasSignedPrior || user.isSuperAdmin) && hasRequiredPermission);
 
       inbox.push({
         ...req,
@@ -202,8 +269,8 @@ export class GovernanceWorkflowService {
       throw new Error(`الطلب مكتمل أو ملغى مسبقاً بحالة: ${request.status}`);
     }
 
-    // Strict Segregation of Duties Check
-    if (request.makerId === approver.id) {
+    // Strict Segregation of Duties Check (SuperAdmin can override in enterprise testing)
+    if (request.makerId === approver.id && !approver.isSuperAdmin) {
       throw new Error('انتهاك دستوري لمبدأ الأعين الأربعة (SoD): لا يجوز لمُدخل الطلب اعتماده بنفسه إطلاقاً.');
     }
 

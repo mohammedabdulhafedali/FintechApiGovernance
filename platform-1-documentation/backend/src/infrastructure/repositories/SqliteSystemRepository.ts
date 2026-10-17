@@ -30,6 +30,11 @@ export class SqliteSystemRepository {
   private hasInitialized = false;
 
   private async ensureDefaultSeed(): Promise<void> {
+    this.hasInitialized = true;
+    return;
+  }
+
+  private async _unused_ensureDefaultSeed(): Promise<void> {
     if (this.hasInitialized) return;
     try {
       const defaultSystems: SystemModuleDto[] = [

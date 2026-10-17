@@ -49,6 +49,40 @@ export class GovernanceWorkflowController {
     }
   };
 
+  createRequest = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const user = this.extractUser(req);
+      const {
+        resourceKey = 'catalog:documents',
+        actionType = 'CUSTOM',
+        actionDescriptionAr,
+        actionDescriptionEn,
+        targetResourceId,
+        payload,
+        diffSummary
+      } = req.body;
+
+      const newRequest = await this.service.submitRequest({
+        resourceKey,
+        actionType,
+        actionDescriptionAr: actionDescriptionAr || `رفع طلب اعتماد: ${targetResourceId || resourceKey}`,
+        actionDescriptionEn: actionDescriptionEn || `Submit approval request: ${targetResourceId || resourceKey}`,
+        targetResourceId,
+        payload,
+        diffSummary,
+        user
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'تم إرسال طلب الاعتماد بنجاح وتسجيله في مسار الحوكمة',
+        data: newRequest
+      });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: err.message });
+    }
+  };
+
   getPolicies = async (_req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const policies = await this.service.getPolicies();
