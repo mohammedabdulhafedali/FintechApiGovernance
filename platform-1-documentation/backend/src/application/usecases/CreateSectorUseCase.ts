@@ -16,9 +16,27 @@ export class CreateSectorUseCase {
       throw new Error('key, name, and code are required to create a sector');
     }
 
-    const existing = await this.sectorRepository.getSectorByKey(dto.key);
-    if (existing) {
-      throw new Error(`Sector with key "${dto.key}" already exists`);
+    const allSectors = await this.sectorRepository.getAllSectors();
+
+    // 1. Key uniqueness
+    if (allSectors[dto.key]) {
+      throw new Error(`خرق لقواعد الحوكمة: المعرف البرمجي [${dto.key}] مستخدم مسبقاً لقطاع/جهة أخرى.`);
+    }
+
+    // 2. Code uniqueness (Domain Invariant)
+    const duplicateCode = Object.values(allSectors).find(
+      s => s.code.trim().toUpperCase() === dto.code.trim().toUpperCase()
+    );
+    if (duplicateCode) {
+      throw new Error(`خرق لقواعد الحوكمة: رمز الجهة [${dto.code}] مستخدم بالفعل للجهة [${duplicateCode.name}]. لا يمكن تكرار الرمز الفريد.`);
+    }
+
+    // 3. Name uniqueness
+    const duplicateName = Object.values(allSectors).find(
+      s => s.name.trim().toLowerCase() === dto.name.trim().toLowerCase()
+    );
+    if (duplicateName) {
+      throw new Error(`خرق لقواعد الحوكمة: اسم الجهة [${dto.name}] مسجل مسبقاً في الدليل السيادي.`);
     }
 
     const newSector: Sector = {

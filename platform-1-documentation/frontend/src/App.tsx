@@ -831,10 +831,21 @@ const AppContent: React.FC = () => {
             (hasPermission('catalog:endpoint:create') || hasPermission('catalog:system:create') || hasPermission('catalog:create') || hasPermission('*')) ? (
               <UniversalWorkbench
                 systems={systems}
+                masterSectors={masterSectors}
                 activeSystemKey={activeSystemKey}
                 activeIntegrationKey={activeIntegrationKey}
                 onAddSystem={handleAddSystem}
-                onAddIntegration={(sysKey, newInt) => {
+                onCreateSector={handleSaveSector}
+                onAddIntegration={async (sysKey, newInt) => {
+                  const saveRes = await catalogService.saveIntegration(sysKey, newInt);
+                  if (!saveRes.success) {
+                    showFloatingAlert(
+                      isRtl ? 'حظر الحوكمة والنزاهة المعمارية' : 'Governance Constraint Block',
+                      saveRes.error || (isRtl ? 'تعذر إتمام التكامل لمخالفته القواعد السيادية.' : 'Integration violated governance rules.'),
+                      'error'
+                    );
+                    return;
+                  }
                   setSystems(prev => {
                     const updated = { ...prev };
                     if (updated[sysKey]) {
@@ -846,13 +857,12 @@ const AppContent: React.FC = () => {
                           [newInt.entityId]: newInt
                         }
                       };
-                      catalogService.saveIntegration(sysKey, newInt);
                     }
                     return updated;
                   });
                   showFloatingAlert(
-                    isRtl ? 'تم إضافة الجهة بنجاح' : 'Entity Created Successfully',
-                    isRtl ? `تم تسجيل الجهة [${newInt.name}] تحت النظام [${systems[sysKey]?.name || sysKey}].` : `Entity [${newInt.nameEn || newInt.name}] added under system.`,
+                    isRtl ? 'تم إضافة وتثبيت التكامل بنجاح' : 'Entity Integrated Successfully',
+                    isRtl ? `تم ربط الجهة [${newInt.name}] بالنظام [${systems[sysKey]?.name || sysKey}] بعد التحقق من مطابقة وثيقة الـ API المعتمدة.` : `Entity [${newInt.nameEn || newInt.name}] integrated successfully.`,
                     'success'
                   );
                 }}
@@ -1065,10 +1075,21 @@ const AppContent: React.FC = () => {
             (hasPermission('catalog:spec:export') || hasPermission('documentation:systems:read') || hasPermission('catalog:read') || hasPermission('catalog:endpoint:create') || hasPermission('*')) ? (
               <DynamicWorkbench
                 systems={systems}
+                masterSectors={masterSectors}
                 activeSystemKey={activeSystemKey}
                 activeIntegrationKey={activeIntegrationKey}
                 onAddSystem={handleAddSystem}
-                onAddIntegration={(sysKey, newInt) => {
+                onCreateSector={handleSaveSector}
+                onAddIntegration={async (sysKey, newInt) => {
+                  const saveRes = await catalogService.saveIntegration(sysKey, newInt);
+                  if (!saveRes.success) {
+                    showFloatingAlert(
+                      isRtl ? 'حظر الحوكمة والنزاهة المعمارية' : 'Governance Constraint Block',
+                      saveRes.error || (isRtl ? 'تعذر إتمام التكامل لمخالفته القواعد السيادية.' : 'Integration violated governance rules.'),
+                      'error'
+                    );
+                    return;
+                  }
                   setSystems(prev => {
                     const updated = { ...prev };
                     if (updated[sysKey]) {
@@ -1080,13 +1101,12 @@ const AppContent: React.FC = () => {
                           [newInt.entityId]: newInt
                         }
                       };
-                      catalogService.saveIntegration(sysKey, newInt);
                     }
                     return updated;
                   });
                   showFloatingAlert(
-                    isRtl ? 'تم إضافة الجهة بنجاح' : 'Entity Created Successfully',
-                    isRtl ? `تم تسجيل الجهة [${newInt.name}] تحت النظام [${systems[sysKey]?.name || sysKey}].` : `Entity [${newInt.nameEn || newInt.name}] added under system.`,
+                    isRtl ? 'تم إضافة وتثبيت التكامل بنجاح' : 'Entity Integrated Successfully',
+                    isRtl ? `تم ربط الجهة [${newInt.name}] بالنظام [${systems[sysKey]?.name || sysKey}] بعد التحقق من مطابقة وثيقة الـ API المعتمدة.` : `Entity [${newInt.nameEn || newInt.name}] integrated successfully.`,
                     'success'
                   );
                 }}

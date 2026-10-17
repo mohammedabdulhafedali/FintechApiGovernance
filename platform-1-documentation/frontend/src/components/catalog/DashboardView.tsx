@@ -34,7 +34,7 @@ interface DashboardViewProps {
   onOpenDeleteSector?: (sectorKey: string) => void;
 }
 
-type DashboardScreenMode = 'overview' | 'system-editor' | 'sectors-hub';
+type DashboardScreenMode = 'overview' | 'system-editor' | 'sectors-hub' | 'systems-hub';
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   systems,
@@ -87,8 +87,62 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     text: string;
   } | null>(null);
 
-  // Inline delete confirmation for system cards
-  const [systemKeyPendingDelete, setSystemKeyPendingDelete] = useState<string | null>(null);
+  // System Alert and Delete Confirmation
+  const [systemAlertMessage, setSystemAlertMessage] = useState<{
+    type: 'success' | 'info';
+    text: string;
+  } | null>(null);
+  // System Pending Delete Modal State (Strict Governance)
+  const [systemPendingDelete, setSystemPendingDelete] = useState<{
+    key: string;
+    name: string;
+    code: string;
+    linkedCount: number;
+  } | null>(null);
+
+  const handleOpenDeleteSystemModal = (sysKey: string, sys: SystemModule) => {
+    const rawIntegrations = sys.integrations ? Object.keys(sys.integrations) : [];
+    const associatedKeys = sys.associatedSectorKeys || [];
+    const totalLinkedCount = Math.max(rawIntegrations.length, associatedKeys.length);
+
+    setSystemPendingDelete({
+      key: sysKey,
+      name: sys.name,
+      code: sys.code || sysKey,
+      linkedCount: totalLinkedCount
+    });
+  };
+
+  const handleConfirmDeleteSystem = () => {
+    if (!systemPendingDelete) return;
+
+    if (systemPendingDelete.linkedCount > 0) {
+      // Governance Block: impossible to delete linked system
+      setSystemPendingDelete(null);
+      return;
+    }
+
+    const deleteKey = systemPendingDelete.key;
+    const deletedName = systemPendingDelete.name;
+
+    if (onDeleteSystem) {
+      onDeleteSystem(deleteKey);
+    }
+
+    if (editingSystemKey === deleteKey) {
+      setEditingSystemKey(null);
+      setFormNameAr('');
+      setFormNameEn('');
+      setFormCode('SYS_');
+      setFormDescription('');
+    }
+
+    setSystemPendingDelete(null);
+    setSystemAlertMessage({
+      type: 'success',
+      text: isRtl ? `تم حذف نظام [${deletedName}] بنجاح من المنظومة.` : `System [${deletedName}] deleted successfully.`
+    });
+  };
 
   // Collapsed sections tracking (open by default)
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -133,62 +187,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setScreenMode('system-editor');
   };
 
-  // Save System (Full Screen Form)
+  // Save System (Full Screen Form & Systems Hub)
   const handleSaveSystem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formNameAr.trim()) return;
 
     if (editingSystemKey) {
-      // 1. Update Existing System
+      // 1. Update Existing System (Preserve its existing integrations!)
       const currentSys = systems[editingSystemKey];
-      const updatedIntegrations: Record<string, SystemIntegration> = { ...(currentSys?.integrations || {}) };
-
-      // Ensure all selected sectors exist as integrations under the system
-      formSelectedSectors.forEach(secKey => {
-        if (!updatedIntegrations[secKey]) {
-          const sec = sectors[secKey];
-          updatedIntegrations[secKey] = {
-            entityId: secKey,
-            name: sec?.name || secKey,
-            nameEn: sec?.nameEn || secKey,
-            code: sec?.code || `INT_${secKey.toUpperCase()}`,
-            direction: 'BIDIRECTIONAL',
-            endpoints: []
-          };
-        }
-      });
 
       const updatedData: Partial<SystemModule> = {
         name: formNameAr.trim(),
         nameEn: formNameEn.trim() || formNameAr.trim(),
         code: formCode.trim().toUpperCase() || `SYS_${editingSystemKey.toUpperCase()}`,
         description: formDescription.trim(),
-        associatedSectorKeys: formSelectedSectors,
-        integrations: updatedIntegrations
+        associatedSectorKeys: currentSys?.associatedSectorKeys || [],
+        integrations: currentSys?.integrations || {}
       };
 
       if (onUpdateSystem) {
         onUpdateSystem(editingSystemKey, updatedData);
       }
+
+      setSystemAlertMessage({
+        type: 'success',
+        text: isRtl ? `تم حفظ تعديلات نظام [${formNameAr.trim()}] بنجاح.` : `System [${formNameAr.trim()}] updated successfully.`
+      });
+      setEditingSystemKey(null);
+      setFormNameAr('');
+      setFormNameEn('');
+      setFormCode('SYS_');
+      setFormDescription('');
     } else {
-      // 2. Create New System
+      // 2. Create New System (Completely decoupled and abstract: empty integrations)
       const generatedKey = (formNameEn.trim() || formNameAr.trim())
         .toLowerCase()
         .replace(/[^a-z0-9]/g, '_')
         .replace(/^_+|_+$/g, '') || `sys_${Date.now()}`;
-
-      const builtIntegrations: Record<string, SystemIntegration> = {};
-      formSelectedSectors.forEach(secKey => {
-        const sec = sectors[secKey];
-        builtIntegrations[secKey] = {
-          entityId: secKey,
-          name: sec?.name || secKey,
-          nameEn: sec?.nameEn || secKey,
-          code: sec?.code || `INT_${secKey.toUpperCase()}`,
-          direction: 'BIDIRECTIONAL',
-          endpoints: []
-        };
-      });
 
       const newSystem: SystemModule = {
         key: generatedKey,
@@ -199,14 +234,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         description: formDescription.trim() || (isRtl ? 'نظام مالي معتمد' : 'Certified financial system'),
         descriptionEn: formNameEn.trim() || formNameAr.trim(),
         status: 'ACTIVE',
-        associatedSectorKeys: formSelectedSectors,
-        integrations: builtIntegrations
+        associatedSectorKeys: [],
+        integrations: {}
       };
 
       onAddSystem(newSystem);
+
+      setSystemAlertMessage({
+        type: 'success',
+        text: isRtl ? `تم تسجيل نظام [${formNameAr.trim()}] بنجاح.` : `System [${formNameAr.trim()}] registered successfully.`
+      });
+      setFormNameAr('');
+      setFormNameEn('');
+      setFormCode('SYS_');
+      setFormDescription('');
     }
 
-    setScreenMode('overview');
+    if (screenMode !== 'systems-hub') {
+      setScreenMode('overview');
+    }
   };
 
   // Toggle Sector Selection in System Form
@@ -516,117 +562,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          {/* Section 2: Dynamic Associated Sectors & Entities (100% Dynamic from Pre-added Sectors) */}
-          <div style={{
-            background: 'var(--bg-card, #0f172a)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: 'var(--radius-md, 8px)',
-            padding: '1.5rem'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
-              <div>
-                <h3 style={{ fontSize: '0.95rem', color: '#ffffff', fontWeight: 700, margin: 0 }}>
-                  {isRtl ? '2. القطاعات والجهات الشريكة المرتبطة بالنظام' : '2. Associated Sectors & Integrated Entities'}
-                </h3>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-dim, #94a3b8)', display: 'block', marginTop: '0.2rem' }}>
-                  {isRtl ? 'حدد القطاعات والجهات التي يتكامل معها هذا النظام (مستمدة ديناميكياً من دليل القطاعات المعرفة مسبقاً):' : 'Select which pre-configured sectors/entities this system integrates with:'}
-                </span>
-              </div>
 
-              {/* Direct Link to Sectors Management */}
-              <button
-                type="button"
-                onClick={() => setScreenMode('sectors-hub')}
-                style={{
-                  background: 'rgba(56, 189, 248, 0.1)',
-                  border: '1px solid rgba(56, 189, 248, 0.3)',
-                  color: '#38bdf8',
-                  padding: '0.35rem 0.85rem',
-                  borderRadius: '4px',
-                  fontSize: '0.78rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem'
-                }}
-              >
-                <Plus size={13} />
-                <span>{isRtl ? 'إدارة وإضافة قطاعات وجهات جديدة مسبقاً' : 'Manage & Add Sectors'}</span>
-              </button>
-            </div>
-
-            {availableSectorList.length === 0 ? (
-              <div style={{
-                padding: '2rem',
-                textAlign: 'center',
-                background: 'rgba(0, 0, 0, 0.15)',
-                borderRadius: '6px',
-                border: '1px dashed rgba(255, 255, 255, 0.1)'
-              }}>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-dim, #94a3b8)', margin: '0 0 0.75rem 0' }}>
-                  {isRtl ? 'لم يتم إضافة أي قطاعات أو جهات بعد في المنظومة.' : 'No sectors or entities configured yet.'}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setScreenMode('sectors-hub')}
-                  style={{
-                    background: '#0284c7',
-                    border: 'none',
-                    color: '#ffffff',
-                    padding: '0.45rem 1rem',
-                    borderRadius: '4px',
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  {isRtl ? '+ اضغط هنا لإضافة القطاع الأول مسبقاً' : '+ Add Your First Sector'}
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
-                {availableSectorList.map(sec => {
-                  const secKey = sec.key || sec.code.toLowerCase();
-                  const isSelected = formSelectedSectors.includes(secKey);
-                  const localizedSecName = getLocalized({ ar: sec.name, en: sec.nameEn }, sec.name);
-
-                  return (
-                    <button
-                      key={secKey}
-                      type="button"
-                      onClick={() => toggleSectorSelection(secKey)}
-                      style={{
-                        padding: '0.45rem 0.9rem',
-                        fontSize: '0.8rem',
-                        borderRadius: '4px',
-                        border: isSelected ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
-                        background: isSelected ? 'rgba(56, 189, 248, 0.16)' : 'rgba(255, 255, 255, 0.03)',
-                        color: isSelected ? '#ffffff' : 'var(--text-dim, #94a3b8)',
-                        cursor: 'pointer',
-                        fontWeight: isSelected ? 700 : 500,
-                        transition: 'all 0.15s ease',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.4rem'
-                      }}
-                    >
-                      {isSelected && <Check size={12} style={{ color: '#38bdf8' }} />}
-                      <span>{localizedSecName}</span>
-                      <span style={{
-                        fontSize: '0.65rem',
-                        fontFamily: 'var(--font-mono)',
-                        opacity: 0.65,
-                        marginInlineStart: '0.2rem'
-                      }}>
-                        {sec.code}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
 
           {/* Form Actions Footer */}
           <div style={{
@@ -941,6 +877,55 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
+        {/* Bottom Navigation Strip: Return to Dashboard */}
+        <div style={{
+          marginTop: '2rem',
+          display: 'flex',
+          justifyContent: isRtl ? 'flex-start' : 'flex-end',
+          alignItems: 'center',
+          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+          paddingTop: '1.25rem'
+        }}>
+          <button
+            type="button"
+            onClick={() => {
+              setEditingSectorKey(null);
+              setSecNameAr('');
+              setSecNameEn('');
+              setSecCode('SEC_');
+              setScreenMode('overview');
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.6rem',
+              background: 'rgba(255, 255, 255, 0.06)',
+              border: '1px solid rgba(255, 255, 255, 0.16)',
+              color: '#f8fafc',
+              padding: '0.65rem 1.6rem',
+              borderRadius: '6px',
+              fontSize: '0.88rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(56, 189, 248, 0.12)';
+              e.currentTarget.style.borderColor = '#38bdf8';
+              e.currentTarget.style.color = '#38bdf8';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.16)';
+              e.currentTarget.style.color = '#f8fafc';
+            }}
+          >
+            {isRtl ? <ArrowRight size={18} /> : <ArrowLeft size={18} />}
+            <span>{isRtl ? 'العودة إلى لوحة الداشبورد' : 'Back to Dashboard'}</span>
+          </button>
+        </div>
+
         {/* Confirmation Modal for Sector Save - NO ICONS */}
         {sectorPendingSave && (
           <div
@@ -1105,6 +1090,585 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <button
                     type="button"
                     onClick={handleConfirmDeleteSector}
+                    style={{
+                      background: '#dc2626',
+                      border: '1px solid #f87171',
+                      color: '#ffffff',
+                      padding: '0.5rem 1.5rem',
+                      borderRadius: '5px',
+                      fontSize: '0.85rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.25)'
+                    }}
+                  >
+                    {isRtl ? 'تأكيد الحذف' : 'Confirm Delete'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ==========================================
+  // VIEW MODE 3: FULL SCREEN SYSTEMS HUB (Decoupled Systems Management)
+  // ==========================================
+  if (screenMode === 'systems-hub') {
+    return (
+      <div className="dashboard-container" style={{ padding: '1.5rem', maxWidth: '1200px', margin: '0 auto' }}>
+        {/* Confirmation & Feedback Alert */}
+        {systemAlertMessage && (
+          <div style={{
+            background: 'rgba(14, 165, 233, 0.15)',
+            border: '1px solid #0284c7',
+            color: '#38bdf8',
+            padding: '0.75rem 1.25rem',
+            borderRadius: '6px',
+            marginBottom: '1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '0.85rem',
+            fontWeight: 700
+          }}>
+            <span>{systemAlertMessage.text}</span>
+            <button
+              type="button"
+              onClick={() => setSystemAlertMessage(null)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#ffffff',
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: '0.82rem'
+              }}
+            >
+              {isRtl ? 'إغلاق' : 'Close'}
+            </button>
+          </div>
+        )}
+
+        {/* Top Header */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '1.5rem',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          paddingBottom: '1rem',
+          flexWrap: 'wrap',
+          gap: '1rem'
+        }}>
+          <div>
+            <h2 style={{ fontSize: '1.2rem', color: '#ffffff', fontWeight: 800, margin: 0 }}>
+              {isRtl ? 'إدارة الأنظمة' : 'Manage Systems'}
+            </h2>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-dim, #94a3b8)', margin: '0.3rem 0 0 0' }}>
+              {isRtl 
+                ? 'إنشاء الأنظمة ككيانات مجردة ومستقلة، وتعديلها وحذفها، واستعراض كافة الجهات التابعة لكل نظام.' 
+                : 'Decoupled systems management with card-level edit, delete, and integration views.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setEditingSystemKey(null);
+              setFormNameAr('');
+              setFormNameEn('');
+              setFormCode('SYS_');
+              setFormDescription('');
+              setScreenMode('overview');
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              background: 'rgba(255, 255, 255, 0.06)',
+              border: '1px solid rgba(255, 255, 255, 0.16)',
+              color: '#f8fafc',
+              padding: '0.5rem 1.2rem',
+              borderRadius: '6px',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            {isRtl ? <ArrowRight size={15} /> : <ArrowLeft size={15} />}
+            <span>{isRtl ? 'العودة إلى لوحة الداشبورد' : 'Back to Dashboard'}</span>
+          </button>
+        </div>
+
+        {/* Two-Column Grid: Form on side, Systems List on other side */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.5rem' }}>
+          {/* Form to Add/Edit System */}
+          <div style={{
+            background: 'var(--bg-card, #0f172a)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: 'var(--radius-md, 8px)',
+            padding: '1.5rem',
+            alignSelf: 'start'
+          }}>
+            <h3 style={{ fontSize: '1rem', color: '#ffffff', fontWeight: 700, margin: '0 0 1rem 0' }}>
+              {editingSystemKey
+                ? (isRtl ? 'تعديل بيانات النظام' : 'Edit System Details')
+                : (isRtl ? '+ إضافة نظام جديد' : '+ Add New System')}
+            </h3>
+
+            <form onSubmit={handleSaveSystem} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ fontSize: '0.76rem', color: 'var(--text-dim, #94a3b8)', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                  {isRtl ? 'اسم النظام بالعربية' : 'System Name (Arabic)'} <span style={{ color: '#f87171' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  className="input"
+                  style={{ width: '100%', padding: '0.5rem 0.7rem', fontSize: '0.82rem' }}
+                  placeholder={isRtl ? 'مثال: نظام التحصيل والدفع اللحظي' : 'e.g. Instant Payment System'}
+                  value={formNameAr}
+                  onChange={(e) => setFormNameAr(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.76rem', color: 'var(--text-dim, #94a3b8)', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                  {isRtl ? 'اسم النظام بالإنجليزية' : 'System Name (English)'}
+                </label>
+                <input
+                  type="text"
+                  className="input"
+                  style={{ width: '100%', padding: '0.5rem 0.7rem', fontSize: '0.82rem', direction: 'ltr' }}
+                  placeholder="e.g. Instant Payment Platform"
+                  value={formNameEn}
+                  onChange={(e) => setFormNameEn(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.76rem', color: 'var(--text-dim, #94a3b8)', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                  {isRtl ? 'كود النظام المرجعي (System Code)' : 'System Reference Code'} <span style={{ color: '#f87171' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  className="input mono"
+                  style={{ width: '100%', padding: '0.5rem 0.7rem', fontSize: '0.82rem', direction: 'ltr' }}
+                  placeholder="SYS_PAYMENT"
+                  value={formCode}
+                  onChange={(e) => setFormCode(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.76rem', color: 'var(--text-dim, #94a3b8)', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                  {isRtl ? 'الوصف التشغيلي للنظام' : 'Operational Description'}
+                </label>
+                <textarea
+                  className="input"
+                  style={{ width: '100%', padding: '0.5rem 0.7rem', fontSize: '0.82rem', minHeight: '75px', resize: 'vertical' }}
+                  placeholder={isRtl ? 'وصف موجز للمهام والمسؤوليات...' : 'Brief summary of duties...'}
+                  value={formDescription}
+                  onChange={(e) => setFormDescription(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button
+                  type="submit"
+                  style={{
+                    flex: 1,
+                    background: '#0284c7',
+                    border: '1px solid #38bdf8',
+                    color: '#ffffff',
+                    padding: '0.55rem 1rem',
+                    borderRadius: '5px',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.25)'
+                  }}
+                >
+                  {editingSystemKey
+                    ? (isRtl ? 'حفظ التعديل' : 'Update System')
+                    : (isRtl ? 'تسجيل النظام' : 'Save System')}
+                </button>
+                {editingSystemKey && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingSystemKey(null);
+                      setFormNameAr('');
+                      setFormNameEn('');
+                      setFormCode('SYS_');
+                      setFormDescription('');
+                    }}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.18)',
+                      color: '#ffffff',
+                      padding: '0.55rem 1rem',
+                      borderRadius: '5px',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {isRtl ? 'إلغاء' : 'Cancel'}
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+
+          {/* List of Registered Systems (Exact Same Cards as Dashboard + Edit & Delete) */}
+          <div style={{
+            background: 'var(--bg-card, #0f172a)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: 'var(--radius-md, 8px)',
+            padding: '1.5rem'
+          }}>
+            <h3 style={{ fontSize: '1rem', color: '#ffffff', fontWeight: 700, margin: '0 0 1rem 0' }}>
+              {isRtl ? `الأنظمة المسجلة (${systemEntries.length})` : `Registered Systems (${systemEntries.length})`}
+            </h3>
+
+            {systemEntries.length === 0 ? (
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-dim, #94a3b8)' }}>
+                {isRtl ? 'لم يتم إضافة أي نظام بعد.' : 'No systems registered.'}
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {systemEntries.map(([sysKey, sys]) => {
+                  const localizedName = getLocalized({ ar: sys.name, en: sys.nameEn }, sys.name);
+                  const rawIntegrations = sys.integrations ? Object.entries(sys.integrations) : [];
+                  const consumerIntegrations = rawIntegrations.filter(([intKey, intItem]) => {
+                    if (intItem.direction === 'INBOUND') return true;
+                    if (intItem.direction === 'OUTBOUND') return false;
+                    return intKey === 'merchants' || intKey === 'erp';
+                  });
+                  const providerIntegrations = rawIntegrations.filter(([intKey, intItem]) => {
+                    if (intItem.direction === 'OUTBOUND') return true;
+                    if (intItem.direction === 'INBOUND') return false;
+                    return intKey !== 'merchants' && intKey !== 'erp';
+                  });
+                  const isConsumersOpen = !collapsedSections[`hub-${sysKey}-consumers`];
+                  const isProvidersOpen = !collapsedSections[`hub-${sysKey}-providers`];
+
+                  return (
+                    <div
+                      key={sysKey}
+                      className="sector-card"
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'flex-start',
+                        minHeight: 'auto',
+                        margin: 0,
+                        background: editingSystemKey === sysKey ? 'rgba(56, 189, 248, 0.08)' : undefined,
+                        borderColor: editingSystemKey === sysKey ? '#38bdf8' : undefined
+                      }}
+                    >
+                      {/* Card Top: Typography + Code + Edit & Delete Buttons */}
+                      <div className="sector-card-top" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <strong style={{ fontSize: '1rem', color: 'var(--text-main, #ffffff)', fontWeight: 800 }}>
+                            {localizedName}
+                          </strong>
+                          <span style={{
+                            fontSize: '0.62rem',
+                            fontFamily: 'var(--font-mono)',
+                            background: 'rgba(56, 189, 248, 0.12)',
+                            color: '#38bdf8',
+                            padding: '0.12rem 0.45rem',
+                            borderRadius: '4px',
+                            fontWeight: 700
+                          }}>
+                            {sys.code}
+                          </span>
+                        </div>
+
+                        {/* Edit and Delete Buttons on this card */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingSystemKey(sysKey);
+                              setFormNameAr(sys.name || '');
+                              setFormNameEn(sys.nameEn || '');
+                              setFormCode(sys.code || `SYS_${sysKey.toUpperCase()}`);
+                              setFormDescription(sys.description || '');
+                            }}
+                            style={{
+                              background: 'rgba(56, 189, 248, 0.1)',
+                              border: '1px solid rgba(56, 189, 248, 0.3)',
+                              color: '#38bdf8',
+                              padding: '0.22rem 0.65rem',
+                              borderRadius: '4px',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {isRtl ? 'تعديل' : 'Edit'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDeleteSystemModal(sysKey, sys)}
+                            style={{
+                              background: 'rgba(239, 68, 68, 0.1)',
+                              border: '1px solid rgba(239, 68, 68, 0.3)',
+                              color: '#f87171',
+                              padding: '0.22rem 0.65rem',
+                              borderRadius: '4px',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {isRtl ? 'حذف' : 'Delete'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Integrations Section: EXACTLY matching Dashboard */}
+                      {rawIntegrations.length > 0 ? (
+                        <div style={{
+                          marginTop: '0.65rem',
+                          padding: '0.55rem 0.75rem',
+                          background: 'rgba(0, 0, 0, 0.18)',
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid rgba(255, 255, 255, 0.05)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.55rem'
+                        }}>
+                          {/* Consumers */}
+                          {consumerIntegrations.length > 0 && (
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => toggleSection(`hub-${sysKey}-consumers`)}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  width: '100%',
+                                  background: 'transparent',
+                                  border: 'none',
+                                  padding: '0.1rem 0',
+                                  cursor: 'pointer',
+                                  color: '#cbd5e1',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  fontFamily: 'inherit'
+                                }}
+                              >
+                                <span style={{ color: '#cbd5e1' }}>
+                                  {isRtl ? 'جهات مستهلكة' : 'Consumers'}
+                                </span>
+                                <ChevronDown
+                                  size={13}
+                                  style={{
+                                    transition: 'transform 0.2s ease',
+                                    transform: isConsumersOpen ? 'rotate(0deg)' : (isRtl ? 'rotate(90deg)' : 'rotate(-90deg)'),
+                                    color: 'var(--text-dim, #94a3b8)'
+                                  }}
+                                />
+                              </button>
+
+                              {isConsumersOpen && (
+                                <div style={{
+                                  display: 'flex',
+                                  flexWrap: 'wrap',
+                                  gap: '0.35rem',
+                                  marginTop: '0.35rem',
+                                  paddingInlineStart: '0.75rem'
+                                }}>
+                                  {consumerIntegrations.map(([intKey, integration]) => {
+                                    const intName = getLocalized({ ar: integration.name, en: integration.nameEn }, integration.name);
+                                    return (
+                                      <button
+                                        key={intKey}
+                                        type="button"
+                                        onClick={() => onSelectSystemIntegration(sysKey, intKey)}
+                                        className="dashboard-int-badge"
+                                        title={isRtl ? `استعراض تكامل ${intName}` : `Explore ${intName} integration`}
+                                      >
+                                        <span>{intName}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Providers */}
+                          {providerIntegrations.length > 0 && (
+                            <div style={{
+                              borderTop: consumerIntegrations.length > 0 ? '1px solid rgba(255, 255, 255, 0.04)' : 'none',
+                              paddingTop: consumerIntegrations.length > 0 ? '0.45rem' : '0'
+                            }}>
+                              <button
+                                type="button"
+                                onClick={() => toggleSection(`hub-${sysKey}-providers`)}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  width: '100%',
+                                  background: 'transparent',
+                                  border: 'none',
+                                  padding: '0.1rem 0',
+                                  cursor: 'pointer',
+                                  color: '#cbd5e1',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  fontFamily: 'inherit'
+                                }}
+                              >
+                                <span style={{ color: '#cbd5e1' }}>
+                                  {isRtl ? 'جهات مزوّدة' : 'Providers'}
+                                </span>
+                                <ChevronDown
+                                  size={13}
+                                  style={{
+                                    transition: 'transform 0.2s ease',
+                                    transform: isProvidersOpen ? 'rotate(0deg)' : (isRtl ? 'rotate(90deg)' : 'rotate(-90deg)'),
+                                    color: 'var(--text-dim, #94a3b8)'
+                                  }}
+                                />
+                              </button>
+
+                              {isProvidersOpen && (
+                                <div style={{
+                                  display: 'flex',
+                                  flexWrap: 'wrap',
+                                  gap: '0.35rem',
+                                  marginTop: '0.35rem',
+                                  paddingInlineStart: '0.75rem'
+                                }}>
+                                  {providerIntegrations.map(([intKey, integration]) => {
+                                    const intName = getLocalized({ ar: integration.name, en: integration.nameEn }, integration.name);
+                                    return (
+                                      <button
+                                        key={intKey}
+                                        type="button"
+                                        onClick={() => onSelectSystemIntegration(sysKey, intKey)}
+                                        className="dashboard-int-badge"
+                                        title={isRtl ? `استعراض تكامل ${intName}` : `Explore ${intName} integration`}
+                                      >
+                                        <span>{intName}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-dim, #94a3b8)', fontStyle: 'italic' }}>
+                          {isRtl ? '(نظام مجرد - لا توجد جهات مرتبطة بعد)' : '(Abstract System - No integrated entities yet)'}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Strict Governance Modal for System Deletion */}
+        {systemPendingDelete && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.75)',
+              backdropFilter: 'blur(4px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 9999,
+              padding: '1rem'
+            }}
+            onClick={() => setSystemPendingDelete(null)}
+          >
+            <div
+              style={{
+                background: '#0f172a',
+                border: systemPendingDelete.linkedCount > 0 ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid rgba(248, 113, 113, 0.3)',
+                borderRadius: '8px',
+                padding: '1.75rem',
+                maxWidth: '460px',
+                width: '100%',
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.3)'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: systemPendingDelete.linkedCount > 0 ? '#f59e0b' : '#f87171', margin: '0 0 0.75rem 0' }}>
+                {systemPendingDelete.linkedCount > 0
+                  ? (isRtl ? 'حظر الحوكمة والنزاهة المرجعية' : 'Governance Referential Block')
+                  : (isRtl ? 'تأكيد حذف النظام' : 'Confirm System Deletion')}
+              </h3>
+
+              <p style={{ fontSize: '0.88rem', color: '#cbd5e1', lineHeight: '1.6', margin: '0 0 1rem 0' }}>
+                {systemPendingDelete.linkedCount > 0
+                  ? (isRtl
+                    ? `لا يمكن إتمام عملية الحذف لنظام [${systemPendingDelete.name}] لأنه مرتبط حالياً بـ (${systemPendingDelete.linkedCount}) جهات/تكاملات نشطة في المنظومة.`
+                    : `Cannot delete system [${systemPendingDelete.name}] because it is currently integrated with (${systemPendingDelete.linkedCount}) active entities.`)
+                  : (isRtl
+                    ? `هل أنت متأكد من رغبتك في حذف نظام [${systemPendingDelete.name}] نهائياً من المنظومة؟`
+                    : `Are you sure you want to permanently delete system [${systemPendingDelete.name}]?`)}
+              </p>
+
+              {systemPendingDelete.linkedCount > 0 && (
+                <div style={{
+                  background: 'rgba(245, 158, 11, 0.12)',
+                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                  borderRadius: '5px',
+                  padding: '0.75rem 0.95rem',
+                  marginBottom: '1.25rem',
+                  fontSize: '0.82rem',
+                  color: '#fbbf24',
+                  lineHeight: '1.5'
+                }}>
+                  {isRtl
+                    ? `قاعدة معمارية (SOLID / Domain Invariant): حظر صارم لا يقبل التجاوز. لحماية سلامة الوثائق والتكاملات، لا يمكن حذف أي نظام إلا إذا كان مجرداً وخالياً تماماً من أي ارتباطات سابقة.`
+                    : `Architecture Rule: Strict invariant block. To protect governance and document integrity, a system cannot be deleted until all its integrations are completely unlinked.`}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setSystemPendingDelete(null)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.18)',
+                    color: '#e2e8f0',
+                    padding: '0.5rem 1.25rem',
+                    borderRadius: '5px',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {systemPendingDelete.linkedCount > 0 ? (isRtl ? 'حسناً، فهمت' : 'Understood') : (isRtl ? 'إلغاء' : 'Cancel')}
+                </button>
+
+                {systemPendingDelete.linkedCount === 0 && (
+                  <button
+                    type="button"
+                    onClick={handleConfirmDeleteSystem}
                     style={{
                       background: '#dc2626',
                       border: '1px solid #f87171',
@@ -1296,11 +1860,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </button>
           </Can>
 
-          {/* Add Core System Button (Opens Full Screen Form) */}
+          {/* Manage Core Systems Hub */}
           <Can perform="catalog:system:create">
             <button
               type="button"
-              onClick={handleOpenCreateSystem}
+              onClick={() => {
+                setEditingSystemKey(null);
+                setFormNameAr('');
+                setFormNameEn('');
+                setFormCode('SYS_');
+                setFormDescription('');
+                setScreenMode('systems-hub');
+              }}
               style={{
                 background: 'var(--primary, #6366f1)',
                 border: 'none',
@@ -1317,8 +1888,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 boxShadow: '0 2px 8px var(--primary-glow, rgba(99, 102, 241, 0.35))'
               }}
             >
-              <Plus size={13} />
-              <span>{isRtl ? 'إضافة نظام جديد' : 'Add New System'}</span>
+              <span>{isRtl ? 'إدارة الأنظمة' : 'Manage Systems'}</span>
             </button>
           </Can>
         </div>

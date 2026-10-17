@@ -259,6 +259,7 @@ export class DocumentGovernanceEngine {
       documentKey: docKey,
       systemKey: params.systemKey,
       integrationKey: params.integrationKey,
+      entityId: container.entityId || params.integrationKey,
       versionNumber: nextVer,
       bumpType: params.bumpType,
       allowedScope: params.allowedScope || 'FULL',
@@ -266,6 +267,12 @@ export class DocumentGovernanceEngine {
       status: 'DRAFT',
       authorId: params.authorId,
       authorName: params.authorName,
+      claimedBy: {
+        userId: params.authorId,
+        userName: params.authorName,
+        lockedAt: new Date().toISOString()
+      },
+      supervisorNotes: (params as any).supervisorNotes,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       endpointsCount: container.currentApprovedVersion?.endpointsCount || 0,
@@ -283,7 +290,106 @@ export class DocumentGovernanceEngine {
   }
 
   /**
+   * Exclusive Lock: Claim a draft by a specific user.
+   * Prevents other users from editing the same document version simultaneously.
+   */
+  public claimDraft(
+    systemKey: string,
+    integrationKey: string,
+    user: { id: string; name: string; email?: string }
+  ): { success: boolean; error?: string } {
+    const store = this.loadStore();
+    const docKey = this.getDocumentKey(systemKey, integrationKey);
+    const container = store[docKey];
+
+    if (!container || !container.activeDraftVersion) {
+      return { success: false, error: 'لا توجد مسودة نشطة متاحة للحجز.' };
+    }
+
+    const draft = container.activeDraftVersion;
+    if (draft.claimedBy && draft.claimedBy.userId !== user.id) {
+      return {
+        success: false,
+        error: `الوثيقة محجوزة ومقفلة حصرياً للتحرير بواسطة (${draft.claimedBy.userName}). لا يمكنك التعديل عليها حتى يقوم بتحريرها.`
+      };
+    }
+
+    draft.claimedBy = {
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email,
+      lockedAt: new Date().toISOString()
+    };
+    draft.updatedAt = new Date().toISOString();
+    container.updatedAt = new Date().toISOString();
+
+    store[docKey] = container;
+    this.saveStore(store);
+
+    return { success: true };
+  }
+
+  /**
+   * Exclusive Lock: Release the lock on a draft.
+   */
+  public releaseDraftLock(
+    systemKey: string,
+    integrationKey: string,
+    user: { id: string; name: string; isSupervisor?: boolean }
+  ): { success: boolean; error?: string } {
+    const store = this.loadStore();
+    const docKey = this.getDocumentKey(systemKey, integrationKey);
+    const container = store[docKey];
+
+    if (!container || !container.activeDraftVersion) {
+      return { success: true };
+    }
+
+    const draft = container.activeDraftVersion;
+    if (draft.claimedBy && draft.claimedBy.userId !== user.id && !user.isSupervisor) {
+      return {
+        success: false,
+        error: 'لا تملك صلاحية فك قفل الوثيقة المحجوزة لمستخدم آخر.'
+      };
+    }
+
+    draft.claimedBy = undefined;
+    draft.updatedAt = new Date().toISOString();
+    container.updatedAt = new Date().toISOString();
+
+    store[docKey] = container;
+    this.saveStore(store);
+
+    return { success: true };
+  }
+
+  /**
+   * Check if a draft is locked by another user.
+   */
+  public isDraftLockedForUser(
+    systemKey: string,
+    integrationKey: string,
+    currentUserId?: string
+  ): { isLocked: boolean; lockedBy?: string } {
+    const store = this.loadStore();
+    const docKey = this.getDocumentKey(systemKey, integrationKey);
+    const container = store[docKey];
+
+    if (!container || !container.activeDraftVersion || !container.activeDraftVersion.claimedBy) {
+      return { isLocked: false };
+    }
+
+    const claim = container.activeDraftVersion.claimedBy;
+    if (currentUserId && claim.userId === currentUserId) {
+      return { isLocked: false };
+    }
+
+    return { isLocked: true, lockedBy: claim.userName };
+  }
+
+  /**
    * Submits active draft to supervisor for review and approval.
+   * Releases editing lock and freezes content.
    */
   public submitDraftForReview(systemKey: string, integrationKey: string): { success: boolean; version?: DocVersionRecord; error?: string } {
     const store = this.loadStore();
@@ -298,6 +404,7 @@ export class DocumentGovernanceEngine {
     draft.status = 'UNDER_REVIEW';
     draft.submittedAt = new Date().toISOString();
     draft.updatedAt = new Date().toISOString();
+    draft.claimedBy = undefined; // Free lock upon submission
 
     container.pendingReviewVersion = draft;
     container.activeDraftVersion = undefined;
@@ -310,14 +417,15 @@ export class DocumentGovernanceEngine {
   }
 
   /**
-   * Supervisor Approves the version:
-   * 1. Marks version as APPROVED.
-   * 2. Moves prior approved version to SUPERSEDED.
-   * 3. Sets currentApprovedVersion to the newly approved version.
+   * Supervisor Approves the version with Strict Separation of Duties (SoD):
+   * 1. Maker-Checker Rule: Author cannot approve their own document.
+   * 2. Sets status to APPROVED and supersedes previous version.
+   * 3. Guarantees single approved baseline for system and entity.
    */
   public approveVersion(params: {
     systemKey: string;
     integrationKey: string;
+    approverId?: string;
     approverName: string;
   }): { success: boolean; approvedVersion?: DocVersionRecord; error?: string } {
     const store = this.loadStore();
@@ -333,7 +441,19 @@ export class DocumentGovernanceEngine {
       return { success: false, error: 'لا يوجد إصدار قيد الاعتماد لهذه الوثيقة.' };
     }
 
-    // Archive current approved version
+    // ── STRICT SEPARATION OF DUTIES (SoD) & ZERO-TRUST INVARIANT ──
+    const isSelfApproval = 
+      (params.approverId && targetVer.authorId === params.approverId) ||
+      (targetVer.authorName && targetVer.authorName.trim().toLowerCase() === params.approverName.trim().toLowerCase());
+
+    if (isSelfApproval) {
+      return {
+        success: false,
+        error: `خرق لمبدأ الفصل الصارم بين الواجبات (Separation of Duties - SoD): لا يجوز لمحرر الوثيقة (${targetVer.authorName}) اعتمادها بنفسه حتى وإن كان مديراً للنظام. يجب أن تتم المراجعة والاعتماد بواسطة معتمد/مشرف مستقل.`
+      };
+    }
+
+    // Archive current approved version (Immutability & Single Active Baseline)
     if (container.currentApprovedVersion) {
       container.currentApprovedVersion.status = 'SUPERSEDED';
     }
@@ -343,6 +463,7 @@ export class DocumentGovernanceEngine {
     targetVer.approvedBy = params.approverName;
     targetVer.approvedAt = new Date().toISOString();
     targetVer.updatedAt = new Date().toISOString();
+    targetVer.claimedBy = undefined;
 
     container.currentApprovedVersion = targetVer;
     container.pendingReviewVersion = undefined;
@@ -390,6 +511,49 @@ export class DocumentGovernanceEngine {
     this.saveStore(store);
 
     return { success: true, rejectedVersion: v };
+  }
+
+  /**
+   * Integration Pre-Condition Guard:
+   * Checks whether an entity has a certified APPROVED API Document in the repository.
+   * Without an approved document, integration is strictly forbidden.
+   */
+  public hasApprovedDocForEntity(entityId: string): boolean {
+    if (!entityId) return false;
+    const store = this.loadStore();
+    const cleanEntityId = entityId.trim().toLowerCase();
+
+    // Search across all containers matching this entityId
+    for (const container of Object.values(store)) {
+      const matchEntity = 
+        (container.entityId && container.entityId.trim().toLowerCase() === cleanEntityId) ||
+        (container.integrationKey && container.integrationKey.trim().toLowerCase() === cleanEntityId);
+
+      if (matchEntity && container.currentApprovedVersion && container.currentApprovedVersion.status === 'APPROVED') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Retrieves the active approved document for an entity if it exists.
+   */
+  public getApprovedDocForEntity(entityId: string): DocVersionRecord | undefined {
+    if (!entityId) return undefined;
+    const store = this.loadStore();
+    const cleanEntityId = entityId.trim().toLowerCase();
+
+    for (const container of Object.values(store)) {
+      const matchEntity = 
+        (container.entityId && container.entityId.trim().toLowerCase() === cleanEntityId) ||
+        (container.integrationKey && container.integrationKey.trim().toLowerCase() === cleanEntityId);
+
+      if (matchEntity && container.currentApprovedVersion && container.currentApprovedVersion.status === 'APPROVED') {
+        return container.currentApprovedVersion;
+      }
+    }
+    return undefined;
   }
 
   /**

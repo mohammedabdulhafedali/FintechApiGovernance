@@ -1,5 +1,43 @@
 [
   {
+    "id": "REQ-2026-0014",
+    "resourceKey": "catalog:sectors",
+    "resourceNameAr": "القطاعات والأنظمة المصرفية",
+    "resourceNameEn": "Banking Sectors & Systems",
+    "actionType": "DELETE",
+    "actionDescriptionAr": "حذف القطاع المصرفي: sec_1792223458346",
+    "actionDescriptionEn": "Delete banking sector: sec_1792223458346",
+    "targetResourceId": "sec_1792223458346",
+    "payload": {},
+    "diffSummary": [],
+    "makerId": "usr_admin_01",
+    "makerName": "مدير النظام",
+    "makerGroup": "مدير النظام",
+    "submittedAt": "2026-10-17T07:51:09.443Z",
+    "status": "PENDING",
+    "currentStageOrder": 1,
+    "totalStages": 2,
+    "stages": [
+      {
+        "stageOrder": 1,
+        "stageKey": "architect_signoff",
+        "stageNameAr": "اعتماد معماري الـ API",
+        "stageNameEn": "API Architect Sign-off",
+        "requiredPermission": "governance:approve",
+        "minApprovers": 1
+      },
+      {
+        "stageOrder": 2,
+        "stageKey": "security_signoff",
+        "stageNameAr": "اعتماد ضابط أمن المعلومات (CISO)",
+        "stageNameEn": "Chief Information Security Officer Sign-off",
+        "requiredPermission": "governance:approve:security",
+        "minApprovers": 1
+      }
+    ],
+    "approvalTrail": []
+  },
+  {
     "id": "REQ-2026-0013",
     "resourceKey": "catalog:sectors",
     "resourceNameAr": "القطاعات والأنظمة المصرفية",

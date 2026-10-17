@@ -1,5 +1,120 @@
 [
   {
+    "userId": "admin",
+    "username": "admin",
+    "action": "iam:group:delete",
+    "resource": "group:AML",
+    "status": "SUCCESS",
+    "details": "حذف الدور/المجموعة [aml] (Key: AML)",
+    "id": "log_1792223257866_6955c125",
+    "timestamp": "2026-10-17T07:47:37.866Z"
+  },
+  {
+    "userId": "admin",
+    "username": "admin",
+    "action": "iam:group:delete",
+    "resource": "group:INTEGRATED_USERS",
+    "status": "SUCCESS",
+    "details": "حذف الدور/المجموعة [مستخدمين الربط الخاجي] (Key: INTEGRATED_USERS)",
+    "id": "log_1792223254685_8c757043",
+    "timestamp": "2026-10-17T07:47:34.685Z"
+  },
+  {
+    "userId": "admin",
+    "username": "admin",
+    "action": "iam:user:delete",
+    "resource": "user:admin2",
+    "status": "SUCCESS",
+    "details": "حذف حساب المستخدم [عصام الحمادي] (@admin2)",
+    "id": "log_1792223243930_ba02f387",
+    "timestamp": "2026-10-17T07:47:23.930Z"
+  },
+  {
+    "userId": "admin",
+    "username": "admin",
+    "action": "iam:user:delete",
+    "resource": "user:admin4",
+    "status": "SUCCESS",
+    "details": "حذف حساب المستخدم [احمد] (@admin4)",
+    "id": "log_1792223241249_1e1024db",
+    "timestamp": "2026-10-17T07:47:21.249Z"
+  },
+  {
+    "userId": "admin",
+    "username": "admin",
+    "action": "iam:user:delete",
+    "resource": "user:admin5",
+    "status": "SUCCESS",
+    "details": "حذف حساب المستخدم [حمود] (@admin5)",
+    "id": "log_1792223238079_b4395ba6",
+    "timestamp": "2026-10-17T07:47:18.080Z"
+  },
+  {
+    "userId": "admin",
+    "username": "admin",
+    "action": "iam:group:delete",
+    "resource": "group:KRA",
+    "status": "SUCCESS",
+    "details": "حذف الدور/المجموعة [الكريمي] (Key: KRA)",
+    "id": "log_1792222205663_a1158b29",
+    "timestamp": "2026-10-17T07:30:05.664Z"
+  },
+  {
+    "userId": "usr_admin_01",
+    "username": "admin",
+    "action": "auth:login",
+    "resource": "iam:session",
+    "status": "SUCCESS",
+    "details": "تم تسجيل الدخول بنجاح - المجموعات: مدير النظام",
+    "ip": "::1",
+    "id": "log_1792222158422_8567c4b5",
+    "timestamp": "2026-10-17T07:29:18.422Z"
+  },
+  {
+    "userId": "usr_1792187914672_a599b1",
+    "username": "admin4",
+    "action": "auth:login",
+    "resource": "iam:session",
+    "status": "SUCCESS",
+    "details": "تم تسجيل الدخول بنجاح - المجموعات: مستعرض",
+    "ip": "::1",
+    "id": "log_1792222148058_df946d52",
+    "timestamp": "2026-10-17T07:29:08.059Z"
+  },
+  {
+    "userId": "anonymous",
+    "username": "admin3",
+    "action": "auth:login",
+    "resource": "iam:session",
+    "status": "FAILED",
+    "details": "فشل تسجيل الدخول: المستخدم غير موجود",
+    "ip": "::1",
+    "id": "log_1792222143232_fe4935cb",
+    "timestamp": "2026-10-17T07:29:03.232Z"
+  },
+  {
+    "userId": "usr_admin_01",
+    "username": "admin",
+    "action": "auth:login",
+    "resource": "iam:session",
+    "status": "SUCCESS",
+    "details": "تم تسجيل الدخول بنجاح - المجموعات: مدير النظام",
+    "ip": "::1",
+    "id": "log_1792222131688_daf75dbf",
+    "timestamp": "2026-10-17T07:28:51.688Z"
+  },
+  {
+    "userId": "usr_admin_01",
+    "username": "admin",
+    "action": "auth:login",
+    "resource": "iam:session",
+    "status": "SUCCESS",
+    "details": "تم تسجيل الدخول بنجاح - المجموعات: مدير النظام",
+    "ip": "::1",
+    "id": "log_1792220753986_ddd72691",
+    "timestamp": "2026-10-17T07:05:53.987Z"
+  },
+  {
     "userId": "usr_1792188151324_981a86",
     "username": "admin5",
     "action": "auth:login",

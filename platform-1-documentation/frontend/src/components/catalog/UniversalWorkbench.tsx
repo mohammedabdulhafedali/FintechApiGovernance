@@ -47,15 +47,22 @@ import { FloatingAlertCard, FloatingAlertState } from '../common/FloatingAlertCa
 import { formatSyntaxError } from '../../utils/syntaxErrorFormatter';
 import { useLanguage } from '../../i18n';
 import { pdfApiParser } from '../../services/pdfApiParser';
+import { useAuth } from '../auth/AuthContext';
+import { IntegrationGovernanceModal } from '../common/IntegrationGovernanceModal';
+import { GovernanceLockBanner } from '../common/GovernanceLockBanner';
+import { docGovernanceEngine } from '../../services/docGovernanceEngine';
+import { Sector } from '../../types/schema';
 
 interface UniversalWorkbenchProps {
   initialDocument?: UastDocument;
   onPublishSuccess?: (doc: UastDocument, targetSystemKey?: string, targetEntityKey?: string) => void;
   onBackToCatalog?: () => void;
   systems?: Record<string, SystemModule>;
+  masterSectors?: Record<string, Sector>;
   activeSystemKey?: string;
   activeIntegrationKey?: string;
   onAddSystem?: (newSystem: SystemModule) => void;
+  onCreateSector?: (entity: { key: string; name: string; nameEn?: string; code: string; icon?: string }) => Promise<void>;
   onAddIntegration?: (systemKey: string, newIntegration: SystemIntegration) => void;
 }
 
@@ -270,13 +277,19 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
   onPublishSuccess,
   onBackToCatalog,
   systems = {},
+  masterSectors = {},
   activeSystemKey = '',
   activeIntegrationKey = '',
   onAddSystem,
+  onCreateSector,
   onAddIntegration
 }) => {
+  const { user, hasPermission } = useAuth();
   const { isRtl, language, t, getLocalized } = useLanguage();
   const isEn = language === 'en';
+
+  // ── Governance Refresh Trigger ──
+  const [govTrigger, setGovTrigger] = useState(0);
 
   // ── Workbench Systems & Integrations Target State ──
   const [workbenchSystems, setWorkbenchSystems] = useState<Record<string, SystemModule>>(() => {
@@ -308,14 +321,55 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
     return Object.keys(sys?.integrations || {})[0] || 'banking';
   });
 
+  // Governance container & active draft version for the selected system & entity
+  const activeDocContainer = useMemo(() => {
+    if (typeof docGovernanceEngine?.getContainer === 'function') {
+      return docGovernanceEngine.getContainer(selectedSystemKey, selectedEntityId);
+    }
+    return undefined;
+  }, [selectedSystemKey, selectedEntityId, govTrigger]);
+
+  const activeDraftRecord = activeDocContainer?.activeDraftVersion;
+  const allowedGovernanceScope = activeDraftRecord?.allowedScope || 'FULL';
+
+  // ── EXCLUSIVE CLAIM & USER LOCK LOGIC ──
+  const lockStatus = useMemo(() => {
+    return docGovernanceEngine.isDraftLockedForUser(selectedSystemKey, selectedEntityId, user?.id);
+  }, [selectedSystemKey, selectedEntityId, user?.id, govTrigger]);
+
+  const isApproverRole = useMemo(() => {
+    return !user?.isSuperAdmin && (user?.roleId === 'approver' || hasPermission('governance:inbox:approve')) && !hasPermission('*');
+  }, [user, hasPermission]);
+
+  const isClaimedByMe = activeDraftRecord?.claimedBy?.userId === user?.id;
+  const canClaim = !!activeDraftRecord && !activeDraftRecord.claimedBy;
+
+  const handleClaimDraft = () => {
+    if (!user) return;
+    const res = docGovernanceEngine.claimDraft(selectedSystemKey, selectedEntityId, {
+      id: user.id || 'usr_me',
+      name: user.displayName || user.username || 'محرر الوثائق',
+      email: user.email
+    });
+    if (res.success) {
+      setGovTrigger(prev => prev + 1);
+    }
+  };
+
+  const handleReleaseDraft = () => {
+    if (!user) return;
+    const res = docGovernanceEngine.releaseDraftLock(selectedSystemKey, selectedEntityId, {
+      id: user.id || 'usr_me',
+      name: user.displayName || user.username || 'محرر الوثائق',
+      isSupervisor: user.isSuperAdmin || hasPermission('*')
+    });
+    if (res.success) {
+      setGovTrigger(prev => prev + 1);
+    }
+  };
+
   // Modals for Adding System & Entity Inline
   const [isAddSystemModalOpen, setIsAddSystemModalOpen] = useState(false);
-  const [newSysNameAr, setNewSysNameAr] = useState('');
-  const [newSysNameEn, setNewSysNameEn] = useState('');
-  const [newSysCode, setNewSysCode] = useState('SYS_');
-  const [newSysIcon, setNewSysIcon] = useState('Layers');
-  const [newSysDesc, setNewSysDesc] = useState('');
-
   const [isAddEntityModalOpen, setIsAddEntityModalOpen] = useState(false);
   const [newEntityNameAr, setNewEntityNameAr] = useState('');
   const [newEntityNameEn, setNewEntityNameEn] = useState('');
@@ -2040,6 +2094,19 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
       {activeTab === 'add' && editorState === 'active_editing' && activeDoc && (
         <div className={`studio-workbench-container fs-${fullscreenTarget}`}>
           
+          {/* ── GOVERNANCE LOCK & SCOPED EDIT RESTRICTION BANNER ── */}
+          <GovernanceLockBanner
+            isLockedByOther={lockStatus.isLocked}
+            lockedBy={lockStatus.lockedBy}
+            isApproverRole={isApproverRole}
+            allowedScope={allowedGovernanceScope}
+            supervisorNotes={activeDraftRecord?.supervisorNotes}
+            isClaimedByMe={isClaimedByMe}
+            canClaim={canClaim}
+            onClaim={handleClaimDraft}
+            onRelease={handleReleaseDraft}
+          />
+
           {/* ── FLOATING MULTI-PANE VISIBILITY TOOLBAR (AUTO-HIDE & PIN) ── */}
           {(fullscreenTarget === 'none' || fullscreenTarget === 'all') && (
             <div 
@@ -3208,6 +3275,39 @@ export const UniversalWorkbench: React.FC<UniversalWorkbenchProps> = ({
 
         </div>
       )}
+
+      {/* ── GOVERNANCE INTEGRATION & CREATION MODAL ── */}
+      <IntegrationGovernanceModal
+        isOpen={isAddEntityModalOpen || isAddSystemModalOpen}
+        onClose={() => {
+          setIsAddEntityModalOpen(false);
+          setIsAddSystemModalOpen(false);
+        }}
+        system={workbenchSystems[selectedSystemKey] || null}
+        masterSectors={masterSectors}
+        allSystems={workbenchSystems}
+        onConfirmIntegration={async (sysKey, newInt) => {
+          if (onAddIntegration) {
+            await onAddIntegration(sysKey, newInt);
+          }
+          setSelectedEntityId(newInt.entityId);
+          setGovTrigger(prev => prev + 1);
+        }}
+        onCreateEntity={async (newEnt) => {
+          if (onCreateSector) {
+            await onCreateSector(newEnt);
+          }
+          setGovTrigger(prev => prev + 1);
+        }}
+        onCreateSystem={async (newSys) => {
+          setWorkbenchSystems(prev => ({ ...prev, [newSys.key]: newSys }));
+          if (onAddSystem) {
+            onAddSystem(newSys);
+          }
+          setSelectedSystemKey(newSys.key);
+          setGovTrigger(prev => prev + 1);
+        }}
+      />
 
     </div>
   );

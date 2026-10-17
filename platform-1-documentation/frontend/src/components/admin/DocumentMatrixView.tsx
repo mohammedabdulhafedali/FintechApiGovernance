@@ -235,6 +235,7 @@ export const DocumentMatrixView: React.FC<DocumentMatrixViewProps> = ({
     const res = docGovernanceEngine.approveVersion({
       systemKey: c.systemKey,
       integrationKey: c.integrationKey,
+      approverId: user?.id,
       approverName: user?.displayName || user?.username || 'المشرف المعتمد'
     });
 
@@ -1187,22 +1188,54 @@ export const DocumentMatrixView: React.FC<DocumentMatrixViewProps> = ({
                         {hasReview && (
                           <>
                             {canApprove && (
-                              <button
-                                onClick={() => handleDirectApprove(c)}
-                                style={{
-                                  padding: '0.28rem 0.6rem',
-                                  borderRadius: '4px',
-                                  background: '#10b981',
-                                  color: '#ffffff',
-                                  border: 'none',
-                                  fontSize: '0.7rem',
-                                  fontWeight: 700,
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                <ShieldCheck size={11} style={{ display: 'inline', [isRtl ? 'marginLeft' : 'marginRight']: '0.2rem' }} />
-                                {isRtl ? 'اعتماد' : 'Approve'}
-                              </button>
+                              (() => {
+                                const targetVer = c.pendingReviewVersion || c.activeDraftVersion;
+                                const isSelf = targetVer && (
+                                  (user?.id && targetVer.authorId === user.id) ||
+                                  (user?.displayName && targetVer.authorName === user.displayName) ||
+                                  (user?.username && targetVer.authorName === user.username)
+                                );
+                                if (isSelf) {
+                                  return (
+                                    <span 
+                                      style={{
+                                        padding: '0.28rem 0.6rem',
+                                        borderRadius: '4px',
+                                        background: 'rgba(255, 255, 255, 0.05)',
+                                        color: '#94a3b8',
+                                        fontSize: '0.68rem',
+                                        fontWeight: 600,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.2rem',
+                                        cursor: 'not-allowed'
+                                      }}
+                                      title={isRtl ? 'حظر حوكمة (SoD): لا يجوز لمحرر الوثيقة اعتمادها بنفسه حتى لو كان مديراً.' : 'SoD Block: Author cannot approve own version.'}
+                                    >
+                                      <Lock size={10} />
+                                      {isRtl ? 'حظر SoD' : 'SoD Block'}
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <button
+                                    onClick={() => handleDirectApprove(c)}
+                                    style={{
+                                      padding: '0.28rem 0.6rem',
+                                      borderRadius: '4px',
+                                      background: '#10b981',
+                                      color: '#ffffff',
+                                      border: 'none',
+                                      fontSize: '0.7rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    <ShieldCheck size={11} style={{ display: 'inline', [isRtl ? 'marginLeft' : 'marginRight']: '0.2rem' }} />
+                                    {isRtl ? 'اعتماد' : 'Approve'}
+                                  </button>
+                                );
+                              })()
                             )}
 
                             {onNavigateToDoc && (

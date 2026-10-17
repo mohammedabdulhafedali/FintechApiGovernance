@@ -14,11 +14,19 @@ export type ChangeScopeType =
   | 'SECURITY_AUTH' 
   | 'OVERVIEW';
 
+export interface DocClaimInfo {
+  userId: string;
+  userName: string;
+  userEmail?: string;
+  lockedAt: string;
+}
+
 export interface DocVersionRecord {
   id: string;
   documentKey: string;
   systemKey: string;
   integrationKey: string;
+  entityId?: string;
   versionNumber: string;
   bumpType?: VersionBumpType;
   allowedScope?: ChangeScopeType;
@@ -26,6 +34,7 @@ export interface DocVersionRecord {
   status: DocVersionStatus;
   authorId: string;
   authorName: string;
+  claimedBy?: DocClaimInfo;
   createdAt: string;
   updatedAt: string;
   submittedAt?: string;
@@ -34,6 +43,7 @@ export interface DocVersionRecord {
   rejectedBy?: string;
   rejectedAt?: string;
   rejectionReason?: string;
+  supervisorNotes?: string;
   endpointsCount: number;
   payloadSnapshot?: any;
 }
@@ -46,6 +56,7 @@ export interface SystemEntityDocContainer {
   integrationKey: string;
   integrationName: string;
   integrationCode: string;
+  entityId?: string;
   hasDocument: boolean;
   currentApprovedVersion?: DocVersionRecord;
   activeDraftVersion?: DocVersionRecord;
@@ -58,8 +69,10 @@ export interface SystemEntityDocContainer {
 export interface VersionCreationParams {
   systemKey: string;
   integrationKey: string;
+  entityId?: string;
   bumpType: VersionBumpType;
   allowedScope?: ChangeScopeType;
   changeSummary: string;
+  supervisorNotes?: string;
 }
 
