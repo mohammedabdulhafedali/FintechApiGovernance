@@ -1,5 +1,68 @@
 [
   {
+    "userId": "usr_1792188151324_981a86",
+    "username": "admin5",
+    "action": "auth:login",
+    "resource": "iam:session",
+    "status": "SUCCESS",
+    "details": "تم تسجيل الدخول بنجاح - المجموعات: aml",
+    "ip": "::1",
+    "id": "log_1792188160148_511ad182",
+    "timestamp": "2026-10-16T22:02:40.148Z"
+  },
+  {
+    "userId": "admin",
+    "username": "admin",
+    "action": "iam:user:create",
+    "resource": "user:admin5",
+    "status": "SUCCESS",
+    "details": "تم إنشاء المستخدم [حمود] وربطه بمجموعات الصلاحيات: [aml]",
+    "id": "log_1792188151328_bd901de1",
+    "timestamp": "2026-10-16T22:02:31.328Z"
+  },
+  {
+    "userId": "admin",
+    "username": "admin",
+    "action": "iam:group:create",
+    "resource": "group:AML",
+    "status": "SUCCESS",
+    "details": "إنشاء مجموعة/دور جديد [aml] بحالة (ACTIVE) وبصلاحيات (1)",
+    "id": "log_1792188084489_ae44a4ac",
+    "timestamp": "2026-10-16T22:01:24.489Z"
+  },
+  {
+    "userId": "usr_admin_01",
+    "username": "admin",
+    "action": "auth:login",
+    "resource": "iam:session",
+    "status": "SUCCESS",
+    "details": "تم تسجيل الدخول بنجاح - المجموعات: مدير النظام",
+    "ip": "::1",
+    "id": "log_1792187986022_d240d331",
+    "timestamp": "2026-10-16T21:59:46.022Z"
+  },
+  {
+    "userId": "usr_1792187914672_a599b1",
+    "username": "admin4",
+    "action": "auth:login",
+    "resource": "iam:session",
+    "status": "SUCCESS",
+    "details": "تم تسجيل الدخول بنجاح - المجموعات: مستعرض",
+    "ip": "::1",
+    "id": "log_1792187926181_403e0fb4",
+    "timestamp": "2026-10-16T21:58:46.181Z"
+  },
+  {
+    "userId": "admin",
+    "username": "admin",
+    "action": "iam:user:create",
+    "resource": "user:admin4",
+    "status": "SUCCESS",
+    "details": "تم إنشاء المستخدم [احمد] وربطه بمجموعات الصلاحيات: [مستعرض]",
+    "id": "log_1792187914677_fefbaae5",
+    "timestamp": "2026-10-16T21:58:34.678Z"
+  },
+  {
     "userId": "usr_admin_01",
     "username": "admin",
     "action": "auth:login",

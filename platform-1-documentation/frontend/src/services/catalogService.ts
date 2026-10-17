@@ -214,8 +214,13 @@ export class CatalogService {
       const cached = localStorage.getItem(LOCAL_STORAGE_SYSTEMS_KEY);
       if (cached) {
         const current: Record<string, SystemModule> = JSON.parse(cached);
-        if (current[systemKey]?.integrations) {
-          delete current[systemKey].integrations[entityId];
+        if (current[systemKey]) {
+          if (current[systemKey].integrations) {
+            delete current[systemKey].integrations[entityId];
+          }
+          if (current[systemKey].associatedSectorKeys) {
+            current[systemKey].associatedSectorKeys = current[systemKey].associatedSectorKeys.filter(k => k !== entityId);
+          }
           localStorage.setItem(LOCAL_STORAGE_SYSTEMS_KEY, JSON.stringify(current));
         }
       }

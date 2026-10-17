@@ -277,6 +277,24 @@ const AppContent: React.FC = () => {
 
   const handleDeleteSector = async (sectorKey: string) => {
     const secName = masterSectors[sectorKey]?.name || sectorKey;
+
+    // Strict Governance Pre-condition check (Domain Invariant & Referential Integrity)
+    const linkedCount = Object.values(systems).filter(sys => {
+      const keys = sys.associatedSectorKeys || Object.keys(sys.integrations || {});
+      return keys.includes(sectorKey);
+    }).length;
+
+    if (linkedCount > 0) {
+      showFloatingAlert(
+        isRtl ? 'حظر الحوكمة والنزاهة المرجعية' : 'Governance Constraint Block',
+        isRtl 
+          ? `لا يمكن حذف الجهة [${secName}] لأنها مرتبطة بـ (${linkedCount}) أنظمة نشطة في المنظومة. يجب فك ارتباط التكاملات أولاً.` 
+          : `Cannot delete entity [${secName}] because it is linked to (${linkedCount}) active systems.`,
+        'error'
+      );
+      return;
+    }
+
     setMasterSectors(prev => {
       const updated = { ...prev };
       delete updated[sectorKey];
@@ -290,10 +308,16 @@ const AppContent: React.FC = () => {
       await catalogService.deleteSector(sectorKey);
       showFloatingAlert(
         isRtl ? 'تم حذف القطاع/الجهة' : 'Sector Deleted',
-        isRtl ? `تمت إزالة [${secName}] من دليل القطاعات والجهات.` : `Sector [${secName}] removed.`,
+        isRtl ? `تمت إزالة [${secName}] من دليل القطاعات والجهات المعتمدة بنجاح.` : `Sector [${secName}] removed.`,
         'info'
       );
-    } catch {}
+    } catch (err: any) {
+      showFloatingAlert(
+        isRtl ? 'خطأ في الحذف' : 'Deletion Error',
+        err.message || (isRtl ? 'تعذر حذف القطاع' : 'Failed to delete sector'),
+        'error'
+      );
+    }
   };
 
   // Dynamically derive combined sectors for backward-compatibility & Export Studio
@@ -517,9 +541,19 @@ const AppContent: React.FC = () => {
     catalogService.deleteIntegration(activeSystemKey, sectorKey);
     setSystems(prev => {
       const updated = { ...prev };
-      if (updated[activeSystemKey]?.integrations) {
-        delete updated[activeSystemKey].integrations[sectorKey];
+      if (updated[activeSystemKey]) {
+        const nextIntegrations = { ...(updated[activeSystemKey].integrations || {}) };
+        delete nextIntegrations[sectorKey];
+        const nextAssociated = (updated[activeSystemKey].associatedSectorKeys || []).filter(k => k !== sectorKey);
+        updated[activeSystemKey] = {
+          ...updated[activeSystemKey],
+          integrations: nextIntegrations,
+          associatedSectorKeys: nextAssociated
+        };
       }
+      try {
+        localStorage.setItem('gov_fintech_systems_cache', JSON.stringify(updated));
+      } catch {}
       return updated;
     });
 
@@ -535,7 +569,7 @@ const AppContent: React.FC = () => {
 
     showFloatingAlert(
       isRtl ? 'تم حذف التكامل' : 'Integration Removed',
-      isRtl ? `تم حذف التكامل [${sectorKey}] من النظام بنجاح.` : `Integration [${sectorKey}] was removed.`,
+      isRtl ? `تم حذف التكامل [${sectorKey}] وتحديث السجلات الدائمة بنجاح.` : `Integration [${sectorKey}] was removed.`,
       'info'
     );
   };
@@ -758,6 +792,9 @@ const AppContent: React.FC = () => {
                   setSystems(prev => {
                     const updated = { ...prev };
                     delete updated[sysKey];
+                    try {
+                      localStorage.setItem('gov_fintech_systems_cache', JSON.stringify(updated));
+                    } catch {}
                     return updated;
                   });
                   showFloatingAlert(

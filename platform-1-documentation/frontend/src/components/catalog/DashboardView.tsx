@@ -271,6 +271,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const handleConfirmDeleteSector = () => {
     if (!sectorPendingDelete) return;
 
+    if (sectorPendingDelete.linkedCount > 0) {
+      setSectorAlertMessage({
+        type: 'error',
+        text: isRtl
+          ? `حظر حوكمة: لا يمكن حذف [${sectorPendingDelete.name}] لوجود ارتباط نشط مع (${sectorPendingDelete.linkedCount}) أنظمة مركزية.`
+          : `Governance block: Cannot delete [${sectorPendingDelete.name}] because it is linked to (${sectorPendingDelete.linkedCount}) systems.`
+      });
+      setSectorPendingDelete(null);
+      return;
+    }
+
     const deletedName = sectorPendingDelete.name;
     const deleteKey = sectorPendingDelete.key;
 
@@ -1043,31 +1054,37 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#f87171', margin: '0 0 0.75rem 0' }}>
-                {isRtl ? 'تأكيد حذف القطاع' : 'Confirm Sector Deletion'}
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: sectorPendingDelete.linkedCount > 0 ? '#f59e0b' : '#f87171', margin: '0 0 0.75rem 0' }}>
+                {sectorPendingDelete.linkedCount > 0
+                  ? (isRtl ? 'حظر الحوكمة والنزاهة المرجعية' : 'Governance Referential Block')
+                  : (isRtl ? 'تأكيد حذف القطاع / الجهة' : 'Confirm Sector Deletion')}
               </h3>
               <p style={{ fontSize: '0.88rem', color: '#cbd5e1', lineHeight: '1.6', margin: '0 0 1rem 0' }}>
-                {isRtl
-                  ? `هل أنت متأكد من رغبتك في حذف قطاع [${sectorPendingDelete.name}] نهائياً من المنظومة؟`
-                  : `Are you sure you want to permanently delete sector [${sectorPendingDelete.name}]?`}
+                {sectorPendingDelete.linkedCount > 0
+                  ? (isRtl
+                    ? `لا يمكن إتمام عملية الحذف لجهة [${sectorPendingDelete.name}] لأنها مرتبطة حالياً بـ (${sectorPendingDelete.linkedCount}) أنظمة نشطة في المنظومة.`
+                    : `Cannot delete entity [${sectorPendingDelete.name}] because it is currently linked to (${sectorPendingDelete.linkedCount}) active systems.`)
+                  : (isRtl
+                    ? `هل أنت متأكد من رغبتك في حذف قطاع [${sectorPendingDelete.name}] نهائياً من المنظومة؟`
+                    : `Are you sure you want to permanently delete sector [${sectorPendingDelete.name}]?`)}
               </p>
               {sectorPendingDelete.linkedCount > 0 && (
                 <div style={{
-                  background: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  background: 'rgba(245, 158, 11, 0.12)',
+                  border: '1px solid rgba(245, 158, 11, 0.4)',
                   borderRadius: '5px',
-                  padding: '0.65rem 0.85rem',
+                  padding: '0.75rem 0.95rem',
                   marginBottom: '1.25rem',
-                  fontSize: '0.8rem',
-                  color: '#fca5a5',
+                  fontSize: '0.82rem',
+                  color: '#fbbf24',
                   lineHeight: '1.5'
                 }}>
                   {isRtl
-                    ? `تنبيه: هذا القطاع مرتبط حالياً بـ (${sectorPendingDelete.linkedCount}) نظام مركزي. الحذف قد يؤثر على عرض تكاملات تلك الأنظمة.`
-                    : `Warning: This sector is currently linked to (${sectorPendingDelete.linkedCount}) core systems.`}
+                    ? `قاعدة معمارية (SOLID / Domain Invariant): لحماية سلامة الوثائق والتكاملات، يجب التوجه إلى الأنظمة المرتبطة وإلغاء الربط مع هذه الجهة أولاً قبل التمكن من حذفها.`
+                    : `Architecture Rule: To protect document and integration integrity, you must decouple this entity from the linked systems before deleting.`}
                 </div>
               )}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: sectorPendingDelete.linkedCount > 0 ? 0 : '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>
                 <button
                   type="button"
                   onClick={() => setSectorPendingDelete(null)}
@@ -1082,25 +1099,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     cursor: 'pointer'
                   }}
                 >
-                  {isRtl ? 'إلغاء' : 'Cancel'}
+                  {sectorPendingDelete.linkedCount > 0 ? (isRtl ? 'حسناً، فهمت' : 'Understood') : (isRtl ? 'إلغاء' : 'Cancel')}
                 </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmDeleteSector}
-                  style={{
-                    background: '#dc2626',
-                    border: '1px solid #f87171',
-                    color: '#ffffff',
-                    padding: '0.5rem 1.5rem',
-                    borderRadius: '5px',
-                    fontSize: '0.85rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.25)'
-                  }}
-                >
-                  {isRtl ? 'تأكيد الحذف' : 'Confirm Delete'}
-                </button>
+                {sectorPendingDelete.linkedCount === 0 && (
+                  <button
+                    type="button"
+                    onClick={handleConfirmDeleteSector}
+                    style={{
+                      background: '#dc2626',
+                      border: '1px solid #f87171',
+                      color: '#ffffff',
+                      padding: '0.5rem 1.5rem',
+                      borderRadius: '5px',
+                      fontSize: '0.85rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.25)'
+                    }}
+                  >
+                    {isRtl ? 'تأكيد الحذف' : 'Confirm Delete'}
+                  </button>
+                )}
               </div>
             </div>
           </div>

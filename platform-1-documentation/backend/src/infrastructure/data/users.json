@@ -45,5 +45,65 @@
     },
     "createdAt": "2026-10-16T15:38:42.238Z",
     "updatedAt": "2026-10-16T15:38:42.238Z"
+  },
+  {
+    "id": "usr_1792187914672_a599b1",
+    "username": "admin4",
+    "email": "fsfsf@gmail.com",
+    "fullName": "احمد",
+    "passwordHash": "ed8a0984df5bcc021af4d838c3d532fd2d4956fe51f933640e6349884db3f4cc4a5d9d5b56820c9b86ba494540836c2fc84c1e60e6afe8e4f5acf6cd863d5777",
+    "passwordSalt": "355431d0ed0e726b71ae8a5bac21dd17",
+    "groupId": "grp_viewers",
+    "groupIds": [
+      "grp_viewers"
+    ],
+    "status": "ACTIVE",
+    "userType": "INTERNAL",
+    "organizationId": "internal",
+    "organizationName": "ultimatepay",
+    "accessScope": {
+      "allowedEntityIds": [
+        "*"
+      ],
+      "allowedSystemIds": [
+        "*"
+      ]
+    },
+    "overrides": {
+      "grantedPermissions": [],
+      "revokedPermissions": []
+    },
+    "createdAt": "2026-10-16T21:58:34.672Z",
+    "updatedAt": "2026-10-16T21:58:34.672Z"
+  },
+  {
+    "id": "usr_1792188151324_981a86",
+    "username": "admin5",
+    "email": "af@gmail.com",
+    "fullName": "حمود",
+    "passwordHash": "611edb312e51aa4c2dc5b299c1c4598ea3ab6abb7f3775d7130fd3878cdb3d647b16250ffe47bdbd1032a567c067660da150b55fd71a59ca17a35924ace44a8e",
+    "passwordSalt": "2bd74d45e4ebaacc56ba3c1cae9a5bc0",
+    "groupId": "grp_1792188084481_db7a80",
+    "groupIds": [
+      "grp_1792188084481_db7a80"
+    ],
+    "status": "ACTIVE",
+    "userType": "INTERNAL",
+    "organizationId": "telecom",
+    "organizationName": "aml",
+    "accessScope": {
+      "allowedEntityIds": [
+        "*"
+      ],
+      "allowedSystemIds": [
+        "*"
+      ]
+    },
+    "overrides": {
+      "grantedPermissions": [],
+      "revokedPermissions": []
+    },
+    "createdAt": "2026-10-16T22:02:31.324Z",
+    "updatedAt": "2026-10-16T22:02:31.324Z"
   }
 ]

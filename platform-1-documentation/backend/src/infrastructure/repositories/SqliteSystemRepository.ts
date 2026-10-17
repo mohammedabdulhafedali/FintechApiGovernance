@@ -375,6 +375,10 @@ export class SqliteSystemRepository {
       delete system.integrations[entityId];
     }
 
+    if (system.associatedSectorKeys) {
+      system.associatedSectorKeys = system.associatedSectorKeys.filter(k => k !== entityId);
+    }
+
     return this.saveSystem(system);
   }
 }

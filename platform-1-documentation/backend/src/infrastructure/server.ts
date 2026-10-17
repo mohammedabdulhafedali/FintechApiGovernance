@@ -179,7 +179,7 @@ export function createApp() {
   const getSectorEndpointsUseCase = new GetSectorEndpointsUseCase(sectorRepository);
   const createEndpointUseCase = new CreateEndpointUseCase(sectorRepository);
   const createSectorUseCase = new CreateSectorUseCase(sectorRepository);
-  const deleteSectorUseCase = new DeleteSectorUseCase(sectorRepository);
+  const deleteSectorUseCase = new DeleteSectorUseCase(sectorRepository, systemRepository);
 
   // 8. Dynamic Permission Discovery Engine
   const dynamicPermissionService = new DynamicSystemPermissionService(sectorRepository, systemRepository);
